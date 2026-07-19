@@ -763,8 +763,29 @@ def _variation_lenses(count):
     lenses = list(WRITING_GRAMMAR.get("variation_lenses", []))
     if not lenses:
         lenses = [{"name": "核心画面", "instruction": "选择本轮最有表现力的一种完整方案。"}]
-    random.SystemRandom().shuffle(lenses)
-    return [dict(lenses[index % len(lenses)]) for index in range(count)]
+    environment_rules = [
+        "采用干燥晴朗的日间环境；不出现降雨、积水、湿地面、滴水雨伞或无来源水花。",
+        "采用干燥的室内自然光环境；室内地面和家具保持正常干燥，不撑伞，不出现飘雨。",
+        "采用多云但无降水的环境，使用柔和漫射光，不用湿地反光制造氛围。",
+        "采用清晨干燥环境，以低角度阳光、长影和清晰空气建立时间感。",
+        "采用午后干燥环境，以正常日照、材料本色和人物活动建立生活感。",
+        "采用傍晚干燥环境，以暖冷交界和逐渐延长的影子建立变化。",
+        "采用干燥夜间环境，以功能照明、窗口光和真实阴影建立空间，不使用雨夜作为默认气氛。",
+        "采用有风但无降水的环境，用衣物、树叶、窗帘或纸张的方向表现风。",
+        "采用寒冷、清晰且无降水的环境，用服装层次、呼吸和冷色自然光表现温度。",
+        "采用温暖、干燥的环境，用人物动作、空气感和材料触感表现季节。",
+        "天气保持中性，不把天气当成主要看点；优先从任务、关系、道具和空间痕迹建立事件。",
+        "本任务可以选择一次有明确因果的降水或雨后状态，但只能发生在室外、门廊或确有漏水原因的位置；室内不得无因飘雨或撑伞。",
+    ]
+    rng = random.SystemRandom()
+    rng.shuffle(lenses)
+    rng.shuffle(environment_rules)
+    result = []
+    for index in range(count):
+        item = dict(lenses[index % len(lenses)])
+        item["environment_rule"] = environment_rules[index % len(environment_rules)]
+        result.append(item)
+    return result
 
 
 def _task_prompt(
@@ -813,6 +834,19 @@ def _task_prompt(
         theme_text = "（空；依据用途与视觉方法建立自洽题材和画面素材）"
     preset = str(additional_preset or "").strip()
     preset_block = f"\n\n【本次附加设定】\n{preset}" if preset else ""
+    environment_rule = str(lens.get("environment_rule", "")).strip()
+    if user_prompt:
+        environment_block = (
+            "【环境因果纪律】\n天气、水迹、雨伞和室内外状态服从用户明确内容与真实空间因果。"
+            "除非用户、参考图创意或世界观事件明确要求，不自动添加降雨、积水、湿地反光或撑伞。\n\n"
+        )
+    else:
+        environment_block = (
+            "【空提示环境状态】\n"
+            f"{environment_rule}\n"
+            "参考图或世界观明确指定天气时可以服从该设定；否则本条状态优先。"
+            "室内降雨、室内撑伞、无来源积水和无因湿身均视为不成立。\n\n"
+        )
     reference_block = "" if reference_creative else _prompt_reference_block(reference_instruction)
     creative_block = _reference_creative_block(reference_creative)
     combination_block = (
@@ -830,6 +864,7 @@ def _task_prompt(
         f"【用途与创意】\n{combination_block}\n\n"
         f"【本图变化方向】\n{lens.get('name', '核心画面')}：{lens.get('instruction', '')}\n"
         "这个方向只作用于用户尚未指定的内容，并在本图中选择一个确定方案。\n\n"
+        f"{environment_block}"
         f"【成文密度】\n目标成图模型等级：{MODEL_LEVEL_SPECS[_model_level_key(model_level)]['name']}。"
         f"{MODEL_LEVEL_SPECS[_model_level_key(model_level)]['instruction']}建议约{minimum}至{maximum}个中文字符，"
         "长度服务当前用途的真实复杂度。\n\n"
