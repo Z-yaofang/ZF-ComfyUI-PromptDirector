@@ -27,6 +27,35 @@ Feedback from different local language models, vision-language models, image mod
 - Defensive handling for incomplete VLM JSON and accidental source-image text leakage.
 - Editable JSON catalogs for purposes, visual methods, worldviews, defaults, and writing grammar.
 
+## Quick Start / 快速接法
+
+![ZF Prompt Director workflow connection](docs/images/workflow-connection.png)
+
+The diagram above shows the recommended connection for the director workflow. The catalog screenshot below is the selector used to add a purpose + visual-method combination.
+
+![ZF Prompt Director catalog selector](docs/images/prompt-director-catalog.png)
+
+### Basic usage
+
+1. Connect the user prompt to `ZF Prompt Director.user_prompt`.
+2. Connect the worldview switch to `theme`. When no worldview is needed, use `ZF-ComfyUI-Helper`'s explicit empty-text route; do not rely on an old numeric route with an accidentally blank field.
+3. Add one or more purpose + visual-method combinations in the director panel. The first enabled combination is normally the primary task; later combinations are supplemental.
+4. Keep `reference_mode` on `创意迁移` for normal image generation. This lets reference-image creativity, the worldview, and the selected task work together.
+5. Send `writer_system_prompt` and `writer_tasks` to the language-model writer, then pass the validated prompt to the existing image-generation path. Use `EmptyLatentImage` as the latent source for semantic creativity transfer.
+
+### Storyboard is a different output mode
+
+Choose the purpose `故事分镜图` and preferably the visual method `漫画页与动作转场`. Unlike ordinary purposes, this creates **one composite image containing all panels**, not several independent images. The `count` input is the number of valid panels: `4` → 2×2, `6` → 3×2, `8` → 3×3 with one black trailing cell. Keep the latent batch size at `1`.
+
+The director task should contain `单张宫格分镜任务`, the panel count, and a grid such as `3列×2行`. Check this task text before blaming the image model.
+
+### Common mistakes
+
+- Do not select `参考图创意提取测试` for normal generation. It is an isolation/diagnostic mode and intentionally removes static purpose/visual combinations, so a selected storyboard will not be used there.
+- Selecting only `几何分格与多焦点版式` gives a general multi-focus layout, not a continuous story sequence. Use `故事分镜图` as the purpose.
+- If the task text already contains the grid instructions but the result is still a single scene, the remaining issue is image-model instruction following rather than node routing.
+- For semantic reference creativity, do not connect the source-image VAE latent to `KSampler`; that changes the task into image-to-image or structural control.
+
 ## Recommended Reference-Creativity Flow
 
 ```text
