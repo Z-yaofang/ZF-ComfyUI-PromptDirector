@@ -73,6 +73,22 @@ EmptyLatentImage       -> KSampler.latent_image
 
 For semantic creativity transfer, do not connect the source image VAE latent to the sampler and do not connect `reference_image` unless you intentionally want IP-Adapter, ControlNet, or image-to-image structure control.
 
+### Full API test flow
+
+Use two instances of `FOK Multi-Protocol Chat Vision API` when both reference analysis and final prompt writing should use an API. They cannot be collapsed into one call because the final writer depends on the completed reference analysis:
+
+```text
+reference image ───────────────────────→ API 1.image_1
+ZF reference-analysis prompt builder ──→ API 1.prompt/system_prompt
+API 1.response_text ─→ ZF Image Reference Analyzer.analysis_result
+
+Prompt Director.writer_system_prompt ─→ API 2.system_prompt
+Prompt Director.writer_tasks ─────────→ API 2.prompt
+API 2.response_text ─→ Prompt Validator.generated_prompt
+```
+
+`ZF Product/Reference Image Analysis Prompt Builder (API)` only creates the structured analysis request for API 1. API 2 receives no image; it turns the director's tasks into finished image-generation prompts. The two nodes may use the same provider and model, but they must remain separate calls. For testing, use `raise` on errors, about `0.2` temperature for analysis, and `0.5–0.7` for final writing.
+
 ## Installation
 
 Clone the repository into ComfyUI's `custom_nodes` directory:
@@ -99,6 +115,7 @@ git clone https://github.com/Z-yaofang/ZF-ComfyUI-Helper.git
 - `ZF Reference Creative Adapter`
 - `ZF Prompt Organizer and Observer`
 - `ZF Prompt Master Switch`
+- `ZF Product/Reference Image Analysis Prompt Builder (API)`
 
 Legacy blueprint/task nodes remain available for workflow compatibility.
 

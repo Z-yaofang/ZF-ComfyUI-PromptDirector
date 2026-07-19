@@ -964,6 +964,52 @@ class ZFImageReferenceAnalyzer:
         return (instruction, normalized_json, summary, image)
 
 
+class ZFReferenceAnalysisPromptBuilder:
+    """Build the two prompts used by an external vision API for reference analysis."""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "enabled": ("BOOLEAN", {"default": True, "label_on": "启用", "label_off": "旁路"}),
+                "reference_scope": (REFERENCE_SCOPES, {"default": REFERENCE_SCOPES[0]}),
+                "reference_strength": ("FLOAT", {"default": 0.75, "min": 0.0, "max": 1.0, "step": 0.05}),
+                "extract_text": ("BOOLEAN", {"default": True, "label_on": "提取文字", "label_off": "忽略文字"}),
+                "protect_identity": ("BOOLEAN", {"default": True, "label_on": "保护身份", "label_off": "允许描述身份"}),
+            },
+            "optional": {
+                "custom_focus": ("STRING", {"default": "", "multiline": True}),
+            },
+        }
+
+    RETURN_TYPES = ("STRING", "STRING")
+    RETURN_NAMES = ("system_prompt", "analysis_prompt")
+    FUNCTION = "build"
+    CATEGORY = "ZF/参考图像/API"
+
+    def build(
+        self,
+        enabled,
+        reference_scope,
+        reference_strength,
+        extract_text,
+        protect_identity,
+        custom_focus="",
+    ):
+        if not enabled:
+            return ("", "")
+        return (
+            REFERENCE_ANALYSIS_SYSTEM_PROMPT,
+            _reference_analysis_request(
+                reference_scope,
+                reference_strength,
+                extract_text,
+                protect_identity,
+                custom_focus,
+            ),
+        )
+
+
 class ZFReferenceCreativeAdapter:
     """Turn analyzer JSON into a temporary purpose/visual combination."""
 
@@ -1312,6 +1358,7 @@ class ZFLazyPromptSwitch:
 
 NODE_CLASS_MAPPINGS = {
     "ZFImageReferenceAnalyzer": ZFImageReferenceAnalyzer,
+    "ZFReferenceAnalysisPromptBuilder": ZFReferenceAnalysisPromptBuilder,
     "ZFReferenceCreativeAdapter": ZFReferenceCreativeAdapter,
     "ZFPromptDirector": ZFPromptDirector,
     "ZFBlueprintParser": ZFBlueprintParser,
@@ -1323,6 +1370,7 @@ NODE_CLASS_MAPPINGS = {
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "ZFImageReferenceAnalyzer": "ZF 参考图像分析器",
+    "ZFReferenceAnalysisPromptBuilder": "ZF 产品图/参考图分析生成器（API）",
     "ZFReferenceCreativeAdapter": "ZF 参考图临时用途与创意适配器",
     "ZFPromptDirector": "ZF 提示词创意导演 V2",
     "ZFBlueprintParser": "ZF 视觉蓝图解析器（旧版兼容）",

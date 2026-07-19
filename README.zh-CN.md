@@ -67,6 +67,23 @@
 
 `ZF 参考图像分析器`与世界观参考保持独立。它会把参考图交给已加载的多模态模型，提取主体和元素、构图与镜头、动作关系、材质色彩、光线氛围、文字版式以及可迁移的创意机制。`ZF 参考图临时用途与创意适配器`再把这些字段转换为本次图片专属的动态用途、视觉方法、创意锚点和元素素材库。
 
+### 全 API 测试接法
+
+如果要让参考图分析和最终提示词写作都走 API，不要把一个 API 节点同时承担两个任务：参考图分析必须先完成，导演台才能把分析结果交给最终写作。使用两个相同的 `FOK Multi-Protocol Chat Vision API` 节点：
+
+```text
+参考图 ─────────────→ API①.image_1
+产品图/参考图分析生成器.analysis_prompt ─→ API①.prompt
+产品图/参考图分析生成器.system_prompt ──→ API①.system_prompt
+API①.response_text ─→ ZF 参考图像分析器.analysis_result
+
+导演台.writer_system_prompt ─→ API②.system_prompt
+导演台.writer_tasks ─────────→ API②.prompt
+API②.response_text ──────────→ ZF 提示词整理与观察.generated_prompt
+```
+
+`ZF 产品图/参考图分析生成器（API）`只负责生成 API① 的结构化视觉分析任务；它不是最终生图节点，也不应接到 API②。API② 不接图片，只负责把导演台任务写成成品提示词。两个 API 节点可以使用同一个服务和模型，但必须是两个调用，因为它们的输入、输出和先后阶段不同。测试时建议两个 API 的 `on_error` 设为 `raise`，分析温度约 `0.2`，最终写作温度约 `0.5–0.7`。
+
 推荐连接方式：
 
 ```text
