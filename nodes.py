@@ -6,6 +6,8 @@ import sys
 import threading
 from pathlib import Path
 
+from comfy_execution.graph import ExecutionBlocker
+
 
 ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data"
@@ -991,9 +993,12 @@ class ZFTextMemory:
     CATEGORY = "ZF/工具"
 
     @classmethod
-    def IS_CHANGED(cls, **kwargs):
-        # A cache update must invalidate downstream nodes even when the cache
-        # node's visible widgets have not changed.
+    def IS_CHANGED(cls, mode=None, **kwargs):
+        # Updating or clearing is an explicit user action.  Do not let
+        # ComfyUI reuse the previous node result when the upstream API text
+        # changed but the cache widget values did not.
+        if mode in ("更新缓存", "清空缓存"):
+            return float("NaN")
         with cls._lock:
             return float(cls._revision)
 
@@ -1056,12 +1061,22 @@ class ZFTextListMemory:
         return value if value is not None else default
 
     @classmethod
-    def IS_CHANGED(cls, **kwargs):
+    def IS_CHANGED(cls, mode=None, **kwargs):
+        if cls._first(mode) in ("更新缓存", "清空缓存"):
+            return float("NaN")
         with cls._lock:
             return float(cls._revision)
 
+    @staticmethod
+    def _missing(value):
+        if value is None:
+            return True
+        if isinstance(value, (list, tuple)):
+            return not value or all(item is None for item in value)
+        return False
+
     def check_lazy_status(self, mode, cache_key, text=None):
-        if self._first(mode) == "更新缓存" and text is None:
+        if self._first(mode) == "更新缓存" and self._missing(text):
             return ["text"]
         return []
 
@@ -1079,7 +1094,10 @@ class ZFTextListMemory:
             if mode == "清空缓存":
                 self._cache.pop(key, None)
                 self.__class__._revision += 1
-                return ([], f"已清空最终文本列表缓存：{key}")
+                return (
+                    ExecutionBlocker(f"已清空最终文本列表缓存：{key}；本次停止下游执行"),
+                    f"已清空最终文本列表缓存：{key}",
+                )
             if mode == "更新缓存":
                 self._cache[key] = values
                 self.__class__._revision += 1
@@ -1088,7 +1106,10 @@ class ZFTextListMemory:
             cached = list(self._cache.get(key, []))
             if cached:
                 return (cached, f"正在使用最终文本列表缓存：{key}（{len(cached)} 条）")
-            return ([], f"最终文本列表缓存为空：{key}；先切换为“更新缓存”运行一次")
+            return (
+                ExecutionBlocker(f"最终文本列表缓存为空：{key}；先切换为“更新缓存”运行一次"),
+                f"最终文本列表缓存为空：{key}；先切换为“更新缓存”运行一次",
+            )
 
 
 class ZFReferenceAnalysisPromptBuilder:

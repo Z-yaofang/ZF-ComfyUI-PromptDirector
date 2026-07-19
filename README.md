@@ -29,9 +29,9 @@ Feedback from different local language models, vision-language models, image mod
 
 ## Quick Start / 快速接法
 
-![ZF Prompt Director workflow connection](docs/images/workflow-connection.png)
+![ZF Prompt Director local workflow connection](docs/images/local-workflow-connection-v2.png)
 
-The diagram above shows the recommended connection for the director workflow. The catalog screenshot below is the selector used to add a purpose + visual-method combination.
+The diagram above shows the current local-model connection for the director workflow. The API variant is documented below. The catalog screenshot below is the selector used to add a purpose + visual-method combination.
 
 ![ZF Prompt Director catalog selector](docs/images/prompt-director-catalog.png)
 
@@ -75,9 +75,11 @@ For semantic creativity transfer, do not connect the source image VAE latent to 
 
 ### Full API test flow
 
-![ZF Prompt Director full two-API reference workflow](docs/images/full-api-workflow-connection.png)
+![ZF Prompt Director full two-API reference workflow](docs/images/full-api-workflow-connection-v2.png)
 
 The screenshot records a successful complete run: API 1 reads the reference image and returns structured analysis, the temporary reference-purpose adapter sends it into the director, and API 2 writes the final image prompt for each task.
+
+The repository also includes the current local-model wiring diagram: `local-workflow-connection-v2.png`. In that route, a local multimodal/VLM node supplies `analysis_result` to `ZF Image Reference Analyzer`, and a local text-generation node writes the director tasks before the same validator, lazy switch, string cleanup, and string-to-list output chain. Choose either the API route or the local route for a given test; do not leave a second writer or reverse-analysis branch connected by accident.
 
 Use two instances of `FOK Multi-Protocol Chat Vision API` when both reference analysis and final prompt writing should use an API. They cannot be collapsed into one call because the final writer depends on the completed reference analysis:
 
@@ -112,6 +114,8 @@ The workflow includes `ZF Temporary Text Memory (cross-queue reuse)` for A/B tes
 This is process-local temporary memory and is cleared when ComfyUI restarts. KJNodes `SetNode / GetNode` nodes are virtual frontend wiring helpers; they are useful for organizing long connections but are not cross-queue text memory. Use this node when you need to reuse the previous reverse-analysis result.
 
 The workflow places `ZF Final Text List Memory (cross-queue reuse)` between API 2 and the prompt validator; the validator then feeds the final result display. It stores the complete multi-task prompt list rather than only the last string. Run once in update mode, then switch to use mode to lazily skip API 2 and reuse the previous full result set. The former prompt-switch, string-processing, and string-to-list branch remains available for second-pass reverse tests and compatibility.
+
+The final-list cache is a gate, not a replacement for the downstream chain: **update cache** runs API 2 and continues through validation and text post-processing; **use cache** skips API 2 but still runs the same downstream chain; **clear cache** safely blocks that branch instead of sending an empty list into a switch node.
 
 ## Installation
 
