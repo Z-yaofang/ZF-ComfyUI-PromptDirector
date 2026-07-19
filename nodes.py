@@ -610,7 +610,22 @@ def _prompt_reference_block(reference_instruction):
 
 
 def _is_storyboard(selection):
-    return bool(selection) and selection[0]["purpose"].get("id") == "storyboard_sequence"
+    # Storyboard is a structural mode.  It must win even when the UI stores
+    # another selected purpose/visual combination before it in the list.
+    return any(
+        item.get("purpose", {}).get("id") == "storyboard_sequence"
+        for item in (selection or [])
+        if isinstance(item, dict)
+    )
+
+
+def _promote_storyboard(selection):
+    """Keep the storyboard combination primary when it is combined with extras."""
+    items = list(selection or [])
+    for index, item in enumerate(items):
+        if item.get("purpose", {}).get("id") == "storyboard_sequence":
+            return [item, *items[:index], *items[index + 1 :]]
+    return items
 
 
 def _storyboard_layout(panel_count):
@@ -1021,6 +1036,8 @@ class ZFPromptDirector:
             except Exception:
                 reference_creative = None
         selection = [] if reference_only else _safe_selection(selection_json, allow_default=not bool(reference_creative))
+        if not reference_only:
+            selection = _promote_storyboard(selection)
         minimum, maximum = _length_target(selection, image_model_level)
         storyboard = _is_storyboard(selection)
         if storyboard:
