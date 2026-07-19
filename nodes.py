@@ -630,8 +630,32 @@ def _promote_storyboard(selection):
 
 def _storyboard_layout(panel_count):
     panel_count = max(1, int(panel_count))
-    columns = int(math.ceil(math.sqrt(panel_count)))
-    rows = int(math.ceil(panel_count / columns))
+    # Prefer balanced, landscape-friendly grids for the panel counts most
+    # often used by image models.  In particular, eight panels should be a
+    # complete 4x2 grid instead of a 3x3 grid with an unnecessary blank.
+    common_layouts = {
+        1: (1, 1),
+        2: (2, 1),
+        3: (3, 1),
+        4: (2, 2),
+        5: (3, 2),
+        6: (3, 2),
+        7: (4, 2),
+        8: (4, 2),
+        9: (3, 3),
+        10: (5, 2),
+        11: (4, 3),
+        12: (4, 3),
+        13: (5, 3),
+        14: (5, 3),
+        15: (5, 3),
+        16: (4, 4),
+    }
+    if panel_count in common_layouts:
+        columns, rows = common_layouts[panel_count]
+    else:
+        columns = int(math.ceil(math.sqrt(panel_count * 16 / 9)))
+        rows = int(math.ceil(panel_count / columns))
     blanks = columns * rows - panel_count
     return columns, rows, blanks
 
@@ -711,20 +735,22 @@ def _storyboard_task_prompt(
     creative_block = _reference_creative_block(reference_creative)
     return (
         f"【单张宫格分镜任务】\n本次只生成一张复合图；有效分镜{panel_count}格。{mode_text}\n\n"
-        f"【画幅与宫格】\n整张图：{_aspect_description(width, height)}\n"
-        f"宫格结构：{columns}列×{rows}行，阅读方向从左到右、从上到下，格框边界清楚，格间距统一。{blank_text}\n\n"
+        f"【画幅与宫格｜最高优先级硬约束】\n整张图：{_aspect_description(width, height)}\n"
+        f"固定宫格结构：{columns}列×{rows}行，整张画布先被切分为{columns * rows}个尺寸完全相同、横竖边严格对齐的矩形单元；"
+        f"每格宽度严格等于总宽度的1/{columns}，每格高度严格等于总高度的1/{rows}。阅读方向从左到右、从上到下，格框边界清楚，格间距统一。{blank_text}\n"
+        "禁止大小格、主次大格、跨格、合并格、嵌套小窗、画中画、斜切分格、不规则面板、局部越界和共享无边界背景。任何用途或视觉方法中与固定等分宫格冲突的描述全部失效。\n\n"
         f"【用户核心】\n{user_text}\n\n"
         f"【取材世界观】\n{theme_text}\n\n"
         f"{creative_block + chr(10) if creative_block else ''}"
         f"{reference_block + chr(10) if reference_block else ''}"
-        f"【用途与创意】\n{_combination_block(selection)}\n\n"
+        f"【用途与创意】\n{_storyboard_combination_block(selection)}\n\n"
         f"【故事节拍】\n{beat_text}\n\n"
         "【连续性资产】\n先在成品提示词中一次确定主角与重要配角的年龄、脸型、发型、体态、服装整套配色、关键道具；一次确定主要地点的方位、入口、层级、材质和光源。随后逐格沿用这些锚点。人物从上一格离开的方向与下一格进入方向衔接，动作结果、道具状态、衣物痕迹、天气与时间持续演变。\n\n"
-        "【逐格成文】\n成品提示词先写整张宫格的统一画风、角色锚点、世界规则、布局和连续性，再按格序逐一写主体位置、唯一动作阶段、作用对象、表情反应、景别机位、场景证据和与前后格的承接。建立格交代空间，推进格强化行动，高潮格使用最强视觉重心，收束格呈现明确后果。\n\n"
+        "【逐格成文】\n成品提示词必须以固定列数、固定行数、等宽等高、不可合并的宫格硬约束开头，再写整张宫格的统一画风、角色锚点、世界规则和连续性，最后按格序逐一写主体位置、唯一动作阶段、作用对象、表情反应、景别机位、场景证据和与前后格的承接。景别可以变化，但每个矩形格子的尺寸绝对不变；高潮只能改变格内视觉重心，不能放大格框。\n\n"
         f"【成文密度】\n目标成图模型等级：{MODEL_LEVEL_SPECS[_model_level_key(model_level)]['name']}。"
         f"{MODEL_LEVEL_SPECS[_model_level_key(model_level)]['instruction']}建议约{minimum}至{maximum}个中文字符。\n\n"
         "【文字限制】除非用户核心明确要求出现文字，内部创意概念、用途名称和世界观名称不得变成标题、招牌、Logo、字幕或屏幕大字；无法辨认的文字只写成不可读的装饰性纹理。\n\n"
-        "【输出】\n只输出一条用于生成整张宫格分镜图的中文正向提示词正文。"
+        "【输出】\n只输出一条用于生成整张宫格分镜图的中文正向提示词正文。正文开头必须再次明确固定宫格的列数、行数、有效格数、等宽等高和禁止跨格；不得把宫格要求放到末尾。"
         f"{preset_block}"
     )
 
@@ -756,6 +782,23 @@ def _combination_block(selection):
         blocks.append(_visual_block(item["visual"], index))
     if len(selection) > 1:
         blocks.append("组合关系：第一组建立作品类型与主结构，后续组合提供能够融入同一画面的补充能力。")
+    return "\n\n".join(blocks)
+
+
+def _storyboard_combination_block(selection):
+    """Describe selected methods without importing panel-size conflicts."""
+    blocks = []
+    for index, item in enumerate(selection, 1):
+        blocks.append(_purpose_block(item["purpose"], index))
+        visual = item["visual"]
+        role = "主视觉叙事方法" if index == 1 else f"补充视觉方法{index - 1}"
+        blocks.append(
+            f"{role}：{visual['name']}\n"
+            "故事分镜模式中的解释：只借用该方法的画风、景别变化、动作节奏、视线承接和转场语言；"
+            "不采用其中关于大格、小格、主次面板、跨格、嵌套或不规则分区的版式建议。"
+        )
+    if len(selection) > 1:
+        blocks.append("组合关系：第一组建立连续故事和固定等分宫格；后续组合只能补充内容与视觉语言，不能改变宫格数量、尺寸和位置。")
     return "\n\n".join(blocks)
 
 

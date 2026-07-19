@@ -45,7 +45,7 @@ The diagram above shows the recommended connection for the director workflow. Th
 
 ### Storyboard is a different output mode
 
-Choose the purpose `故事分镜图` and preferably the visual method `漫画页与动作转场`. Unlike ordinary purposes, this creates **one composite image containing all panels**, not several independent images. The `count` input is the number of valid panels: `4` → 2×2, `6` → 3×2, `8` → 3×3 with one black trailing cell. Keep the latent batch size at `1`.
+Choose the purpose `故事分镜图` and preferably the visual method `漫画页与动作转场`. Unlike ordinary purposes, this creates **one composite image containing all panels**, not several independent images. The visual method contributes shot rhythm and transitions, while storyboard mode overrides any large/small-panel suggestion with a strict equal-cell grid. The `count` input is the number of valid panels: `4` → 2×2, `6` → 3×2, `8` → 4×2. Keep the latent batch size at `1`.
 
 The director task should contain `单张宫格分镜任务`, the panel count, and a grid such as `3列×2行`. Check this task text before blaming the image model.
 
@@ -54,6 +54,7 @@ The director task should contain `单张宫格分镜任务`, the panel count, an
 - Do not select `参考图创意提取测试` for normal generation. It is an isolation/diagnostic mode and intentionally removes static purpose/visual combinations, so a selected storyboard will not be used there.
 - Selecting only `几何分格与多焦点版式` gives a general multi-focus layout, not a continuous story sequence. Use `故事分镜图` as the purpose.
 - If the task text already contains the grid instructions but the result is still a single scene, the remaining issue is image-model instruction following rather than node routing.
+- One-shot storyboard rendering is model-dependent: some image models merge six or eight requested panels into fewer visual panels even when the prompt is correct. Exact panel counts require generating the panels separately and compositing the resulting image batch with a grid node.
 - For semantic reference creativity, do not connect the source-image VAE latent to `KSampler`; that changes the task into image-to-image or structural control.
 
 ## Recommended Reference-Creativity Flow
