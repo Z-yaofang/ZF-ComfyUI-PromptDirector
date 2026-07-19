@@ -1,0 +1,344 @@
+[
+  {
+    "id": "direct_expression",
+    "category": "直接呈现",
+    "name": "直接表现",
+    "description": "从最清楚的观察位置直接呈现主体、事件与环境。",
+    "thumbnail": "direct_expression.webp",
+    "prompt": "选择歧义最少的观察位置，让主体身份、动作阶段、作用对象和相关环境共同成为画面价值。",
+    "application": "主体和核心事件占据第一视觉层，环境提供地点与身份依据，镜头完整容纳用户要求看清的内容。"
+  },
+  {
+    "id": "decisive_moment",
+    "category": "事件与关系",
+    "name": "决定性瞬间",
+    "description": "捕捉动作、结果和人物反应同时达到峰值的一刻。",
+    "thumbnail": "decisive_moment.webp",
+    "prompt": "从事件中选择最能改变局势、证明关系的一瞬，确定动作进度、身体重心、人物距离、关键物体状态和周围反应。",
+    "application": "把动作路径与反应集中在同一时间切片，使用视线、飞散物、受力、衣物动态和空间距离强化事件。"
+  },
+  {
+    "id": "relationship_field",
+    "category": "事件与关系",
+    "name": "人物关系场",
+    "description": "通过站位、距离、朝向、视线和手势让人物关系可见。",
+    "thumbnail": "relationship_field.webp",
+    "prompt": "用人物之间的站位、距离、身体朝向、视线、手势、遮挡和高低差建立支持、对抗、依赖、疏离或权力关系。",
+    "application": "每位主要人物承担一个关系职责，动作和注意力共同指向同一事件中心，群体形成清楚关系图。"
+  },
+  {
+    "id": "environmental_narrative",
+    "category": "空间叙事",
+    "name": "环境叙事",
+    "description": "让建筑、天气、痕迹和物体状态共同说明故事。",
+    "thumbnail": "environmental_narrative.webp",
+    "prompt": "使用空间结构、使用痕迹、天气、光线、遗留物和物体状态证明人物经历、事件前后与世界规则。",
+    "application": "前景提供痕迹或线索，中景承载核心事件，背景说明地点规模、时代和后续方向。"
+  },
+  {
+    "id": "symbolic_keyvisual",
+    "category": "符号与合成",
+    "name": "符号化主视觉",
+    "description": "把核心概念压缩成一个来源明确、识别强烈的视觉符号。",
+    "thumbnail": "symbolic_keyvisual.webp",
+    "prompt": "从主题关系中提炼一个核心符号，让主体、道具、负形、色块或空间共同形成强识别主形。",
+    "application": "先确定远看可辨的主形，再把主题细节嵌入轮廓、材质和局部叙事，所有联系指向同一传播命题。"
+  },
+  {
+    "id": "silhouette_container",
+    "category": "符号与合成",
+    "name": "轮廓容器",
+    "description": "用主体轮廓容纳相关场景、记忆或信息。",
+    "thumbnail": "silhouette_container.webp",
+    "prompt": "选择具有清楚边界和内容意义的主体轮廓作为外部结构，在轮廓内部组织与其身份、经历或主题相关的第二层世界。",
+    "application": "外轮廓负责第一识别，内部场景负责叙事展开，边缘、明暗、方向和色彩把内外两层连接起来。"
+  },
+  {
+    "id": "double_exposure",
+    "category": "符号与合成",
+    "name": "双重曝光",
+    "description": "把主体与具有心理、地点或命运关系的第二层图像叠合。",
+    "thumbnail": "double_exposure.webp",
+    "prompt": "使用两层具有因果或心理联系的图像进行透明叠合，主轮廓保持可辨，第二层沿轮廓、明暗和视线方向进入。",
+    "application": "明确主曝光和次曝光的内容、透明关系、边缘过渡、亮部保留、色彩联系与叙事含义。"
+  },
+  {
+    "id": "narrative_composite",
+    "category": "符号与合成",
+    "name": "叙事合成",
+    "description": "把相关时空或尺度组织成一幅统一、有主次的叙事画面。",
+    "thumbnail": "narrative_composite.webp",
+    "prompt": "确定一个主场景和一到两个次级叙事，通过光线、透视、遮挡、色彩或结构过渡把相关时空连接为整体。",
+    "application": "主场景承担核心事件，次级内容解释因果、回忆或世界关系，统一光源和色彩建立同一画面。"
+  },
+  {
+    "id": "archive_display",
+    "category": "信息与版式",
+    "name": "档案陈列",
+    "description": "以实物、照片、票据和记录建立时间与证据关系。",
+    "thumbnail": "archive_display.webp",
+    "prompt": "使用主档案、辅助证据、编号、标签、时间痕迹、实物、照片、票据或记录形成可追溯的信息关系。",
+    "application": "主档案承担第一信息，证据围绕时间、地点或人物关系分组，尺寸差和对齐形成阅读层级。"
+  },
+  {
+    "id": "encyclopedia_sheet",
+    "category": "信息与版式",
+    "name": "百科图鉴",
+    "description": "用主视图、必要角度、局部结构和标注完整解释对象。",
+    "thumbnail": "encyclopedia_sheet.webp",
+    "prompt": "以一个完整对象或系统为核心，配置主视图、必要角度、局部结构、材料样本、尺度参照和简洁标注。",
+    "application": "主视图说明整体，辅助视图分别说明结构、功能、材料、尺度和使用方式，版面形成明确分类。"
+  },
+  {
+    "id": "editorial_grid",
+    "category": "信息与版式",
+    "name": "编辑网格",
+    "description": "用网格、主次比例和留白建立清楚阅读顺序。",
+    "thumbnail": "editorial_grid.webp",
+    "prompt": "建立明确列网格、边距、基线与主次模块比例，让主图负责第一信息，辅图和说明逐层展开。",
+    "application": "通过对齐、尺寸差、重复和留白形成秩序，模块数量和占比服从内容的重要程度。"
+  },
+  {
+    "id": "giant_typography",
+    "category": "信息与版式",
+    "name": "巨型标题版式",
+    "description": "让准确标题成为空间结构和主要视觉形体。",
+    "thumbnail": "giant_typography.webp",
+    "prompt": "在输入提供准确文字时，让标题的字形、大小、位置和节奏成为主要构图结构，并与主体建立前后、遮挡或负形关系。",
+    "application": "标题负责主形和阅读入口，人物或对象在字形空间中形成尺度与叙事联系，辅助文字保持简洁层级。"
+  },
+  {
+    "id": "miniature_model",
+    "category": "尺度与模型",
+    "name": "微缩模型",
+    "description": "把世界压缩成具有底座、比例和制作痕迹的可观察模型。",
+    "thumbnail": "miniature_model.webp",
+    "prompt": "将场景组织为具有明确底座、边界、比例和制作材料的微缩模型，保留原事件逻辑和世界身份。",
+    "application": "使用微小人物、结构剖面、模型接缝、局部照明、景深和尺度参照共同证明微缩关系。"
+  },
+  {
+    "id": "scale_displacement",
+    "category": "尺度与模型",
+    "name": "尺度置换",
+    "description": "改变熟悉事物的尺度关系，并推导真实空间后果。",
+    "thumbnail": "scale_displacement.webp",
+    "prompt": "选择一个与主题有关的尺度变化，推导它对空间、动作、结构、阴影、材料和人物反应的影响。",
+    "application": "使用连续尺度参照、遮挡、透视、接触面和投影，让巨大或微小成为可信的物理关系。"
+  },
+  {
+    "id": "material_led",
+    "category": "材质与媒介",
+    "name": "材质主导",
+    "description": "让材料特性决定造型、结构、受光和观看重点。",
+    "thumbnail": "material_led.webp",
+    "prompt": "选择与主题和功能相关的核心材料，让透明度、粗糙度、弹性、折射、磨损、褶皱、流动或制作工艺参与造型。",
+    "application": "把材料落实到具体部件、连接、受力和光线反应，使用近景细节与整体轮廓共同表现材料价值。"
+  },
+  {
+    "id": "nostalgic_medium",
+    "category": "材质与媒介",
+    "name": "怀旧媒介",
+    "description": "用特定年代的成像、印刷或记录媒介重建观看方式。",
+    "thumbnail": "nostalgic_medium.webp",
+    "prompt": "选择与时代和内容相关的具体媒介，如旧杂志印刷、家庭录像、拍立得、丝网印刷或早期数码相机。",
+    "application": "通过媒介对应的色彩、颗粒、套印、边框、时间戳、曝光和保存损耗参与叙事与年代识别。"
+  },
+  {
+    "id": "before_after_comparison",
+    "category": "信息与版式",
+    "name": "前后对比叙述",
+    "description": "用同尺度对应视图、证据和注释把变化说清楚。",
+    "thumbnail": "before_after_comparison.webp",
+    "prompt": "以前后并列、上下对照或滑动分界建立可比条件，让同一对象、同一机位或同一参照系统清楚显示变化。",
+    "application": "前后各自承担原始状态和改善状态，中央或边缘只放必要箭头、标注和策略；不以换人、换景或换比例伪造效果。"
+  },
+  {
+    "id": "ui_product_story",
+    "category": "信息与版式",
+    "name": "落地页与功能故事",
+    "description": "用首屏、功能、场景、设备和行动信息解释数字产品。",
+    "thumbnail": "ui_product_story.webp",
+    "prompt": "按用户进入、理解核心价值、查看关键功能、确认收益和采取行动的顺序组织单页或多模块产品叙述。",
+    "application": "大主视觉负责产品命题，设备或界面承载核心任务，功能模块数量有限且有主次，文案保持短句、可读、可验证。"
+  },
+  {
+    "id": "technical_blueprint",
+    "category": "信息与版式",
+    "name": "技术蓝图与爆炸图",
+    "description": "以整体、分解、尺寸和连接关系解释对象如何构成。",
+    "thumbnail": "technical_blueprint.webp",
+    "prompt": "让整体视图、部件拆解、尺寸标注、材料说明和局部放大共同回答对象的结构、功能与制造问题。",
+    "application": "主视图提供轮廓与尺度，拆解件沿真实装配方向排列，标注指向明确部位，线条和色码区分结构、活动件与材料。"
+  },
+  {
+    "id": "cutaway_cross_section",
+    "category": "空间叙事",
+    "name": "剖面透视与内部世界",
+    "description": "沿合理切面打开建筑、物件或载具，呈现内部层级和活动。",
+    "thumbnail": "cutaway_cross_section_v2.webp",
+    "prompt": "选择一条能解释内部结构的切线或剖切角度，使外壳、层级、通道、房间、部件和人物活动同时保持空间可信。",
+    "application": "被切开的边缘显示材料厚度与结构，内部按高度和功能分层，人物和道具验证尺度，外部只保留必要环境。"
+  },
+  {
+    "id": "map_route_atlas",
+    "category": "信息与版式",
+    "name": "地图路线与图集",
+    "description": "让地理、动线、节点、时间和图例构成可追踪的空间叙述。",
+    "thumbnail": "map_route_atlas.webp",
+    "prompt": "将地点、路线、方向、停留、风险、里程或事件映射到一个清楚的地理或概念空间，并以图例和编号辅助阅读。",
+    "application": "地图承担主结构，路线有起点、经过点和终点，局部插图、剖面或票据只补充关键节点，避免无关装饰遮挡方向信息。"
+  },
+  {
+    "id": "flat_lay_contact_sheet",
+    "category": "信息与版式",
+    "name": "俯拍平铺与样品板",
+    "description": "以俯拍、整齐分组和材料细节展示一组相关实物。",
+    "thumbnail": "flat_lay_contact_sheet.webp",
+    "prompt": "在明确桌面、织物、纸张或地面上进行俯拍平铺，按大小、用途、颜色或工序组织物件，让每件物品可辨认。",
+    "application": "主物件决定中心或视觉重心，辅助物件按组排列，阴影、间距、标签和边缘保留真实桌面感，适合套装、工具、服装和档案。"
+  },
+  {
+    "id": "fashion_contact_sheet",
+    "category": "信息与版式",
+    "name": "时尚联系表与造型板",
+    "description": "用主造型、局部、色卡和姿态缩略图呈现同一人物的完整风格。",
+    "thumbnail": "fashion_contact_sheet.webp",
+    "prompt": "让一张主造型承担人物身份，再用面料、配饰、鞋履、妆发、姿态和不同裁切的辅助图补全设计逻辑。",
+    "application": "每个视图服务同一套服装和同一人物，色板与材料样本放在边缘，缩略图避免重复相同姿势，版式像真实选片与造型提案。"
+  },
+  {
+    "id": "geometric_panel_grid",
+    "category": "信息与版式",
+    "name": "几何分格与多焦点版式",
+    "description": "使用斜线、圆形、矩形或不规则面板安排多个相关焦点。",
+    "thumbnail": "geometric_panel_grid.webp",
+    "prompt": "用有限而明确的几何分区把角色、产品、局部、文字和背景组织为同一画面，面板关系建立节奏而不是随机切碎主体。",
+    "application": "确定一个主面板承担第一信息，其余面板分别承担关系、细节、环境或文字；边框、色彩和视线形成跨格连接。"
+  },
+  {
+    "id": "comic_page",
+    "category": "连续叙事",
+    "name": "漫画页与动作转场",
+    "description": "用镜头大小、格间方向、对白和速度线推进一个短动作。",
+    "thumbnail": "comic_page.webp",
+    "prompt": "在单页内以建立、动作、反应、转折和收束安排少量漫画格，镜头、人物位置、视线和运动方向在格间连续。",
+    "application": "一个大格承担高潮，小格承担节奏和细节，对话与音效只放必要内容，格间留白和边框强化阅读方向，不把每格都画成同一景别。"
+  },
+  {
+    "id": "paper_cut_relief",
+    "category": "材质与媒介",
+    "name": "层叠纸雕与立体剪纸",
+    "description": "以可见纸边、层距、切口和哑光纤维构建实体感画面。",
+    "thumbnail": "paper_cut_relief.webp",
+    "prompt": "将主题拆成前中后多个实体纸层，使用明确切割轮廓、厚度、阴影和纸张纤维表现深度，而不是平面插画贴一层纸纹。",
+    "application": "中心角色或建筑占据主层，配角、道具和背景分布到不同纸平面，切边与层间阴影可见，色彩由有限主辅色组成。"
+  },
+  {
+    "id": "torn_paper_zine",
+    "category": "材质与媒介",
+    "name": "撕纸拼贴与 Zine",
+    "description": "用撕边、票据、贴纸、半调和手写痕迹制造编辑拼贴能量。",
+    "thumbnail": "torn_paper_zine_v2.webp",
+    "prompt": "把照片、插画、票据、纸片、标签、手写字、色块和半调纹理围绕一个主题进行有主次的拼贴，不做无方向的元素堆积。",
+    "application": "主角保留清楚轮廓，撕纸边缘引导视线，文字作为节奏节点，材质、胶带、折痕和印刷误差强化真实手作媒介。"
+  },
+  {
+    "id": "isometric_diorama",
+    "category": "尺度与模型",
+    "name": "等距沙盘与系统模型",
+    "description": "以等距或近等距视角展示一个空间、流程或城市系统。",
+    "thumbnail": "isometric_diorama.webp",
+    "prompt": "从统一的斜俯等距视角建立建筑、道路、人物、设备和地形，使全部元素遵循同一比例、光向和空间轴。",
+    "application": "主系统在中央可读，周边模块沿道路、管线、轨道或地貌连接；使用少量剖开和标签解释功能，避免不同透视混杂。"
+  },
+  {
+    "id": "product_hero_backdrop",
+    "category": "直接呈现",
+    "name": "产品英雄与纯净背景",
+    "description": "用一个产品、受控背景、精准光线和有限信息建立高级商业第一眼。",
+    "thumbnail": "product_hero_backdrop.webp",
+    "prompt": "让产品的轮廓、材质、关键功能面和品牌识别成为绝对主角，背景、道具、液体或光影只服务产品价值。",
+    "application": "选择正面、三分之四或微距角度，保持真实接地、反射和尺度，标题与规格留在安全区，画面留白明确。"
+  },
+  {
+    "id": "kinetic_splash",
+    "category": "事件与关系",
+    "name": "动态飞溅与冻结瞬间",
+    "description": "将液体、颗粒、物件和人物动作冻结在一个有因果的高能时刻。",
+    "thumbnail": "kinetic_splash.webp",
+    "prompt": "选择一个能够解释飞溅、破裂、漂浮、加速或碰撞的瞬间，让力量来源、方向、重力、接触点和结果清楚可见。",
+    "application": "主体保持清晰，飞溅和粒子沿动作轨迹展开，背景简洁以保留轮廓；食品、饮品、运动、科技产品和角色技能均可使用。"
+  },
+  {
+    "id": "vintage_game_print",
+    "category": "材质与媒介",
+    "name": "复古游戏印刷广告",
+    "description": "以旧主机、游戏盒、杂志广告和印刷磨损重建特定年代的发售语境。",
+    "thumbnail": "vintage_game_print.webp",
+    "prompt": "选择清楚的年代、主机或媒介语法，把标题、角色、截图、价格、功能标记和纸张状态组织成可信的复古发行物。",
+    "application": "印刷网点、折痕、褪色、旧纸、边角磨损和有限色板共同服务年代感；文字保留少数可读的大信息，避免伪造密集说明书。"
+  },
+  {
+    "id": "screenprint_halftone",
+    "category": "材质与媒介",
+    "name": "丝网印与半调海报",
+    "description": "以有限专色、网点、套印偏差和粗颗粒建立强图形化传播。",
+    "thumbnail": "screenprint_halftone_v2.webp",
+    "prompt": "把主体压缩为高对比轮廓、专色层和可见网点，让颜色叠印、边缘偏移和纸张颗粒成为画面语言。",
+    "application": "控制在少数主辅色，标题与图形相互咬合，留白和大形决定远看识别，近看可见套印、网点和纤维细节。"
+  },
+  {
+    "id": "photo_strip_memory",
+    "category": "材质与媒介",
+    "name": "照片条、拍立得与记忆拼页",
+    "description": "以连续小照片、手写标记和真实相纸痕迹呈现时间与亲密关系。",
+    "thumbnail": "photo_strip_memory.webp",
+    "prompt": "将同一人物、关系或地点拆成连续的照片条、拍立得、接触表或相册页，每一张有不同表情、动作或时间节点。",
+    "application": "相纸边缘、日期、贴纸、手写字、胶带和轻微曝光差构成记忆媒介；主照片清晰，辅助照片不重复同一姿势。"
+  },
+  {
+    "id": "exhibition_wayfinding",
+    "category": "空间叙事",
+    "name": "展陈导视与沉浸装置",
+    "description": "用入口、主装置、导视、观众和光线表现可进入的活动空间。",
+    "thumbnail": "exhibition_wayfinding_v2.webp",
+    "prompt": "从观众视角建立一个可走入的展览、快闪、舞台或品牌空间，让入口、主视觉、路径、停留点和信息系统有明确层级。",
+    "application": "主装置承担第一记忆点，导视和灯光指向动线，观众作为尺度参照与真实使用证据，材料和安全边界保持可信。"
+  },
+  {
+    "id": "floating_object_display",
+    "category": "符号与合成",
+    "name": "悬浮物件陈列",
+    "description": "让一组相关物件在受控重力、轨道或容器中形成概念化展示。",
+    "thumbnail": "floating_object_display_v2.webp",
+    "prompt": "选择一个主物件与少量相关部件，规定它们悬浮的支点、方向、层级、尺度和光线，让失重仍然有结构和视觉秩序。",
+    "application": "主物件最清晰且尺度最大，辅助物件沿弧线、轴线或透明容器排列，阴影、反射、线缆或粒子解释空间关系。"
+  },
+  {
+    "id": "data_flow_diagram",
+    "category": "信息与版式",
+    "name": "数据流与流程图形化",
+    "description": "把输入、处理、分支、输出和反馈转换为可读的视觉流程。",
+    "thumbnail": "data_flow_diagram_v2.webp",
+    "prompt": "先定义一个核心问题和从输入到结果的方向，再用节点、箭头、阶段、状态和少量关键数字说明流程，不把流程图画成装饰背景。",
+    "application": "主路径优先、分支次之，节点形状和颜色有固定含义，人物、产品或场景作为数据来源或结果出现，文字短且按阅读方向排列。"
+  },
+  {
+    "id": "editorial_color_field",
+    "category": "信息与版式",
+    "name": "色块社论与压字构图",
+    "description": "以纯色场、强轮廓、局部裁切和大字建立现代广告与社论节奏。",
+    "thumbnail": "editorial_color_field_v2.webp",
+    "prompt": "用一个大胆而受控的色彩场托住主体，将人物、产品或车辆以清楚轮廓和局部裁切放入画面，让标题与色块共同构成空间。",
+    "application": "主色、辅助色和文字色数量有限，主体保留真实材质与接地，巨型文字可被对象压住或穿插，但不遮挡核心识别点。"
+  },
+  {
+    "id": "design_sheet_embodiment",
+    "category": "信息与版式",
+    "name": "设计稿实体化与过程叙事",
+    "description": "让角色或产品从设计草图中实体化，并与色卡、材料、工具和手绘过程同场出现。",
+    "thumbnail": "design_sheet_embodiment.webp",
+    "prompt": "以高角度俯拍的设计桌面或巨幅画稿作为空间底板，让完成的主体压在草图、结构线、色卡和材料样本上，同时保留创作者的手、画笔或正在进行的局部绘制，使二维设计过程与三维成品形成可见转化。",
+    "application": "画稿承担结构与注释，成品主体承担第一视觉焦点，色卡、面料、工具和道具按设计逻辑分组；使用真实桌面纹理、投影、遮挡、接触阴影和不同清晰度证明主体确实从设计过程跃出。"
+  }
+]

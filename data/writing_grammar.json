@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "source": "从GPT_IMAGE2_PROMPT_SKILL、提示词指导规范与1800+页案例库蒸馏的单图正向写作语法",
+  "variation_lenses": [
+    {
+      "id": "event_instant",
+      "name": "事件瞬间",
+      "instruction": "选择最能证明主体正在做什么的一个事件时刻，让动作、作用对象和结果处于同一瞬间。"
+    },
+    {
+      "id": "relationship_evidence",
+      "name": "关系证据",
+      "instruction": "通过位置、距离、朝向、视线和手部任务建立人物或对象之间的明确关系。"
+    },
+    {
+      "id": "environment_evidence",
+      "name": "环境证据",
+      "instruction": "选择能够证明地点、时代、职业、活动与世界规则的空间和使用痕迹。"
+    },
+    {
+      "id": "viewpoint_scale",
+      "name": "观察尺度",
+      "instruction": "选择一种最适合当前核心的观察距离与机位，让主体、动作和必要环境同时清楚。"
+    },
+    {
+      "id": "material_logic",
+      "name": "材质与结构",
+      "instruction": "用与主题和功能一致的材料、连接、受力、磨损与反光解释对象如何真实存在。"
+    },
+    {
+      "id": "light_time",
+      "name": "时间与光线",
+      "instruction": "选择一个具体时间和光线方向，让它真实作用于人物、空间、材料与情绪。"
+    },
+    {
+      "id": "identity_detail",
+      "name": "身份塑造",
+      "instruction": "用年龄、体态、服装系统、随身物和行为方式共同证明主体身份。"
+    },
+    {
+      "id": "functional_prop",
+      "name": "关键道具",
+      "instruction": "选择一个与事件直接相关的关键道具，写清位置、使用方式、状态和叙事作用。"
+    },
+    {
+      "id": "emotion_visible",
+      "name": "可见情绪",
+      "instruction": "把情绪落实为一致的眉眼、嘴唇、呼吸、姿态、视线和人物距离。"
+    },
+    {
+      "id": "space_layers",
+      "name": "空间层级",
+      "instruction": "让前景、中景和背景分别承担引导、核心事件与世界说明，形成清楚阅读顺序。"
+    },
+    {
+      "id": "symbolic_link",
+      "name": "主题联想",
+      "instruction": "从主题中选择一个具有来源依据的视觉联系，让主体、环境或道具形成更强记忆点。"
+    },
+    {
+      "id": "professional_claim",
+      "name": "用途主张",
+      "instruction": "突出当前用途最需要观众首先理解的信息，并让构图、细节和视觉方法共同证明它。"
+    }
+  ]
+}

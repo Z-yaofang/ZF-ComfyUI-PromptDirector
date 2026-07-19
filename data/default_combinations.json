@@ -1,0 +1,5 @@
+[
+  {"id":"documentary_life__decisive_moment","purpose":"documentary_life","visual":"decisive_moment","enabled":true,"strength":1.0},
+  {"id":"character_scene_photo__relationship_field","purpose":"character_scene_photo","visual":"relationship_field","enabled":false,"strength":1.0},
+  {"id":"cinema_keyart__symbolic_keyvisual","purpose":"cinema_keyart","visual":"symbolic_keyvisual","enabled":false,"strength":1.0}
+]
