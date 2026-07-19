@@ -101,6 +101,18 @@ The API node shown above comes from [`comfyui-FOK_API_tools`](https://github.com
 - With xFlow's OpenAI-compatible endpoint, use `https://api.xflow.cc/v1`; when changing providers, update protocol, URL, model ID, and key file together.
 - Keep analysis scope, strength, text extraction, and identity protection aligned between the prompt builder and the reference analyzer. In API mode, put additional analysis focus in the builder's `custom_focus`.
 
+### Temporarily reusing a reverse-analysis result
+
+The workflow includes `ZF Temporary Text Memory (cross-queue reuse)` for A/B testing:
+
+1. Set the mode to **更新缓存 / update cache** and run API 1 (or another reverse-analysis node) once.
+2. Change it to **使用缓存 / use cache**. The node returns the text saved in the current ComfyUI process and lazily skips the upstream reverse-analysis/API 1 call.
+3. Select **更新缓存 / update cache** again for a new result, or **清空缓存 / clear cache** to remove it.
+
+This is process-local temporary memory and is cleared when ComfyUI restarts. KJNodes `SetNode / GetNode` nodes are virtual frontend wiring helpers; they are useful for organizing long connections but are not cross-queue text memory. Use this node when you need to reuse the previous reverse-analysis result.
+
+The workflow also places `ZF Final Text List Memory (cross-queue reuse)` before the final result display. It stores the complete multi-task prompt list rather than only the last string. Run once in update mode, then switch to use mode to inspect or reuse the previous full result set.
+
 ## Installation
 
 Clone the repository into ComfyUI's `custom_nodes` directory:
@@ -128,6 +140,8 @@ git clone https://github.com/Z-yaofang/ZF-ComfyUI-Helper.git
 - `ZF Prompt Organizer and Observer`
 - `ZF Prompt Master Switch`
 - `ZF Product/Reference Image Analysis Prompt Builder (API)`
+- `ZF Temporary Text Memory (cross-queue reuse)`
+- `ZF Final Text List Memory (cross-queue reuse)`
 
 Legacy blueprint/task nodes remain available for workflow compatibility.
 

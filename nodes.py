@@ -3,6 +3,7 @@ import math
 import random
 import re
 import sys
+import threading
 from pathlib import Path
 
 
@@ -964,6 +965,132 @@ class ZFImageReferenceAnalyzer:
         return (instruction, normalized_json, summary, image)
 
 
+class ZFTextMemory:
+    """Keep a named string in the current ComfyUI process for quick A/B tests."""
+
+    MODES = ("更新缓存", "使用缓存", "清空缓存")
+    _lock = threading.RLock()
+    _cache = {}
+    _revision = 0
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "mode": (cls.MODES, {"default": cls.MODES[0]}),
+                "cache_key": ("STRING", {"default": "参考图API分析"}),
+            },
+            "optional": {
+                "text": ("STRING", {"forceInput": True, "lazy": True}),
+            },
+        }
+
+    RETURN_TYPES = ("STRING", "STRING")
+    RETURN_NAMES = ("text", "status")
+    FUNCTION = "remember"
+    CATEGORY = "ZF/工具"
+
+    @classmethod
+    def IS_CHANGED(cls, **kwargs):
+        # A cache update must invalidate downstream nodes even when the cache
+        # node's visible widgets have not changed.
+        with cls._lock:
+            return float(cls._revision)
+
+    def check_lazy_status(self, mode, cache_key, text=None):
+        if mode == "更新缓存" and text is None:
+            return ["text"]
+        return []
+
+    def remember(self, mode, cache_key, text=None):
+        key = str(cache_key or "参考图API分析").strip() or "参考图API分析"
+        with self._lock:
+            if mode == "清空缓存":
+                self._cache.pop(key, None)
+                self.__class__._revision += 1
+                return ("", f"已清空临时文本缓存：{key}")
+
+            if mode == "更新缓存":
+                value = str(text or "").strip()
+                self._cache[key] = value
+                self.__class__._revision += 1
+                return (value, f"已更新临时文本缓存：{key}（{len(value)} 字符）")
+
+            value = self._cache.get(key, "")
+            if value:
+                return (value, f"正在使用临时文本缓存：{key}（{len(value)} 字符）")
+            return ("", f"临时文本缓存为空：{key}；先切换为“更新缓存”运行一次")
+
+
+class ZFTextListMemory:
+    """Keep a whole STRING list, such as the director's multi-task result."""
+
+    MODES = ("更新缓存", "使用缓存", "清空缓存")
+    INPUT_IS_LIST = True
+    OUTPUT_IS_LIST = (True, False)
+    _lock = threading.RLock()
+    _cache = {}
+    _revision = 0
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "mode": (cls.MODES, {"default": cls.MODES[0]}),
+                "cache_key": ("STRING", {"default": "最终提示词列表"}),
+            },
+            "optional": {
+                "text": ("STRING", {"forceInput": True, "lazy": True}),
+            },
+        }
+
+    RETURN_TYPES = ("STRING", "STRING")
+    RETURN_NAMES = ("text_list", "status")
+    FUNCTION = "remember"
+    CATEGORY = "ZF/工具"
+
+    @staticmethod
+    def _first(value, default=""):
+        if isinstance(value, (list, tuple)):
+            return value[0] if value else default
+        return value if value is not None else default
+
+    @classmethod
+    def IS_CHANGED(cls, **kwargs):
+        with cls._lock:
+            return float(cls._revision)
+
+    def check_lazy_status(self, mode, cache_key, text=None):
+        if self._first(mode) == "更新缓存" and text is None:
+            return ["text"]
+        return []
+
+    def remember(self, mode, cache_key, text=None):
+        mode = self._first(mode)
+        key = str(self._first(cache_key, "最终提示词列表")).strip() or "最终提示词列表"
+        if text is None:
+            values = []
+        elif isinstance(text, (list, tuple)):
+            values = [str(item or "").strip() for item in text]
+        else:
+            values = [str(text or "").strip()]
+
+        with self._lock:
+            if mode == "清空缓存":
+                self._cache.pop(key, None)
+                self.__class__._revision += 1
+                return ([], f"已清空最终文本列表缓存：{key}")
+            if mode == "更新缓存":
+                self._cache[key] = values
+                self.__class__._revision += 1
+                return (values, f"已更新最终文本列表缓存：{key}（{len(values)} 条）")
+
+            cached = list(self._cache.get(key, []))
+            if cached:
+                return (cached, f"正在使用最终文本列表缓存：{key}（{len(cached)} 条）")
+            return ([], f"最终文本列表缓存为空：{key}；先切换为“更新缓存”运行一次")
+
+
 class ZFReferenceAnalysisPromptBuilder:
     """Build the two prompts used by an external vision API for reference analysis."""
 
@@ -1358,6 +1485,8 @@ class ZFLazyPromptSwitch:
 
 NODE_CLASS_MAPPINGS = {
     "ZFImageReferenceAnalyzer": ZFImageReferenceAnalyzer,
+    "ZFTextMemory": ZFTextMemory,
+    "ZFTextListMemory": ZFTextListMemory,
     "ZFReferenceAnalysisPromptBuilder": ZFReferenceAnalysisPromptBuilder,
     "ZFReferenceCreativeAdapter": ZFReferenceCreativeAdapter,
     "ZFPromptDirector": ZFPromptDirector,
@@ -1370,6 +1499,8 @@ NODE_CLASS_MAPPINGS = {
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "ZFImageReferenceAnalyzer": "ZF 参考图像分析器",
+    "ZFTextMemory": "ZF 临时文本缓存（跨队列复用）",
+    "ZFTextListMemory": "ZF 最终文本列表缓存（跨队列复用）",
     "ZFReferenceAnalysisPromptBuilder": "ZF 产品图/参考图分析生成器（API）",
     "ZFReferenceCreativeAdapter": "ZF 参考图临时用途与创意适配器",
     "ZFPromptDirector": "ZF 提示词创意导演 V2",
