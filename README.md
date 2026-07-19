@@ -49,6 +49,8 @@ Choose the purpose `故事分镜图` and preferably the visual method `漫画页
 
 The director task should contain `单张宫格分镜任务`, the panel count, and a grid such as `3列×2行`. Check this task text before blaming the image model.
 
+Storyboard sheets are primarily for story planning, visual review, and layout reference. They are not a substitute for producing full-resolution video-reference frames; generate those frames individually when consistency and usable per-frame pixels matter.
+
 ### Common mistakes
 
 - Do not select `参考图创意提取测试` for normal generation. It is an isolation/diagnostic mode and intentionally removes static purpose/visual combinations, so a selected storyboard will not be used there.
