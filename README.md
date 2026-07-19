@@ -111,7 +111,7 @@ The workflow includes `ZF Temporary Text Memory (cross-queue reuse)` for A/B tes
 
 This is process-local temporary memory and is cleared when ComfyUI restarts. KJNodes `SetNode / GetNode` nodes are virtual frontend wiring helpers; they are useful for organizing long connections but are not cross-queue text memory. Use this node when you need to reuse the previous reverse-analysis result.
 
-The workflow also places `ZF Final Text List Memory (cross-queue reuse)` before the final result display. It stores the complete multi-task prompt list rather than only the last string. Run once in update mode, then switch to use mode to inspect or reuse the previous full result set.
+The workflow places `ZF Final Text List Memory (cross-queue reuse)` between API 2 and the prompt validator, while also sending its output to the final result display. It stores the complete multi-task prompt list rather than only the last string. Run once in update mode, then switch to use mode to lazily skip API 2 and reuse the previous full result set.
 
 ## Installation
 
