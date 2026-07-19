@@ -75,6 +75,10 @@ For semantic creativity transfer, do not connect the source image VAE latent to 
 
 ### Full API test flow
 
+![ZF Prompt Director full two-API reference workflow](docs/images/full-api-workflow-connection.png)
+
+The screenshot records a successful complete run: API 1 reads the reference image and returns structured analysis, the temporary reference-purpose adapter sends it into the director, and API 2 writes the final image prompt for each task.
+
 Use two instances of `FOK Multi-Protocol Chat Vision API` when both reference analysis and final prompt writing should use an API. They cannot be collapsed into one call because the final writer depends on the completed reference analysis:
 
 ```text
@@ -87,7 +91,15 @@ Prompt Director.writer_tasks ─────────→ API 2.prompt
 API 2.response_text ─→ Prompt Validator.generated_prompt
 ```
 
-`ZF Product/Reference Image Analysis Prompt Builder (API)` only creates the structured analysis request for API 1. API 2 receives no image; it turns the director's tasks into finished image-generation prompts. The two nodes may use the same provider and model, but they must remain separate calls. For testing, use `raise` on errors, about `0.2` temperature for analysis, and `0.5–0.7` for final writing.
+`ZF Product/Reference Image Analysis Prompt Builder (API)` only creates the structured analysis request for API 1. API 2 receives no image; it turns the director's tasks into finished image-generation prompts. The two nodes may use the same provider and model, but they must remain separate calls.
+
+The API node shown above comes from [`comfyui-FOK_API_tools`](https://github.com/facok/comfyui-FOK_API_tools). Important details:
+
+- API 1 must use a vision-capable model. API 2 only needs text capability and all four image inputs remain empty.
+- For testing, use `raise` on errors, about `4096` tokens and `0.2` temperature for analysis, then about `8192` tokens and `0.5–0.7` for final writing.
+- `api_key_file` is only a local filename inside the API-node directory. Never store the key itself in a workflow or commit it.
+- With xFlow's OpenAI-compatible endpoint, use `https://api.xflow.cc/v1`; when changing providers, update protocol, URL, model ID, and key file together.
+- Keep analysis scope, strength, text extraction, and identity protection aligned between the prompt builder and the reference analyzer. In API mode, put additional analysis focus in the builder's `custom_focus`.
 
 ## Installation
 
