@@ -1,7 +1,24 @@
 import { app } from "/scripts/app.js";
 
 const EXTENSION_NAME = "ZF.PromptDirector";
+const RECOMMENDATION_STORAGE_KEY = "zf-prompt-director:recommended-pairing";
 let catalogPromise = null;
+
+function loadRecommendationPreference() {
+  try {
+    return localStorage.getItem(RECOMMENDATION_STORAGE_KEY) !== "off";
+  } catch (_error) {
+    return true;
+  }
+}
+
+function saveRecommendationPreference(enabled) {
+  try {
+    localStorage.setItem(RECOMMENDATION_STORAGE_KEY, enabled ? "on" : "off");
+  } catch (_error) {
+    // Browser privacy settings may disable storage; the current dialog still works.
+  }
+}
 
 function loadCatalog(forceRefresh = false) {
   if (forceRefresh) catalogPromise = null;
@@ -72,6 +89,14 @@ function visualPlaceholder(method) {
 
 function createChooser(catalog, initialPurposeId, onChoose) {
   const purposeById = new Map(catalog.purposes.map((item) => [item.id, item]));
+  const visualById = new Map(catalog.visual_methods.map((item) => [item.id, item]));
+  const visualCatalogOrder = new Map(catalog.visual_methods.map((item, index) => [item.id, index]));
+  const recommendationPreference = loadRecommendationPreference();
+  const recommendations = catalog.purpose_visual_recommendations || {};
+  const initialPurpose = purposeById.has(initialPurposeId) ? initialPurposeId : catalog.purposes[0]?.id;
+  const recommendedVisuals = (purposeId) =>
+    (Array.isArray(recommendations[purposeId]) ? recommendations[purposeId] : [])
+      .filter((visualId) => visualById.has(visualId));
   const overlay = document.createElement("div");
   overlay.className = "zf-pd-overlay";
   const modal = document.createElement("div");
@@ -79,11 +104,12 @@ function createChooser(catalog, initialPurposeId, onChoose) {
   overlay.appendChild(modal);
 
   const state = {
-    purposeId: purposeById.has(initialPurposeId) ? initialPurposeId : catalog.purposes[0]?.id,
+    purposeId: initialPurpose,
     purposeQuery: "",
     query: "",
     visualCategory: "全部",
-    visualId: null,
+    visualId: recommendationPreference ? recommendedVisuals(initialPurpose)[0] || null : null,
+    recommendationEnabled: recommendationPreference,
   };
 
   const close = () => overlay.remove();
@@ -118,9 +144,23 @@ function createChooser(catalog, initialPurposeId, onChoose) {
   body.append(purposePane, visualPane);
   modal.appendChild(body);
 
+  const purposeHeader = document.createElement("div");
+  purposeHeader.className = "zf-pd-purpose-header";
   const purposeTitle = document.createElement("h3");
   purposeTitle.textContent = "用途";
-  purposePane.appendChild(purposeTitle);
+  const recommendationToggle = document.createElement("label");
+  recommendationToggle.className = "zf-pd-recommend-toggle";
+  recommendationToggle.title = "选择用途时自动搭配更合适的视觉方法";
+  const recommendationInput = document.createElement("input");
+  recommendationInput.type = "checkbox";
+  recommendationInput.checked = state.recommendationEnabled;
+  const recommendationTrack = document.createElement("span");
+  recommendationTrack.className = "zf-pd-recommend-track";
+  const recommendationLabel = document.createElement("span");
+  recommendationLabel.textContent = "推荐搭配";
+  recommendationToggle.append(recommendationInput, recommendationTrack, recommendationLabel);
+  purposeHeader.append(purposeTitle, recommendationToggle);
+  purposePane.appendChild(purposeHeader);
   const purposeSearch = document.createElement("input");
   purposeSearch.type = "search";
   purposeSearch.className = "zf-pd-purpose-search";
@@ -157,8 +197,18 @@ function createChooser(catalog, initialPurposeId, onChoose) {
         button.innerHTML = `<strong>${purpose.name}</strong><span>${purpose.description}</span>`;
         button.addEventListener("click", () => {
           state.purposeId = purpose.id;
+          if (state.recommendationEnabled) {
+            state.visualId = recommendedVisuals(purpose.id)[0] || null;
+            state.visualCategory = "全部";
+            state.query = "";
+            search.value = "";
+            categoryBar.querySelectorAll("button").forEach((node) =>
+              node.classList.toggle("selected", node.textContent === "全部"),
+            );
+            visualPane.scrollTop = 0;
+          }
           renderPurposes();
-          updateFooter();
+          renderVisuals();
         });
         button.classList.toggle("selected", purpose.id === state.purposeId);
         group.appendChild(button);
@@ -196,6 +246,22 @@ function createChooser(catalog, initialPurposeId, onChoose) {
   cards.className = "zf-pd-card-grid";
   visualPane.appendChild(cards);
 
+  recommendationInput.addEventListener("change", () => {
+    state.recommendationEnabled = recommendationInput.checked;
+    saveRecommendationPreference(state.recommendationEnabled);
+    if (state.recommendationEnabled) {
+      state.visualId = recommendedVisuals(state.purposeId)[0] || state.visualId;
+      state.visualCategory = "全部";
+      state.query = "";
+      search.value = "";
+      categoryBar.querySelectorAll("button").forEach((node) =>
+        node.classList.toggle("selected", node.textContent === "全部"),
+      );
+      visualPane.scrollTop = 0;
+    }
+    renderVisuals();
+  });
+
   function renderVisuals() {
     cards.replaceChildren();
     const methods = catalog.visual_methods.filter((method) => {
@@ -203,11 +269,21 @@ function createChooser(catalog, initialPurposeId, onChoose) {
       const haystack = `${method.name} ${method.description} ${method.category}`.toLowerCase();
       return categoryMatch && (!state.query || haystack.includes(state.query));
     });
+    if (state.recommendationEnabled) {
+      const recommendedOrder = new Map(recommendedVisuals(state.purposeId).map((visualId, index) => [visualId, index]));
+      methods.sort((left, right) => {
+        const leftOrder = recommendedOrder.has(left.id) ? recommendedOrder.get(left.id) : Number.MAX_SAFE_INTEGER;
+        const rightOrder = recommendedOrder.has(right.id) ? recommendedOrder.get(right.id) : Number.MAX_SAFE_INTEGER;
+        return leftOrder - rightOrder
+          || (visualCatalogOrder.get(left.id) ?? 0) - (visualCatalogOrder.get(right.id) ?? 0);
+      });
+    }
     for (const method of methods) {
       const card = document.createElement("button");
       card.type = "button";
       card.className = "zf-pd-card";
       card.dataset.id = method.id;
+      card.classList.toggle("selected", method.id === state.visualId);
       const image = document.createElement("img");
       image.loading = "lazy";
       image.alt = method.name;
@@ -251,7 +327,7 @@ function createChooser(catalog, initialPurposeId, onChoose) {
 
   function updateFooter() {
     const purpose = purposeById.get(state.purposeId);
-    const visual = catalog.visual_methods.find((item) => item.id === state.visualId);
+    const visual = visualById.get(state.visualId);
     summary.textContent = visual ? `${purpose?.name || "未选用途"} / ${visual.name}` : `${purpose?.name || "未选用途"} / 请选择视觉方法`;
     add.disabled = !(purpose && visual);
   }
@@ -265,18 +341,49 @@ function createChooser(catalog, initialPurposeId, onChoose) {
 function attachDirectorUI(node) {
   const configWidget = node.widgets?.find((widget) => widget.name === "selection_json");
   const presetWidget = node.widgets?.find((widget) => widget.name === "additional_preset");
+  const referenceModeWidget = node.widgets?.find((widget) => widget.name === "reference_mode");
   if (!configWidget || node.__zfPromptDirectorAttached) return;
   node.__zfPromptDirectorAttached = true;
 
-  [configWidget, presetWidget].filter(Boolean).forEach((widget) => {
+  [configWidget, presetWidget, referenceModeWidget].filter(Boolean).forEach((widget) => {
+    widget.hidden = true;
+    widget.options = { ...(widget.options || {}), hidden: true };
     widget.computeSize = () => [0, -4];
-    widget.type = "converted-widget:zf-prompt-director";
+    widget.type = "converted-widget";
     if (widget.inputEl) widget.inputEl.style.display = "none";
     if (widget.element) widget.element.style.display = "none";
   });
 
   const root = document.createElement("div");
   root.className = "zf-pd-node";
+  const controls = document.createElement("div");
+  controls.className = "zf-pd-native-controls";
+  if (referenceModeWidget) {
+    const row = document.createElement("label");
+    row.className = "zf-pd-native-control";
+    const label = document.createElement("span");
+    label.textContent = "参考图模式";
+    const select = document.createElement("select");
+    select.title = "选择创意迁移，或只测试参考图提取出的临时用途与创意";
+    const values = Array.isArray(referenceModeWidget.options?.values)
+      ? referenceModeWidget.options.values
+      : [referenceModeWidget.value].filter(Boolean);
+    for (const value of values) {
+      const option = document.createElement("option");
+      option.value = String(value);
+      option.textContent = String(value);
+      select.appendChild(option);
+    }
+    select.value = String(referenceModeWidget.value ?? values[0] ?? "");
+    select.addEventListener("change", () => {
+      referenceModeWidget.value = select.value;
+      referenceModeWidget.callback?.(referenceModeWidget.value);
+      node.graph?.setDirtyCanvas?.(true, true);
+      node.setDirtyCanvas?.(true, true);
+    });
+    row.append(label, select);
+    controls.appendChild(row);
+  }
   const status = document.createElement("div");
   status.className = "zf-pd-node-status";
   const list = document.createElement("div");
@@ -294,15 +401,23 @@ function attachDirectorUI(node) {
   presetEditor.placeholder = "只填写当前任务确实需要、且用途与视觉模块无法表达的特殊规则；通常留空。";
   presetEditor.value = String(presetWidget?.value || "");
   presetWrap.appendChild(presetEditor);
-  root.append(status, list, addButton, presetToggle, presetWrap);
+  root.append(controls, status, list, addButton, presetToggle, presetWrap);
 
   let catalog = null;
   let selection = parseSelection(configWidget.value, []);
   let presetOpen = Boolean(presetEditor.value.trim());
+  const controlsHeight = referenceModeWidget ? 36 : 0;
 
-  const resizeNode = () => {
-    const height = Math.max(300, 205 + selection.length * 38 + (presetOpen ? 112 : 0));
-    node.setSize([Math.max(node.size?.[0] || 0, 430), height]);
+  const getDirectorHeight = () => (
+    132 + controlsHeight + selection.length * 42 + (presetOpen ? 116 : 0)
+  );
+
+  const resizeNode = ({ allowShrink = false } = {}) => {
+    const computed = node.computeSize?.();
+    const requiredHeight = Math.max(360, 245 + getDirectorHeight(), Number(computed?.[1] || 0));
+    const currentHeight = Number(node.size?.[1] || 0);
+    const height = allowShrink ? requiredHeight : Math.max(currentHeight, requiredHeight);
+    node.setSize([Math.max(node.size?.[0] || 0, Number(computed?.[0] || 0), 520), height]);
   };
 
   const renderPreset = () => {
@@ -333,13 +448,17 @@ function attachDirectorUI(node) {
     node.setDirtyCanvas?.(true, true);
   };
 
+  const updateStatus = () => {
+    const activeCount = selection.filter((item) => item.enabled !== false).length;
+    status.innerHTML = `<strong>${activeCount}</strong> 个组合生效 <span>首项为主导，后续项仅作补充</span>`;
+  };
+
   const render = () => {
     if (!catalog) return;
     const purposeMap = new Map(catalog.purposes.map((item) => [item.id, item]));
     const visualMap = new Map(catalog.visual_methods.map((item) => [item.id, item]));
     list.replaceChildren();
-    const activeCount = selection.filter((item) => item.enabled !== false).length;
-    status.innerHTML = `<strong>${activeCount}</strong> 个组合生效 <span>首项为主导，后续项仅作补充</span>`;
+    updateStatus();
 
     selection.forEach((entry, index) => {
       const purpose = purposeMap.get(entry.purpose);
@@ -353,8 +472,9 @@ function attachDirectorUI(node) {
       toggle.title = "启用此组合";
       toggle.addEventListener("change", () => {
         entry.enabled = toggle.checked;
+        row.classList.toggle("disabled", !toggle.checked);
         save();
-        render();
+        updateStatus();
       });
       const label = document.createElement("div");
       label.className = "zf-pd-row-label";
@@ -415,8 +535,8 @@ function attachDirectorUI(node) {
   const domWidget = node.addDOMWidget("zf_prompt_director_ui", "zf-prompt-director", root, {
     serialize: false,
     hideOnZoom: false,
-    getMinHeight: () => Math.max(112, 88 + selection.length * 38 + (presetOpen ? 112 : 0)),
-    getMaxHeight: () => Math.max(112, 88 + selection.length * 38 + (presetOpen ? 112 : 0)),
+    getMinHeight: () => getDirectorHeight(),
+    getMaxHeight: () => getDirectorHeight(),
   });
   domWidget.serialize = false;
   renderPreset();

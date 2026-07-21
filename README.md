@@ -4,6 +4,10 @@
 
 An early public-testing release of a purpose-driven prompt director for ComfyUI. It turns a user prompt, a theme/worldview, a professional use case, and a visual method into one independent Chinese image-generation task per requested image.
 
+## Tutorial Package / 教学资料
+
+The repository includes a ready-to-record Chinese tutorial package centered on two connection diagrams, an 18–22 minute narration script, a shot list, dependency notes, publishing copy, and recording checklists: [`docs/tutorial/README.md`](docs/tutorial/README.md).
+
 ## Material-Source Attribution / 素材来源说明
 
 The material catalogs used, organized, and expanded by the current and future versions of this plugin—including use cases, creative directions, case-inspired ideas, and related prompt-material references—originate from the material collections and sharing of **远古大呲花**. This attribution is included with the author's consent.
@@ -26,6 +30,7 @@ Feedback from different local language models, vision-language models, image mod
 - A temporary reference-image purpose/creative channel that can work with a worldview or the explicit empty-text route from `ZF-ComfyUI-Helper`.
 - Defensive handling for incomplete VLM JSON and accidental source-image text leakage.
 - Editable JSON catalogs for purposes, visual methods, worldviews, defaults, and writing grammar.
+- An optional recommended-pairing switch that preselects and brings forward suitable visual methods for the chosen purpose without changing the saved prompt contract.
 
 ## Quick Start / 快速接法
 
