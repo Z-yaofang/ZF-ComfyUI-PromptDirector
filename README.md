@@ -4,10 +4,6 @@
 
 An early public-testing release of a purpose-driven prompt director for ComfyUI. It turns a user prompt, a theme/worldview, a professional use case, and a visual method into one independent Chinese image-generation task per requested image.
 
-## Tutorial Package / 教学资料
-
-The repository includes a ready-to-record Chinese tutorial package centered on two connection diagrams, an 18–22 minute narration script, a shot list, dependency notes, publishing copy, and recording checklists: [`docs/tutorial/README.md`](docs/tutorial/README.md).
-
 ## Material-Source Attribution / 素材来源说明
 
 The material catalogs used, organized, and expanded by the current and future versions of this plugin—including use cases, creative directions, case-inspired ideas, and related prompt-material references—originate from the material collections and sharing of **远古大呲花**. This attribution is included with the author's consent.

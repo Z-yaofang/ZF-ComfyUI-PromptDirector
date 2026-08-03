@@ -16,10 +16,6 @@
 
 面向 ComfyUI 的用途驱动提示词创意导演。插件根据用户提示、取材主题、作品用途和视觉方法，为每张图建立一个独立写作任务，再由工作流中的语言模型直接生成成品中文提示词。
 
-## 教学资料包
-
-仓库内已整理一套可以直接照着录制的中文教学包，围绕两张接法图，包含约 18–22 分钟口播稿、录屏镜头表、依赖说明、发布文案和检查清单：[`docs/tutorial/README.md`](docs/tutorial/README.md)。
-
 ## 快速接法与用法 / Quick Start
 
 ![ZF 提示词创意导演本地模型接线图](docs/images/local-workflow-connection-v2.png)
