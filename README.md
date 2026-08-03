@@ -4,6 +4,11 @@
 
 An early public-testing release of a purpose-driven prompt director for ComfyUI. It turns a user prompt, a theme/worldview, a professional use case, and a visual method into one independent Chinese image-generation task per requested image.
 
+## Plugin Author / 插件作者
+
+- Author / 作者: **Z-C 小哩**
+- Bilibili profile / B站主页: <https://space.bilibili.com/474407516>
+
 ## Material-Source Attribution / 素材来源说明
 
 The material catalogs used, organized, and expanded by the current and future versions of this plugin—including use cases, creative directions, case-inspired ideas, and related prompt-material references—originate from the material collections and sharing of **远古大呲花**. This attribution is included with the author's consent.

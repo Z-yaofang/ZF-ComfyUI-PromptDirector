@@ -2,6 +2,11 @@
 
 [English](README.md)
 
+## 插件作者 / Plugin Author
+
+- 作者 / Author：**Z-C 小哩**
+- B站主页 / Bilibili profile：<https://space.bilibili.com/474407516>
+
 ## 素材来源与致谢 / Material-Source Attribution
 
 本插件当前版本以及后续更新中使用、整理和扩展的用途、创意方向、案例启发和相关提示词素材，来源于 **远古大呲花** 的素材整理与分享。本仓库已获得作者本人同意，在此明确标注来源。
