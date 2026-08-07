@@ -81,7 +81,7 @@ DIRECTOR_SYSTEM_PROMPT = """你是视觉创意导演，也是中文图像正向�
 用户提示为空时，用途先确定作品类型和取材范围，视觉方法确定画面结构，再从取材主题中选择一个明确主体、一个主要事件和一组相互支持的素材。每个任务形成一张独立、完整、自洽的图。
 
 【故事分镜图】
-任务标记为故事分镜图时，创作对象是一张包含全部分镜的复合宫格图。输入数量表示有效分镜格数。先建立统一的角色辨识、服装道具、地点结构、时间进程、色彩媒介和运动方向，再按从左到右、从上到下写清每格唯一的事件时刻。相邻格保持动作承接、视线承接、空间轴线和因果连续。用户提示非空时，它是故事中段必须准确出现的关键瞬间；前格建立成立的起因，后格呈现直接反应、转折、余波和结局。尾部空位统一成为纯黑矩形色块。
+任务标记为故事分镜图时，创作对象是一张包含全部分镜的复合图。输入数量表示准确有效分镜数，版式由所选视觉方法决定，可以等分，也可以使用一个主格与若干小格。先建立统一的角色辨识、服装道具、地点结构、时间进程、色彩媒介和运动方向，再按从左到右、从上到下写清每格唯一的稳定事件时刻。动作建立、接触、结果和反应按因果拆格，相邻格保持状态承接、视线承接、空间轴线和物理连续。用户提示非空时，它是故事中段必须准确出现的关键瞬间；前格建立成立的起因，后格呈现直接反应、转折、余波和结局。剩余版面只作为边框、留白或统一背景，不增加伪分镜，也不补纯黑色块。
 
 【视觉写作】
 先写核心主体与事件，再写直接相关的主题素材，最后写用途、构图、镜头、画风、光线、色彩和材质。动作在一个连续内容块中写清支撑、方向、接触对象和事件时刻。每个属性选定一个具体值。群像中的主要成员各自拥有明确位置、动作、视线、关系职责和辨识特征。抽象气质转译为可见的姿态、距离、空间、颜色、光线与材料。
@@ -697,14 +697,26 @@ def _storyboard_task_prompt(
     reference_instruction,
     reference_creative=None,
 ):
-    columns, rows, blanks = _storyboard_layout(panel_count)
     beats = _storyboard_beats(panel_count, bool(user_prompt))
     beat_text = "\n".join(f"第{index}格：{beat}" for index, beat in enumerate(beats, 1))
-    blank_text = (
-        f"有效分镜之后的{blanks}个尾部空位统一绘制为完整纯黑矩形色块。"
-        if blanks
-        else "全部宫格均为有效分镜。"
-    )
+    visual_ids = {item["visual"]["id"] for item in selection}
+    if "comic_page" in visual_ids:
+        layout_text = (
+            f"漫画页式主次分格，准确放置{panel_count}个有效分镜；允许一个关键大格与若干节奏小格，"
+            "格框大小服务情节强弱，阅读方向从左到右、从上到下。"
+        )
+    elif "geometric_panel_grid" in visual_ids:
+        columns, rows, _ = _storyboard_layout(panel_count)
+        layout_text = (
+            f"以约{columns}列×{rows}行的几何分区作为布局骨架，准确放置{panel_count}个有效分镜；"
+            "允许局部合并或错落突出关键格，阅读方向从左到右、从上到下。"
+        )
+    else:
+        layout_text = (
+            f"使用适合当前画幅的自适应分镜版式，准确放置{panel_count}个有效分镜；"
+            "按情节强弱安排主次面积，阅读方向从左到右、从上到下。"
+        )
+    layout_text += "剩余版面只作为边框、留白或统一背景，不增加伪分镜，不补纯黑色块。"
     if user_prompt:
         mode_text = "用户提示构成故事铁案，准确进入标记为“用户指定关键瞬间”的格子；其余格只推演能够自然到达和离开这个瞬间的情节。"
         user_text = user_prompt
@@ -723,9 +735,9 @@ def _storyboard_task_prompt(
     reference_block = "" if reference_creative else _prompt_reference_block(reference_instruction)
     creative_block = _reference_creative_block(reference_creative)
     return (
-        f"【单张宫格分镜任务】\n本次只生成一张复合图；有效分镜{panel_count}格。{mode_text}\n\n"
-        f"【画幅与宫格】\n整张图：{_aspect_description(width, height)}\n"
-        f"宫格结构：{columns}列×{rows}行，阅读方向从左到右、从上到下，格框边界清楚，格间距统一。{blank_text}\n\n"
+        f"【单张复合分镜任务】\n本次只生成一张复合图；有效分镜{panel_count}格。{mode_text}\n\n"
+        f"【画幅与版式】\n整张图：{_aspect_description(width, height)}\n"
+        f"版式结构：{layout_text}\n\n"
         f"【用户核心】\n{user_text}\n\n"
         f"【取材世界观】\n{theme_text}\n\n"
         f"{creative_block + chr(10) if creative_block else ''}"
@@ -733,11 +745,11 @@ def _storyboard_task_prompt(
         f"【用途与创意】\n{_combination_block(selection)}\n\n"
         f"【故事节拍】\n{beat_text}\n\n"
         "【连续性资产】\n先在成品提示词中一次确定主角与重要配角的年龄、脸型、发型、体态、服装整套配色、关键道具；一次确定主要地点的方位、入口、层级、材质和光源。随后逐格沿用这些锚点。人物从上一格离开的方向与下一格进入方向衔接，动作结果、道具状态、衣物痕迹、天气与时间持续演变。\n\n"
-        "【逐格成文】\n成品提示词先写整张宫格的统一画风、角色锚点、世界规则、布局和连续性，再按格序逐一写主体位置、唯一动作阶段、作用对象、表情反应、景别机位、场景证据和与前后格的承接。建立格交代空间，推进格强化行动，高潮格使用最强视觉重心，收束格呈现明确后果。\n\n"
+        "【逐格成文】\n成品提示词先写整张复合分镜的统一画风、角色锚点、世界规则、布局和连续性，再按格序逐一写主体位置、唯一稳定时刻、作用对象、表情反应、景别机位、场景证据和与前后格的承接。同一剧情句包含多个视觉信息时，按发现对象、理解信息、动作准备、接触结果和人物反应拆到必要的相邻格；不在一格叠加动作前后状态。建立格交代空间，推进格强化行动，关键格使用最强视觉重心，收束格呈现明确后果。\n\n"
         f"【成文密度】\n目标成图模型等级：{MODEL_LEVEL_SPECS[_model_level_key(model_level)]['name']}。"
         f"{MODEL_LEVEL_SPECS[_model_level_key(model_level)]['instruction']}建议约{minimum}至{maximum}个中文字符。\n\n"
         "【文字限制】除非用户核心明确要求出现文字，内部创意概念、用途名称和世界观名称不得变成标题、招牌、Logo、字幕或屏幕大字；无法辨认的文字只写成不可读的装饰性纹理。\n\n"
-        "【输出】\n只输出一条用于生成整张宫格分镜图的中文正向提示词正文。"
+        "【输出】\n只输出一条用于生成整张复合分镜图的中文正向提示词正文。"
         f"{preset_block}"
     )
 

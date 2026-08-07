@@ -7,3 +7,9 @@ venv/
 .idea/
 .vscode/
 *.log
+
+# Full/private worldview libraries are independent local creative assets.
+# Public instructional examples belong under examples/ instead.
+data/worldviews.json
+data/worldviews/
+worldviews/

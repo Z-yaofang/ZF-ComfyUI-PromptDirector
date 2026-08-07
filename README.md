@@ -30,7 +30,7 @@ Feedback from different local language models, vision-language models, image mod
 - Dynamic reference-image creativity: extract reusable concepts, element pools, composition, materials, and lighting without feeding the source latent into the sampler.
 - A temporary reference-image purpose/creative channel that can work with a worldview or the explicit empty-text route from `ZF-ComfyUI-Helper`.
 - Defensive handling for incomplete VLM JSON and accidental source-image text leakage.
-- Editable JSON catalogs for purposes, visual methods, worldviews, defaults, and writing grammar.
+- Editable JSON catalogs for purposes, visual methods, defaults, and writing grammar.
 - An optional recommended-pairing switch that preselects and brings forward suitable visual methods for the chosen purpose without changing the saved prompt contract.
 
 ## Quick Start / 快速接法
@@ -51,9 +51,9 @@ The diagram above shows the current local-model connection for the director work
 
 ### Storyboard is a different output mode
 
-Choose the purpose `故事分镜图` and preferably the visual method `漫画页与动作转场`. Unlike ordinary purposes, this creates **one composite image containing all panels**, not several independent images. The `count` input is the number of valid panels: `4` → 2×2, `6` → 3×2, `8` → 3×3 with one black trailing cell. Keep the latent batch size at `1`.
+Choose the purpose `故事分镜图` and preferably the visual method `漫画页与动作转场`. Unlike ordinary purposes, this creates **one composite image containing all panels**, not several independent images. The `count` input is the exact number of valid panels. Panel sizes may be equal or may use one main panel with supporting panels; unused page area stays as border, negative space, or a shared background and never becomes a fake black panel. Keep the latent batch size at `1`.
 
-The director task should contain `单张宫格分镜任务`, the panel count, and a grid such as `3列×2行`. Check this task text before blaming the image model.
+The director task should contain `单张宫格分镜任务`, the exact panel count, continuity rules, and a layout matched to the selected visual method. Check this task text before blaming the image model.
 
 Storyboard sheets are primarily for story planning, visual review, and layout reference. They are not a substitute for producing full-resolution video-reference frames; generate those frames individually when consistency and usable per-frame pixels matter.
 
@@ -175,11 +175,10 @@ Restart ComfyUI after an update.
 
 - `data/purposes.json`
 - `data/visual_methods.json`
-- `data/worldviews.json`
 - `data/default_combinations.json`
 - `data/writing_grammar.json`
 
-The catalogs can be extended without rewriting the frontend selector.
+The catalogs can be extended without rewriting the frontend selector. Full worldview libraries are independent creative material and are intentionally not included or tracked in this repository. Keep them in an external local library or workflow and connect their output to the director's `theme` input. [`examples/定格世界.txt`](examples/定格世界.txt) is the sole public instructional example; it demonstrates the recommended structure without turning worldviews into a built-in catalog.
 
 ## License
 

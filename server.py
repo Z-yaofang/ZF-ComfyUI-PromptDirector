@@ -23,7 +23,6 @@ async def catalog(_request):
             "visual_methods": _read("visual_methods.json"),
             "purpose_visual_recommendations": _read("purpose_visual_recommendations.json"),
             "default_combinations": _read("default_combinations.json"),
-            "worldviews": _read("worldviews.json"),
         }
     )
 
