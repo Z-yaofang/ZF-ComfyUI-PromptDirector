@@ -4,6 +4,8 @@
 
 An early public-testing release of a purpose-driven prompt director for ComfyUI. It turns a user prompt, a theme/worldview, a professional use case, and a visual method into one independent Chinese image-generation task per requested image.
 
+New users can start with the Chinese [Purpose and Visual-Method Recommendation Guide](docs/用途与创意推荐说明书.md), which provides direct recipes, a complete purpose lookup, special-mode rules, and common pitfalls.
+
 ## Plugin Author / 插件作者
 
 - Author / 作者: **Z-C 小哩**
@@ -23,7 +25,8 @@ Feedback from different local language models, vision-language models, image mod
 
 ## Highlights
 
-- Purpose-driven prompt planning with 31 use cases and 38 visual methods.
+- Purpose-driven prompt planning with 32 use cases and 38 visual methods.
+- Production-ready character reference sheets with consistent front, side, back, and three-quarter views.
 - Multi-image task counts are created by plugin code instead of relying on a language model to count correctly.
 - User-core, theme-creation, and storyboard modes.
 - Three output-detail levels for lightweight, mainstream, and strong image models.
@@ -48,6 +51,15 @@ The diagram above shows the current local-model connection for the director work
 3. Add one or more purpose + visual-method combinations in the director panel. The first enabled combination is normally the primary task; later combinations are supplemental.
 4. Keep `reference_mode` on `创意迁移` for normal image generation. This lets reference-image creativity, the worldview, and the selected task work together.
 5. Send `writer_system_prompt` and `writer_tasks` to the language-model writer, then pass the validated prompt to the existing image-generation path. Use `EmptyLatentImage` as the latent source for semantic creativity transfer.
+
+### Local multimodal director writer
+
+`ZF PromptDirector Local Multimodal Writer (llama.cpp)` is the plugin's built-in local writer. It uses a model loaded by `ComfyUI-llama-cpp_vlm`, but does not depend on `ZF-ComfyUI-MultimodalAPI` and makes no network API request.
+
+- Connect `writer_system_prompt` to `role` and `writer_tasks` to `prompt`.
+- A list of 5, 10, or more director tasks is mapped to the same number of local-model calls and results; the node does not collapse the list or keep only item zero.
+- Up to eight image inputs and one sampled video-frame batch are supported. Images keep their aspect ratio; video audio is not analyzed.
+- Keep `force_offload` disabled for efficient consecutive tasks, or enable it before a large image/video model needs the VRAM.
 
 ### Storyboard is a different output mode
 
@@ -85,7 +97,7 @@ For semantic creativity transfer, do not connect the source image VAE latent to 
 
 The screenshot records a successful complete run: API 1 reads the reference image and returns structured analysis, the temporary reference-purpose adapter sends it into the director, and API 2 writes the final image prompt for each task.
 
-The repository also includes the current local-model wiring diagram: `local-workflow-connection-v2.png`. In that route, a local multimodal/VLM node supplies `analysis_result` to `ZF Image Reference Analyzer`, and a local text-generation node writes the director tasks before the same validator, lazy switch, string cleanup, and string-to-list output chain. Choose either the API route or the local route for a given test; do not leave a second writer or reverse-analysis branch connected by accident.
+The repository also includes the current local-model wiring diagram: `local-workflow-connection-v2.png`. In that route, `ZF PromptDirector Local Multimodal Writer (llama.cpp)` can read references and write every director task before the same validator, lazy switch, string cleanup, and string-to-list output chain. Choose either the API route or the local route for a given test; do not leave a second writer or reverse-analysis branch connected by accident.
 
 Use two instances of `FOK Multi-Protocol Chat Vision API` when both reference analysis and final prompt writing should use an API. They cannot be collapsed into one call because the final writer depends on the completed reference analysis:
 

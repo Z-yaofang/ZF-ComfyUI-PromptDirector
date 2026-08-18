@@ -8,6 +8,8 @@ from pathlib import Path
 
 from comfy_execution.graph import ExecutionBlocker
 
+from .local_multimodal import ZFPromptDirectorLocalLLM
+
 
 ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data"
@@ -84,7 +86,7 @@ DIRECTOR_SYSTEM_PROMPT = """你是视觉创意导演，也是中文图像正向�
 任务标记为故事分镜图时，创作对象是一张包含全部分镜的复合图。输入数量表示准确有效分镜数，版式由所选视觉方法决定，可以等分，也可以使用一个主格与若干小格。先建立统一的角色辨识、服装道具、地点结构、时间进程、色彩媒介和运动方向，再按从左到右、从上到下写清每格唯一的稳定事件时刻。动作建立、接触、结果和反应按因果拆格，相邻格保持状态承接、视线承接、空间轴线和物理连续。用户提示非空时，它是故事中段必须准确出现的关键瞬间；前格建立成立的起因，后格呈现直接反应、转折、余波和结局。剩余版面只作为边框、留白或统一背景，不增加伪分镜，也不补纯黑色块。
 
 【视觉写作】
-先写核心主体与事件，再写直接相关的主题素材，最后写用途、构图、镜头、画风、光线、色彩和材质。动作在一个连续内容块中写清支撑、方向、接触对象和事件时刻。每个属性选定一个具体值。群像中的主要成员各自拥有明确位置、动作、视线、关系职责和辨识特征。抽象气质转译为可见的姿态、距离、空间、颜色、光线与材料。
+先写核心主体与事件，再写直接相关的主题素材，最后写用途、构图、镜头、画风、光线、色彩和材质。动作在一个连续内容块中写清支撑、方向、接触对象和事件时刻。每个属性选定一个具体值。除非用户明确要求复合表达，每张图只采用一套相互兼容的景别与机位、一种主要透视、一套主光方案、一个色彩系统和一种主要媒介风格，不把互相竞争的摄影术语与风格标签堆在一起。群像中的主要成员各自拥有明确位置、动作、视线、关系职责和辨识特征。抽象气质转译为可见的姿态、距离、空间、颜色、光线与材料。
 
 【人物数量与肢体执行】
 1. 用户明确人物数量时，严格锁定总人数和角色清单，不因双侧肢体、多个接触点、镜像构图或动作阶段复制角色。成品提示词开头使用“画面中只有……”或同等明确的正向表述锁定人物数量。
@@ -1527,6 +1529,7 @@ class ZFLazyPromptSwitch:
 
 
 NODE_CLASS_MAPPINGS = {
+    "ZFPromptDirectorLocalLLM": ZFPromptDirectorLocalLLM,
     "ZFImageReferenceAnalyzer": ZFImageReferenceAnalyzer,
     "ZFTextMemory": ZFTextMemory,
     "ZFTextListMemory": ZFTextListMemory,
@@ -1541,6 +1544,7 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
+    "ZFPromptDirectorLocalLLM": "ZF 导演台本地多模态写作（llama.cpp）",
     "ZFImageReferenceAnalyzer": "ZF 参考图像分析器",
     "ZFTextMemory": "ZF 临时文本缓存（跨队列复用）",
     "ZFTextListMemory": "ZF 最终文本列表缓存（跨队列复用）",
