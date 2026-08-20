@@ -8,6 +8,7 @@ from pathlib import Path
 
 from comfy_execution.graph import ExecutionBlocker
 
+from .flow_nodes import ZFPromptDirectorAnyFilter, ZFPromptDirectorMultiTextSelector
 from .local_multimodal import ZFPromptDirectorLocalLLM
 
 
@@ -1529,6 +1530,8 @@ class ZFLazyPromptSwitch:
 
 
 NODE_CLASS_MAPPINGS = {
+    "ZFPromptDirectorAnyFilter": ZFPromptDirectorAnyFilter,
+    "ZFPromptDirectorMultiTextSelector": ZFPromptDirectorMultiTextSelector,
     "ZFPromptDirectorLocalLLM": ZFPromptDirectorLocalLLM,
     "ZFImageReferenceAnalyzer": ZFImageReferenceAnalyzer,
     "ZFTextMemory": ZFTextMemory,
@@ -1544,7 +1547,9 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "ZFPromptDirectorLocalLLM": "ZF 导演台本地多模态写作（llama.cpp）",
+    "ZFPromptDirectorAnyFilter": "ZF任意过滤器",
+    "ZFPromptDirectorMultiTextSelector": "ZF文本动态多路点选",
+    "ZFPromptDirectorLocalLLM": "ZF本地多模态指令",
     "ZFImageReferenceAnalyzer": "ZF 参考图像分析器",
     "ZFTextMemory": "ZF 临时文本缓存（跨队列复用）",
     "ZFTextListMemory": "ZF 最终文本列表缓存（跨队列复用）",

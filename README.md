@@ -35,6 +35,7 @@ Feedback from different local language models, vision-language models, image mod
 - Defensive handling for incomplete VLM JSON and accidental source-image text leakage.
 - Editable JSON catalogs for purposes, visual methods, defaults, and writing grammar.
 - An optional recommended-pairing switch that preselects and brings forward suitable visual methods for the chosen purpose without changing the saved prompt contract.
+- Two self-contained workflow utilities: `ZF文本动态多路点选` for lazy single-route text selection and `ZF任意过滤器` for explicit None, empty-text, pass-through, and literal-removal behavior.
 
 ## Quick Start / 快速接法
 
@@ -60,6 +61,12 @@ The diagram above shows the current local-model connection for the director work
 - A list of 5, 10, or more director tasks is mapped to the same number of local-model calls and results; the node does not collapse the list or keep only item zero.
 - Up to eight image inputs and one sampled video-frame batch are supported. Images keep their aspect ratio; video audio is not analyzed.
 - Keep `force_offload` disabled for efficient consecutive tasks, or enable it before a large image/video model needs the VRAM.
+
+### Workflow utility nodes
+
+- `ZF文本动态多路点选` shows 1–32 text routes and executes only the route selected by its button. The **空文本** button deliberately returns an empty string and route index `0`.
+- `ZF任意过滤器` accepts arbitrary ComfyUI data. Its condition and output action are independent: a match can return real `None` so a downstream Any Switch skips the route, return an empty string so the route intentionally stops, preserve the original value, or remove literal text.
+- These classes use PromptDirector-specific internal IDs, so the original nodes in `ZF-ComfyUI-Helper` can remain installed without name collisions.
 
 ### Storyboard is a different output mode
 

@@ -1,0 +1,55 @@
+{
+  "ZFPromptDirectorAnyFilter": {
+    "display_name": "ZF任意过滤器",
+    "description": "根据一个判断逻辑处理任意输入。真正的 None 会让任意切换跳过该路，空文本会让任意切换在该路停止；文字匹配与删除只处理文本。",
+    "inputs": {
+      "value": {
+        "name": "任意输入",
+        "tooltip": "可接任意类型；空列表不会报错，0 和 False 等有效值不会被误判为空。"
+      },
+      "condition": {
+        "name": "判断逻辑",
+        "tooltip": "选择在什么情况下执行下面的输出内容。未命中时，输入原样通过。"
+      },
+      "output_action": {
+        "name": "输出内容",
+        "tooltip": "选择判断命中后的结果：真正无输出、空文本、原样输出或删除指定内容。"
+      },
+      "filter_content": {
+        "name": "过滤内容（每行一项）",
+        "tooltip": "每行填写一个普通文字、触发词、短语或符号；按原样匹配，不使用正则表达式。"
+      },
+      "case_sensitive": {
+        "name": "区分英文大小写",
+        "tooltip": "关闭后，英文匹配不区分大小写。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "过滤后输出"
+      }
+    }
+  },
+  "ZFPromptDirectorMultiTextSelector": {
+    "display_name": "ZF文本动态多路点选",
+    "description": "输入数字决定显示的文本路线数量，按钮明确选择一路；执行时只请求所选路线，不自动回退，也不判断其他路线的内容。",
+    "inputs": {
+      "input_count": {
+        "name": "路线数量",
+        "tooltip": "显示 1 到 32 路文本输入；减少路线会断开被移除的输入。"
+      },
+      "selected": {
+        "name": "当前路线",
+        "tooltip": "由节点内的单选按钮自动保存；0 明确输出空文本。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "文本"
+      },
+      "1": {
+        "name": "实际路线"
+      }
+    }
+  }
+}
