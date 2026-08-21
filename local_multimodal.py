@@ -191,7 +191,6 @@ class ZFPromptDirectorLocalLLM:
     RETURN_NAMES = ("response", "raw_response")
     FUNCTION = "chat"
     CATEGORY = "ZF/提示词创意导演/本地模型"
-    OUTPUT_NODE = True
 
     @classmethod
     def INPUT_TYPES(cls):

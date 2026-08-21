@@ -12,6 +12,10 @@ SPEC.loader.exec_module(MODULE)
 def test_node_keeps_comfy_scalar_mapping_contract():
     node = MODULE.ZFPromptDirectorLocalLLM
     assert not hasattr(node, "INPUT_IS_LIST")
+    # This node is normally upstream of the final-list cache.  It must not be
+    # an OUTPUT_NODE, otherwise ComfyUI runs it on every queue even when the
+    # cache is in “使用缓存” mode and does not request its lazy input.
+    assert not getattr(node, "OUTPUT_NODE", False)
     assert node.RETURN_TYPES == ("STRING", "STRING")
     inputs = node.INPUT_TYPES()
     assert list(inputs["required"])[:3] == ["llama_model", "role", "prompt"]

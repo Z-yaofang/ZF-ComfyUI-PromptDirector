@@ -138,9 +138,9 @@ The workflow includes `ZF Temporary Text Memory (cross-queue reuse)` for A/B tes
 
 This is process-local temporary memory and is cleared when ComfyUI restarts. KJNodes `SetNode / GetNode` nodes are virtual frontend wiring helpers; they are useful for organizing long connections but are not cross-queue text memory. Use this node when you need to reuse the previous reverse-analysis result.
 
-The workflow places `ZF Final Text List Memory (cross-queue reuse)` between API 2 and the prompt validator; the validator then feeds the final result display. It stores the complete multi-task prompt list rather than only the last string. Run once in update mode, then switch to use mode to lazily skip API 2 and reuse the previous full result set. The former prompt-switch, string-processing, and string-to-list branch remains available for second-pass reverse tests and compatibility.
+The workflow places `ZF Final Text List Memory (cross-queue reuse)` between the final writer and the prompt validator; the validator then feeds the final result display. It stores the complete multi-task prompt list rather than only the last string. Run once in update mode, then switch to use mode to lazily skip API 2 or `ZF本地多模态指令` and reuse the previous full result set. The former prompt-switch, string-processing, and string-to-list branch remains available for second-pass reverse tests and compatibility.
 
-The final-list cache is a gate, not a replacement for the downstream chain: **update cache** runs API 2 and continues through validation and text post-processing; **use cache** skips API 2 but still runs the same downstream chain; **clear cache** safely blocks that branch instead of sending an empty list into a switch node.
+The final-list cache is a gate after the final writer, not a replacement for the downstream chain: **update cache** runs API 2 or `ZF本地多模态指令` and continues through validation and text post-processing; **use cache** skips that upstream writer but still runs the same downstream chain; **clear cache** safely blocks that branch instead of sending an empty list into a switch node.
 
 ## Installation
 
