@@ -2,7 +2,7 @@
 
 [简体中文](README.zh-CN.md)
 
-An early public-testing release of a purpose-driven prompt director for ComfyUI. It turns a user prompt, a theme/worldview, a professional use case, and a visual method into one independent Chinese image-generation task per requested image.
+An early public-testing release of a multi-domain prompt director for ComfyUI. It currently includes a purpose-driven image director and a MiniMax Music3 director; director nodes build model-writing tasks while the workflow chooses the local or API writer.
 
 New users can start with the Chinese [Purpose and Visual-Method Recommendation Guide](docs/用途与创意推荐说明书.md), which provides direct recipes, a complete purpose lookup, special-mode rules, and common pitfalls.
 
@@ -13,13 +13,15 @@ New users can start with the Chinese [Purpose and Visual-Method Recommendation G
 
 ## Material-Source Attribution / 素材来源说明
 
-The material catalogs used, organized, and expanded by the current and future versions of this plugin—including use cases, creative directions, case-inspired ideas, and related prompt-material references—originate from the material collections and sharing of **远古大呲花**. This attribution is included with the author's consent.
+The visual material catalogs used, organized, and expanded by the image-director module—including visual use cases, creative directions, case-inspired ideas, and related image-prompt references—originate from the material collections and sharing of **远古大呲花**. This attribution is included with the author's consent.
 
 - Source author / 来源作者: **远古大呲花**
 - Bilibili profile / B站主页: <https://space.bilibili.com/59550296>
 - Engineering scope / 工程范围: This repository provides the plugin code and its engineering work, including structured cataloging, purpose/visual-method mapping, prompt-workflow integration, and ComfyUI node implementation. The original material source and the author's contribution remain attributed to 远古大呲花.
 - Update note / 更新说明: Future additions or revisions to the material catalogs will continue to record this source. If the source arrangement changes, this section will be updated accordingly.
 - Clarification / 贡献边界: This attribution identifies the material source. Unless separately agreed in writing, it does not mean that 远古大呲花 authored the plugin code or guarantees the plugin's functions, model behavior, or downstream generated content.
+
+> Scope: this attribution applies only to the image director's visual material catalogs. The Music3 prompt rules, duration handling, audio-reference modes, and node implementation are independently designed in this repository and are unrelated to 远古大呲花.
 
 Feedback from different local language models, vision-language models, image models, and workflow layouts is welcome. Please open a GitHub Issue with reproducible settings and expected behavior. Do not include private images, model files, tokens, or API keys.
 
@@ -36,6 +38,7 @@ Feedback from different local language models, vision-language models, image mod
 - Editable JSON catalogs for purposes, visual methods, defaults, and writing grammar.
 - An optional recommended-pairing switch that preselects and brings forward suitable visual methods for the chosen purpose without changing the saved prompt contract.
 - Two self-contained workflow utilities: `ZF文本动态多路点选` for lazy single-route text selection and `ZF任意过滤器` for explicit None, empty-text, pass-through, and literal-removal behavior.
+- A MiniMax Music 3 reverse-writing pair with common presets from 15 to the model's 360-second limit, custom duration, pure-text mode, and optional audio-reference modes for style, lyric-writing characteristics, or both. `ZF Music3 结果拆分` returns the official encoder's independent `caption` and `lyrics` plus the adopted reference analysis. Use an audio-capable closed model through `ZF-ComfyUI-MultimodalAPI` when reference audio is connected.
 
 ## Quick Start / 快速接法
 

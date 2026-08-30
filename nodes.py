@@ -10,6 +10,7 @@ from comfy_execution.graph import ExecutionBlocker
 
 from .flow_nodes import ZFPromptDirectorAnyFilter, ZFPromptDirectorMultiTextSelector
 from .local_multimodal import ZFPromptDirectorLocalLLM
+from .music_nodes import ZFMusic3PromptDirector, ZFMusic3ResponseParser
 
 
 ROOT = Path(__file__).resolve().parent
@@ -1533,6 +1534,8 @@ NODE_CLASS_MAPPINGS = {
     "ZFPromptDirectorAnyFilter": ZFPromptDirectorAnyFilter,
     "ZFPromptDirectorMultiTextSelector": ZFPromptDirectorMultiTextSelector,
     "ZFPromptDirectorLocalLLM": ZFPromptDirectorLocalLLM,
+    "ZFMusic3PromptDirector": ZFMusic3PromptDirector,
+    "ZFMusic3ResponseParser": ZFMusic3ResponseParser,
     "ZFImageReferenceAnalyzer": ZFImageReferenceAnalyzer,
     "ZFTextMemory": ZFTextMemory,
     "ZFTextListMemory": ZFTextListMemory,
@@ -1550,6 +1553,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ZFPromptDirectorAnyFilter": "ZF任意过滤器",
     "ZFPromptDirectorMultiTextSelector": "ZF文本动态多路点选",
     "ZFPromptDirectorLocalLLM": "ZF本地多模态指令",
+    "ZFMusic3PromptDirector": "ZF Music3 音乐反推导演",
+    "ZFMusic3ResponseParser": "ZF Music3 结果拆分",
     "ZFImageReferenceAnalyzer": "ZF 参考图像分析器",
     "ZFTextMemory": "ZF 临时文本缓存（跨队列复用）",
     "ZFTextListMemory": "ZF 最终文本列表缓存（跨队列复用）",
