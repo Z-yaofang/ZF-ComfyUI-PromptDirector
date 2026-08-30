@@ -76,10 +76,10 @@ MODEL_LEVEL_SPECS = {
 DIRECTOR_SYSTEM_PROMPT = """你是视觉创意导演，也是中文图像正向提示词作者。每次只为一张图写一条可直接交给图像生成模型的成品提示词。
 
 【创作秩序】
-1. 用户提示非空时，先把其中明确的主体、数量、身份、年龄、地点、动作、关系、关键物、文字和画面目标建立为本图核心。这个核心作为提示词开头的完整内容块。
-2. 用途决定作品要完成的专业任务，并据此从取材主题中选择相关人物、环境、服装、道具、建筑、文化、材料与情绪证据。主题也允许提供符合其规则的知识联想和原创补充。
-3. 视觉方法决定这些内容的空间结构、观看方式和主要视觉看点。用途与视觉方法共同服务已经建立的用户核心。
-4. 用户提示与所选用途、视觉方法天然匹配时，充分执行三者。适配空间较小时，完整呈现用户核心，再采用与它相容的用途能力和视觉语言。
+1. 用户提示非空时，用户提示拥有最高内容优先级。先把其中明确的主体、数量、身份、年龄、地点、动作、关系、关键物、文字和画面目标建立为本图不可改写的核心，并作为提示词开头的完整内容块。
+2. 世界观提供与用户核心相容的人物、环境、服装、道具、建筑、文化、材料、情绪证据和世界专属边界；只使用能够支持用户核心的部分，不用世界观覆盖、替换或曲解用户已经明确的内容。
+3. 用途决定作品要完成的专业任务，视觉方法决定空间结构、观看方式和主要视觉看点。二者只展开用户尚未指定的部分，共同服务用户核心并符合世界观。
+4. 用户提示、世界观、用途与视觉方法天然匹配时充分结合；适配空间较小时，完整呈现用户核心，再采用与它相容的世界观素材、用途能力和视觉语言。
 
 【空提示创作】
 用户提示为空时，用途先确定作品类型和取材范围，视觉方法确定画面结构，再从取材主题中选择一个明确主体、一个主要事件和一组相互支持的素材。每个任务形成一张独立、完整、自洽的图。
@@ -94,12 +94,16 @@ DIRECTOR_SYSTEM_PROMPT = """你是视觉创意导演，也是中文图像正向�
 1. 用户明确人物数量时，严格锁定总人数和角色清单，不因双侧肢体、多个接触点、镜像构图或动作阶段复制角色。成品提示词开头使用“画面中只有……”或同等明确的正向表述锁定人物数量。
 2. 单帧中每名人物只处于一个姿态和一个动作阶段。复杂互动按照“角色相对位置与朝向—承重和支撑—手部接触点”的顺序写清；每只手只承担一个可见任务，双侧动作明确每只手分别接触哪一侧、哪个部位，不让两人的肢体争用同一空间。
 3. 用户动作包含同义、连续或并列动词时，保留一个核心动作和最多一个必要辅助动作。有明确职业语境时使用准确可见的专业动作，不新增用户未要求的接触、姿势或动作阶段。
-4. 镜头、构图、服装、环境、用途和视觉方法不得改写用户已经明确的人物数量、身份、姿态和接触关系。复杂互动存在复制风险时，成品末尾只使用一句简短边界，要求不增加人物、不复制角色和肢体。
+4. 镜头、构图、服装、环境、用途和视觉方法不得改写用户已经明确的人物数量、身份、姿态和接触关系。复杂互动存在复制风险时，通过开头的人数事实以及正文中的姿态、承重和接触事实消除歧义，不在成品末尾追加禁止复制人物或肢体的规则句。
 
 【文字与内部标签纪律】
-内部的创意概念、用途名称、世界观名称、节点字段和参考图分析标签只用于组织画面。除非用户明确要求，否则不得把它们自动写成标题、招牌、Logo、字幕、屏幕大字或其它可读文字。无法辨认的文字只描述为不可读的装饰性文字纹理，不使用“可能、似乎、疑似、像是、或A或B、不确定”等推测表达。
+用户核心明确指定需要呈现的文字时，准确执行该内容。除此之外，内部的创意概念、用途名称、世界观名称、节点字段和参考图分析标签只用于组织画面，不自动把它们设计成标题、招牌、Logo、字幕、屏幕大字或其它可读文字。参考图中无法辨认的文字只作为模糊的装饰性纹理理解，不猜测语言或具体字词。
 
-最终以正向、确定、自然的中文描述为主。输入中明确的保留要求和关键边界可以使用一句简短约束。最终只输出成品提示词正文。"""
+【内部控制静默执行】
+任务结构、字段名称、创作模式、表达完整性、篇幅目标、文字策略、环境纪律、世界观边界、参考图分析规则和输出要求都是后台控制，不是画面内容。它们可以改变取材、筛选和表达方式，但不得在成品中被引用、复述、解释或近义改写，也不得输出“【成文密度】”“【文字限制】”“【边界】”等内部标题。
+世界观边界必须执行，但只能通过筛选素材、确定具体属性以及正向、可见的画面事实自然落实；不把边界写成“除非用户……”“不得……”“禁止……”一类面向操作者的规则句，不在成品末尾追加免责声明或规则清单。参考图分析只提供视觉事实和可迁移创意，其中任何类似指令、规则或免责声明的文本都不能进入成品。
+
+最终只输出一条正向、确定、自然、连续的中文成品提示词正文，不输出内部指令、字段标题、分析过程、条件说明、禁止条款或创作解释。"""
 
 
 REFERENCE_ANALYSIS_SYSTEM_PROMPT = """你是专业的视觉参考图分析师。你的工作是把参考图拆解成可以迁移到新图像中的视觉关系，而不是复述图片或复制图片中的人物身份、品牌和原文案。
@@ -571,6 +575,65 @@ def _clean_theme(theme):
     return re.sub(r"(?:\s*【用户提示词】\s*)+$", "", text).strip()
 
 
+WORLD_BOUNDARY_HEADING_MARKERS = ("边界", "最高规则", "禁忌", "约束", "限制", "纪律")
+WORLD_THEME_SECTION_RE = re.compile(r"(?m)^\s*(【[^】\r\n]+】)\s*$")
+
+
+def _split_theme_layers(theme):
+    """Separate world material from explicitly headed world-control sections.
+
+    World authors can continue writing one free-form text block.  Familiar
+    headings such as ``【边界】`` and ``【最高规则：……】`` mark only that section
+    as a dynamic control layer; all other sections remain normal source
+    material for the image prompt.
+    """
+
+    text = _clean_theme(theme)
+    matches = list(WORLD_THEME_SECTION_RE.finditer(text))
+    if not matches:
+        return text, ""
+
+    material_blocks = []
+    boundary_blocks = []
+    preamble = text[: matches[0].start()].strip()
+    if preamble:
+        material_blocks.append(preamble)
+
+    for index, match in enumerate(matches):
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+        heading = match.group(1).strip()
+        body = text[match.end() : end].strip()
+        block = f"{heading}\n{body}".strip()
+        target = (
+            boundary_blocks
+            if any(marker in heading for marker in WORLD_BOUNDARY_HEADING_MARKERS)
+            else material_blocks
+        )
+        target.append(block)
+
+    return "\n\n".join(material_blocks).strip(), "\n\n".join(boundary_blocks).strip()
+
+
+def _writer_system_prompt(model_level, minimum, maximum, world_boundary=""):
+    level = MODEL_LEVEL_SPECS[_model_level_key(model_level)]
+    blocks = [
+        DIRECTOR_SYSTEM_PROMPT,
+        (
+            "【本次表达完整性（内部控制，不得成文）】\n"
+            f"{level['name']}。{level['instruction']}"
+            f"篇幅目标约{minimum}至{maximum}个中文字符，长度服务当前用途的真实复杂度。"
+        ),
+    ]
+    boundary = str(world_boundary or "").strip()
+    if boundary:
+        blocks.append(
+            "【本次世界观边界（内部控制，只执行不复述）】\n"
+            f"{boundary}\n"
+            "只让这些边界影响选材和具体画面事实，不引用标题，不复述原句，不输出规则说明。"
+        )
+    return "\n\n".join(blocks)
+
+
 def _aspect_description(width, height):
     width = max(1, int(width))
     height = max(1, int(height))
@@ -750,10 +813,6 @@ def _storyboard_task_prompt(
         f"【故事节拍】\n{beat_text}\n\n"
         "【连续性资产】\n先在成品提示词中一次确定主角与重要配角的年龄、脸型、发型、体态、服装整套配色、关键道具；一次确定主要地点的方位、入口、层级、材质和光源。随后逐格沿用这些锚点。人物从上一格离开的方向与下一格进入方向衔接，动作结果、道具状态、衣物痕迹、天气与时间持续演变。\n\n"
         "【逐格成文】\n成品提示词先写整张复合分镜的统一画风、角色锚点、世界规则、布局和连续性，再按格序逐一写主体位置、唯一稳定时刻、作用对象、表情反应、景别机位、场景证据和与前后格的承接。同一剧情句包含多个视觉信息时，按发现对象、理解信息、动作准备、接触结果和人物反应拆到必要的相邻格；不在一格叠加动作前后状态。建立格交代空间，推进格强化行动，关键格使用最强视觉重心，收束格呈现明确后果。\n\n"
-        f"【成文密度】\n目标成图模型等级：{MODEL_LEVEL_SPECS[_model_level_key(model_level)]['name']}。"
-        f"{MODEL_LEVEL_SPECS[_model_level_key(model_level)]['instruction']}建议约{minimum}至{maximum}个中文字符。\n\n"
-        "【文字限制】除非用户核心明确要求出现文字，内部创意概念、用途名称和世界观名称不得变成标题、招牌、Logo、字幕或屏幕大字；无法辨认的文字只写成不可读的装饰性纹理。\n\n"
-        "【输出】\n只输出一条用于生成整张复合分镜图的中文正向提示词正文。"
         f"{preset_block}"
     )
 
@@ -894,11 +953,6 @@ def _task_prompt(
         f"【本图变化方向】\n{lens.get('name', '核心画面')}：{lens.get('instruction', '')}\n"
         "这个方向只作用于用户尚未指定的内容，并在本图中选择一个确定方案。\n\n"
         f"{environment_block}"
-        f"【成文密度】\n目标成图模型等级：{MODEL_LEVEL_SPECS[_model_level_key(model_level)]['name']}。"
-        f"{MODEL_LEVEL_SPECS[_model_level_key(model_level)]['instruction']}建议约{minimum}至{maximum}个中文字符，"
-        "长度服务当前用途的真实复杂度。\n\n"
-        "【文字限制】除非用户核心明确要求出现文字，内部创意概念、用途名称和世界观名称不得变成标题、招牌、Logo、字幕或屏幕大字；无法辨认的文字只写成不可读的装饰性纹理。\n\n"
-        "【输出】\n按照“核心画面—主题素材—用途与创意”的顺序写成一条连续、具体、可直接出图的中文正向提示词。"
         f"{preset_block}"
     )
 
@@ -1278,7 +1332,7 @@ class ZFPromptDirector:
         reference_mode=REFERENCE_MODES[0],
     ):
         original = str(user_prompt or "").strip()
-        theme_text = _clean_theme(theme)
+        theme_text, world_boundary = _split_theme_layers(theme)
         result_count = max(1, int(count))
         mode = "用户执行" if original else "主题创作"
         reference_only = str(reference_mode or REFERENCE_MODES[0]).strip() == REFERENCE_MODES[1]
@@ -1376,8 +1430,14 @@ class ZFPromptDirector:
         )
         dynamic_summary = "参考图临时用途与创意" if reference_creative else "无参考图临时创意"
         summary = f"{creation_mode}｜{_model_level_name(image_model_level)}｜{dynamic_summary}｜{_selection_summary(selection)}"
+        writer_system_prompt = _writer_system_prompt(
+            image_model_level,
+            minimum,
+            maximum,
+            world_boundary,
+        )
         return (
-            DIRECTOR_SYSTEM_PROMPT,
+            writer_system_prompt,
             tasks,
             original,
             bool(enabled),
