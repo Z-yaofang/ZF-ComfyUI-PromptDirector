@@ -68,6 +68,7 @@ The diagram above shows the current local-model connection for the director work
 ### Workflow utility nodes
 
 - `ZF文本动态多路点选` shows 1–32 text routes and executes only the route selected by its button. The **空文本** button deliberately returns an empty string and route index `0`.
+- `ZF 人像提示词与人物资产` is reusable across image models and can randomize and assemble an editable portrait prompt without reverse analysis. Its `world_asset` output always contains the node's complete regular portrait-asset catalog and does not shrink to the current random selection. The picker supports home pins, section randomize/lock/disable controls, and per-field locks. Double-click any asset card to edit it in place; a confirmed edit remains attached to that option and affects both prompt and complete-asset outputs, while Node Repair restores every built-in asset description.
 - `ZF任意过滤器` accepts arbitrary ComfyUI data. Its condition and output action are independent: a match can return real `None` so a downstream Any Switch skips the route, return an empty string so the route intentionally stops, preserve the original value, or remove literal text.
 - These classes use PromptDirector-specific internal IDs, so the original nodes in `ZF-ComfyUI-Helper` can remain installed without name collisions.
 

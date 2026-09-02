@@ -11,6 +11,7 @@ from comfy_execution.graph import ExecutionBlocker
 from .flow_nodes import ZFPromptDirectorAnyFilter, ZFPromptDirectorMultiTextSelector
 from .local_multimodal import ZFPromptDirectorLocalLLM
 from .music_nodes import ZFMusic3PromptDirector, ZFMusic3ResponseParser
+from .portrait_nodes import ZFPortraitPromptGenerator
 
 
 ROOT = Path(__file__).resolve().parent
@@ -1607,6 +1608,7 @@ NODE_CLASS_MAPPINGS = {
     "ZFDecisiveLlamaParams": ZFDecisiveLlamaParams,
     "ZFPromptValidator": ZFPromptValidator,
     "ZFLazyPromptSwitch": ZFLazyPromptSwitch,
+    "ZFPortraitPromptGenerator": ZFPortraitPromptGenerator,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -1626,4 +1628,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ZFDecisiveLlamaParams": "ZF Llama参数透传",
     "ZFPromptValidator": "ZF 提示词整理与观察",
     "ZFLazyPromptSwitch": "ZF 提示词总开关",
+    "ZFPortraitPromptGenerator": "ZF 人像提示词与人物资产",
 }

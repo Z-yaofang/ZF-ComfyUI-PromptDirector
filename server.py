@@ -27,6 +27,11 @@ async def catalog(_request):
     )
 
 
+@PromptServer.instance.routes.get("/zf-prompt-director/portrait-catalog")
+async def portrait_catalog(_request):
+    return web.json_response(_read("portrait_generator_v12.json"))
+
+
 @PromptServer.instance.routes.get("/zf-prompt-director/thumbnail/{name}")
 async def thumbnail(request):
     name = Path(request.match_info["name"]).name
