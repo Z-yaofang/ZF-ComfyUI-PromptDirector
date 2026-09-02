@@ -231,6 +231,20 @@ def test_adult_toggle_adds_the_complete_adult_asset_catalog():
     assert len(adult_asset) > len(regular_asset)
 
 
+def test_asset_catalog_does_not_export_pose_cancelling_policy_clauses():
+    serialized = json.dumps(MODULE.PORTRAIT_CATALOG, ensure_ascii=False)
+    forbidden = (
+        "避开私密部位",
+        "避开敏感部位",
+        "避开私处",
+        "不露点",
+        "保留最后遮挡",
+        "仅留极简遮挡",
+    )
+
+    assert not any(term in serialized for term in forbidden)
+
+
 def test_disabling_a_section_only_removes_it_from_current_prompt():
     lens = _option("lens")
     state = _state(

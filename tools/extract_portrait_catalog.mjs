@@ -29,14 +29,27 @@ const cleanLabel = (value) => String(value || "")
   .trim()
   .replace(/^人种感$/, "人种");
 
+// The source HTML's SFW exposure ladders append policy-like negative clauses.
+// Once the full catalog is used as worldview material those clauses can be
+// mistaken for global constraints and cancel unrelated adult pose assets.
+const cleanOptionText = (value) => String(value || "")
+  .replace(/（不露点、避开敏感部位）/g, "")
+  .replace(/（避开私处）/g, "")
+  .replace(/（仍避开私密部位）/g, "")
+  .replace(/（避开私密部位）/g, "")
+  .replace(/，仍避开私密部位/g, "")
+  .replace(/，仅以贴身内衬保留最后遮挡/g, "")
+  .replace(/，仅留极简遮挡/g, "")
+  .trim();
+
 const normalizeOption = (item, group = "") => {
-  if (typeof item === "string") return { value: item, text: item, group };
+  if (typeof item === "string") return { value: item, text: cleanOptionText(item), group };
   if (Array.isArray(item)) {
-    return { value: String(item[0] || ""), text: String(item[1] || item[0] || ""), group };
+    return { value: String(item[0] || ""), text: cleanOptionText(item[1] || item[0]), group };
   }
   return {
     value: String(item?.v ?? item?.value ?? item?.id ?? ""),
-    text: String(item?.t ?? item?.text ?? item?.label ?? item?.v ?? ""),
+    text: cleanOptionText(item?.t ?? item?.text ?? item?.label ?? item?.v),
     group,
     risk: Boolean(item?.risk),
     adult: Boolean(item?.nsfw),
@@ -54,7 +67,7 @@ const flattenPairs = (catalog) => Object.entries(catalog || {}).flatMap(([group,
 const flattenPoses = (catalog, categories) => Object.entries(catalog || {}).flatMap(([key, items]) =>
   (items || []).map((item) => ({
     value: String(item?.id || item?.v || item?.t || ""),
-    text: String(item?.t || item?.text || item?.id || ""),
+    text: cleanOptionText(item?.t || item?.text || item?.id),
     group: String(categories?.[key] || key),
   }))
 );
