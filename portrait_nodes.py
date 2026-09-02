@@ -21,7 +21,7 @@ PORTRAIT_FIELDS = [
 PORTRAIT_FIELD_BY_ID = {field["id"]: (section, field) for section, field in PORTRAIT_FIELDS}
 DEFAULT_PORTRAIT_STATE = json.dumps(
     {
-        "version": 4,
+        "version": 5,
         "adult_content": False,
         "selected": {},
         "enabled": {},
@@ -29,6 +29,7 @@ DEFAULT_PORTRAIT_STATE = json.dumps(
         "pinned": {},
         "locked": {},
         "section_locked": {},
+        "section_lock_items": {},
         "section_enabled": {},
         "option_overrides": {},
     },
@@ -118,6 +119,8 @@ def _migrate_legacy_movement(state):
                 state["pinned"][target_id] = True
             if state["locked"].get(legacy_id):
                 state["locked"][target_id] = True
+            if state["section_lock_items"].get(legacy_id):
+                state["section_lock_items"][target_id] = True
             if state["enabled"].get(legacy_id) is False:
                 state["enabled"][target_id] = False
         legacy_prefix = f"{legacy_id}::"
@@ -129,13 +132,13 @@ def _migrate_legacy_movement(state):
             if option_target:
                 state["option_overrides"].setdefault(f"{option_target}::{value}", text)
             del state["option_overrides"][key]
-        for name in ("selected", "overrides", "pinned", "locked", "enabled"):
+        for name in ("selected", "overrides", "pinned", "locked", "section_lock_items", "enabled"):
             state[name].pop(legacy_id, None)
     for legacy_id in (
         "sfwSimMode", "sfwSimCoreCat", "sfwSimCat",
         "simMode", "simCoreCat", "simCat",
     ):
-        for name in ("selected", "overrides", "pinned", "locked", "enabled"):
+        for name in ("selected", "overrides", "pinned", "locked", "section_lock_items", "enabled"):
             state[name].pop(legacy_id, None)
     if "pose" in state["section_locked"]:
         value = state["section_locked"].pop("pose")
@@ -145,7 +148,7 @@ def _migrate_legacy_movement(state):
         value = state["section_enabled"].pop("pose")
         state["section_enabled"].setdefault("posture", value)
         state["section_enabled"].setdefault("action", value)
-    state["version"] = 4
+    state["version"] = 5
     return state
 
 
@@ -156,6 +159,10 @@ def _parse_state(value):
         state = {}
     if not isinstance(state, dict):
         state = {}
+    try:
+        previous_version = int(state.get("version", 0) or 0)
+    except (TypeError, ValueError):
+        previous_version = 0
     for key in (
         "selected",
         "enabled",
@@ -163,12 +170,21 @@ def _parse_state(value):
         "pinned",
         "locked",
         "section_locked",
+        "section_lock_items",
         "section_enabled",
         "option_overrides",
     ):
         if not isinstance(state.get(key), dict):
             state[key] = {}
-    return _migrate_legacy_movement(state)
+    state = _migrate_legacy_movement(state)
+    if previous_version < 5:
+        for section, field in PORTRAIT_FIELDS:
+            if not state["section_locked"].get(section["id"]):
+                continue
+            field_id = field["id"]
+            if state["selected"].get(field_id) or state["overrides"].get(field_id):
+                state["section_lock_items"][field_id] = True
+    return state
 
 
 def _clean_text(value):
@@ -397,7 +413,7 @@ class ZFPortraitPromptGenerator:
             world_asset += "\n\n【成人扩展边界】\n只用于明确的成年人物。"
 
         normalized_state = {
-            "version": 4,
+            "version": 5,
             "seed": int(seed),
             "adult_content": adult_requested,
             "selected": state["selected"],
@@ -406,6 +422,7 @@ class ZFPortraitPromptGenerator:
             "pinned": state["pinned"],
             "locked": state["locked"],
             "section_locked": state["section_locked"],
+            "section_lock_items": state["section_lock_items"],
             "section_enabled": state["section_enabled"],
             "option_overrides": state["option_overrides"],
         }

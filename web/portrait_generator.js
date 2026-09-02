@@ -58,8 +58,8 @@ function installStyles() {
     ".zf-pg-modal-body{display:grid;grid-template-columns:270px minmax(0,1fr);min-height:0}.zf-pg-section-nav{overflow:auto;border-right:1px solid #31414f;padding:12px;display:flex;flex-direction:column;gap:7px}.zf-pg-section-button{border:1px solid transparent;border-radius:9px;background:transparent;color:#bdcad4;padding:10px;text-align:left;cursor:pointer;display:flex;gap:8px;align-items:center}.zf-pg-section-button.active{border-color:#478eb7;background:#173147;color:#eef8ff}.zf-pg-section-button.disabled{opacity:.45;text-decoration:line-through}.zf-pg-section-name{flex:1}.zf-pg-section-meta{font-size:11px;color:#8da1b0}",
     ".zf-pg-main{display:grid;grid-template-rows:auto auto minmax(0,1fr);min-width:0;min-height:0}.zf-pg-section-tools{display:flex;align-items:center;gap:7px;padding:11px 14px 8px;border-bottom:1px solid #263743}.zf-pg-section-tools strong{margin-right:auto;font-size:15px}.zf-pg-tool-active{border-color:#c7924f;color:#ffd598}.zf-pg-tool-danger{border-color:#765660;color:#efc2ca}",
     ".zf-pg-field-tabs{display:flex;gap:7px;overflow:auto;padding:9px 14px;border-bottom:1px solid #263743}.zf-pg-field-tab{flex:0 0 auto;border:1px solid #3c5060;border-radius:999px;background:#17232d;color:#b8c7d2;padding:6px 10px;cursor:pointer}.zf-pg-field-tab.active{background:#1b506d;border-color:#58a8d3;color:white}.zf-pg-field-tab.locked{box-shadow:inset 0 0 0 1px #c79650}.zf-pg-tab-dot{color:#68c7f2;margin-right:5px}",
-    ".zf-pg-detail{min-height:0;display:grid;grid-template-rows:auto minmax(0,1fr);padding:12px 14px;gap:10px}.zf-pg-detail-head{display:flex;align-items:center;gap:7px}.zf-pg-detail-head h3{margin:0 auto 0 0;font-size:16px}.zf-pg-search{width:min(330px,35vw);border:1px solid #455867;border-radius:7px;background:#131f28;color:#e5edf3;padding:7px 9px}",
-    ".zf-pg-options{min-height:0;overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));align-content:start;gap:9px}.zf-pg-option{box-sizing:border-box;min-height:78px;border:1px solid #3b4d5c;border-radius:10px;background:#17232d;color:#dce6ed;padding:10px;text-align:left;cursor:pointer}.zf-pg-option:hover{border-color:#5fb2de;background:#1a2b37}.zf-pg-option.selected{border-color:#62c8fa;background:#17445d;box-shadow:inset 0 0 0 1px #62c8fa}.zf-pg-option.modified{border-style:dashed}.zf-pg-option-value{font-weight:700;margin-bottom:5px}.zf-pg-option-badge{float:right;color:#ffc66d;font-size:11px}.zf-pg-option-desc{color:#98aab7;font-size:12px;white-space:pre-wrap}.zf-pg-option-editor{grid-column:1/-1;cursor:default}.zf-pg-option-editor textarea{box-sizing:border-box;width:100%;min-height:88px;resize:vertical;border:1px solid #5a7182;border-radius:7px;background:#0f1a22;color:#edf5fa;padding:8px}.zf-pg-option-edit-actions{display:flex;align-items:center;gap:8px;margin-top:8px}.zf-pg-option-edit-actions small{margin-left:auto;color:#8fa0ad}.zf-pg-no-option{grid-column:1/-1;color:#95a5b2;padding:20px 2px}",
+    ".zf-pg-detail{min-height:0;display:grid;grid-template-rows:auto auto minmax(0,1fr);padding:12px 14px;gap:8px}.zf-pg-detail-head{display:flex;align-items:center;gap:7px}.zf-pg-detail-head h3{margin:0 auto 0 0;font-size:16px}.zf-pg-search{width:min(330px,35vw);border:1px solid #455867;border-radius:7px;background:#131f28;color:#e5edf3;padding:7px 9px}.zf-pg-notice{min-height:18px;color:#ffd18a;font-size:12px}.zf-pg-notice:empty{display:none}",
+    ".zf-pg-options{min-height:0;overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));align-content:start;gap:9px}.zf-pg-option{box-sizing:border-box;min-height:78px;border:1px solid #3b4d5c;border-radius:10px;background:#17232d;color:#dce6ed;padding:10px;text-align:left;cursor:pointer}.zf-pg-option:hover{border-color:#5fb2de;background:#1a2b37}.zf-pg-option.selected{border-color:#62c8fa;background:#17445d;box-shadow:inset 0 0 0 1px #62c8fa}.zf-pg-option.locked{border-color:#d5a252;box-shadow:inset 0 0 0 2px #9d7035}.zf-pg-option.locked.selected{border-color:#ffd074;box-shadow:inset 0 0 0 2px #d09a48}.zf-pg-option.modified{border-style:dashed}.zf-pg-option-value{font-weight:700;margin-bottom:5px}.zf-pg-option-badge{float:right;color:#ffc66d;font-size:11px;margin-left:7px}.zf-pg-option-desc{color:#98aab7;font-size:12px;white-space:pre-wrap}.zf-pg-option-editor{grid-column:1/-1;cursor:default}.zf-pg-option-editor textarea{box-sizing:border-box;width:100%;min-height:88px;resize:vertical;border:1px solid #5a7182;border-radius:7px;background:#0f1a22;color:#edf5fa;padding:8px}.zf-pg-option-edit-actions{display:flex;align-items:center;gap:8px;margin-top:8px}.zf-pg-option-edit-actions small{margin-left:auto;color:#8fa0ad}.zf-pg-no-option{grid-column:1/-1;color:#95a5b2;padding:20px 2px}",
     ".zf-pg-modal-footer{display:flex;align-items:center;gap:8px;padding:11px 16px;border-top:1px solid #31414f}.zf-pg-advanced{position:relative}.zf-pg-advanced summary{list-style:none}.zf-pg-adult-box{position:absolute;left:0;bottom:38px;width:330px;padding:11px;border:1px solid #4b5e6c;border-radius:9px;background:#15212a;box-shadow:0 8px 28px #0008}.zf-pg-adult-row{display:flex;align-items:center;gap:8px}.zf-pg-adult-row small{display:block;color:#91a2af;margin-top:4px}.zf-pg-done{margin-left:auto;background:#1977a9;border-color:#55b8e7}.zf-pg-error{color:#ffb3aa;padding:8px}",
     "@media(max-width:880px){.zf-pg-modal-body{grid-template-columns:190px minmax(0,1fr)}.zf-pg-options{grid-template-columns:1fr}.zf-pg-search{width:180px}}",
   ].join("");
@@ -82,7 +82,7 @@ function hideWidget(widget, marker) {
 
 function defaultState() {
   return {
-    version: 4,
+    version: 5,
     adult_content: false,
     selected: {},
     enabled: {},
@@ -90,6 +90,7 @@ function defaultState() {
     pinned: {},
     locked: {},
     section_locked: {},
+    section_lock_items: {},
     section_enabled: {},
     option_overrides: {},
   };
@@ -126,6 +127,7 @@ function migrateLegacyMovement(state) {
       if (state.overrides[legacyId]) state.overrides[targetId] ??= state.overrides[legacyId];
       if (state.pinned[legacyId]) state.pinned[targetId] = true;
       if (state.locked[legacyId]) state.locked[targetId] = true;
+      if (state.section_lock_items[legacyId]) state.section_lock_items[targetId] = true;
       if (state.enabled[legacyId] === false) state.enabled[targetId] = false;
     }
     for (const [key, text] of Object.entries(state.option_overrides)) {
@@ -135,12 +137,12 @@ function migrateLegacyMovement(state) {
       if (optionTarget) state.option_overrides[optionTarget + "::" + value] ??= text;
       delete state.option_overrides[key];
     }
-    for (const collection of [state.selected, state.overrides, state.pinned, state.locked, state.enabled]) {
+    for (const collection of [state.selected, state.overrides, state.pinned, state.locked, state.section_lock_items, state.enabled]) {
       delete collection[legacyId];
     }
   }
   for (const legacyId of ["sfwSimMode", "sfwSimCoreCat", "sfwSimCat", "simMode", "simCoreCat", "simCat"]) {
-    for (const collection of [state.selected, state.overrides, state.pinned, state.locked, state.enabled]) {
+    for (const collection of [state.selected, state.overrides, state.pinned, state.locked, state.section_lock_items, state.enabled]) {
       delete collection[legacyId];
     }
   }
@@ -154,7 +156,7 @@ function migrateLegacyMovement(state) {
     state.section_enabled.action ??= state.section_enabled.pose;
     delete state.section_enabled.pose;
   }
-  state.version = 4;
+  state.version = 5;
   return state;
 }
 
@@ -162,10 +164,12 @@ function normalizeState(raw) {
   let value;
   try { value = JSON.parse(String(raw || "")); } catch { value = {}; }
   if (!value || typeof value !== "object" || Array.isArray(value)) value = {};
-  const next = { ...defaultState(), ...value, version: 4 };
-  for (const key of ["selected", "enabled", "overrides", "pinned", "locked", "section_locked", "section_enabled", "option_overrides"]) {
+  const previousVersion = Number(value.version || 0);
+  const next = { ...defaultState(), ...value, version: 5 };
+  for (const key of ["selected", "enabled", "overrides", "pinned", "locked", "section_locked", "section_lock_items", "section_enabled", "option_overrides"]) {
     next[key] = value[key] && typeof value[key] === "object" && !Array.isArray(value[key]) ? value[key] : {};
   }
+  next.__snapshotLegacySectionLocks = previousVersion < 5;
   delete next.expanded;
   return migrateLegacyMovement(next);
 }
@@ -243,10 +247,21 @@ function attachPortraitGenerator(node) {
     const all = catalog.sections.flatMap((section) => section.fields.map((field) => ({ section, field })));
     const fieldMap = new Map(all.map((item) => [item.field.id, item]));
     let state = normalizeState(stateWidget.value);
+    if (state.__snapshotLegacySectionLocks) {
+      for (const section of catalog.sections) {
+        if (!state.section_locked[section.id]) continue;
+        for (const field of section.fields) {
+          if (state.selected[field.id] || state.overrides[field.id]) state.section_lock_items[field.id] = true;
+        }
+      }
+    }
+    delete state.__snapshotLegacySectionLocks;
     state.adult_content = Boolean(state.adult_content || adultWidget.value);
     let activeSectionId = catalog.sections.find((section) => section.fields.some((field) => !field.adult))?.id || catalog.sections[0]?.id;
     let activeFieldId = null;
     let searchTerm = "";
+    let modalNotice = "";
+    let lastCleared = null;
 
     const visibleFields = (section) => section.fields.filter((field) => state.adult_content || !field.adult);
     const sectionFor = (id) => catalog.sections.find((section) => section.id === id);
@@ -256,9 +271,14 @@ function attachPortraitGenerator(node) {
       const fields = visibleFields(section);
       return fields.find((field) => field.id === activeFieldId) || fields[0];
     };
+    const hasFieldValue = (fieldId, selected = state.selected) => Boolean(
+      String(selected[fieldId] || "").trim() || String(state.overrides[fieldId] || "").trim()
+    );
+    const isFieldLocked = (fieldId) => Boolean(state.locked[fieldId] || state.section_lock_items[fieldId]);
+    const fieldLockSource = (fieldId) => state.section_lock_items[fieldId] ? "section" : (state.locked[fieldId] ? "item" : "");
 
     const persist = () => {
-      state.version = 4;
+      state.version = 5;
       stateWidget.value = JSON.stringify(state);
       adultWidget.value = Boolean(state.adult_content);
       stateWidget.callback?.(stateWidget.value);
@@ -277,7 +297,7 @@ function attachPortraitGenerator(node) {
     const clearMovementPeers = (fieldId, selected = state.selected) => {
       if (!MOVEMENT_FIELD_IDS.has(fieldId)) return;
       for (const id of MOVEMENT_FIELD_IDS) {
-        if (id === fieldId || state.locked[id]) continue;
+        if (id === fieldId || isFieldLocked(id)) continue;
         delete selected[id];
         delete state.overrides[id];
       }
@@ -288,7 +308,7 @@ function attachPortraitGenerator(node) {
       if (!preset) return;
       for (const [fieldId, value] of Object.entries(preset)) {
         const target = fieldMap.get(fieldId);
-        if (!target || state.locked[fieldId] || (target.field.adult && !state.adult_content)) continue;
+        if (!target || isFieldLocked(fieldId) || (target.field.adult && !state.adult_content)) continue;
         if (optionFor(target.field, value)) state.selected[fieldId] = value;
       }
     };
@@ -302,15 +322,15 @@ function attachPortraitGenerator(node) {
 
     const randomizeMovement = (next, sectionIds) => {
       const allowedSections = new Set(sectionIds);
-      const hasLockedSelection = [...MOVEMENT_FIELD_IDS].some((id) => state.locked[id] && next[id]);
+      const hasLockedSelection = [...MOVEMENT_FIELD_IDS].some((id) => isFieldLocked(id) && next[id]);
       if (hasLockedSelection) return;
       for (const id of MOVEMENT_FIELD_IDS) {
-        if (!state.locked[id]) delete next[id];
+        if (!isFieldLocked(id)) delete next[id];
       }
       let candidates = all.filter(({ section, field }) => (
         allowedSections.has(section.id)
         && MOVEMENT_FIELD_IDS.has(field.id)
-        && !state.locked[field.id]
+        && !isFieldLocked(field.id)
         && (state.adult_content || !field.adult)
       ));
       if (state.adult_content) {
@@ -326,13 +346,14 @@ function attachPortraitGenerator(node) {
     };
 
     const randomizeSection = (section) => {
-      if (!section || state.section_locked[section.id] || state.section_enabled[section.id] === false) return;
+      if (!section || state.section_enabled[section.id] === false) return;
+      lastCleared = null;
       const next = { ...state.selected };
       if (section.id === "posture" || section.id === "action") {
         randomizeMovement(next, [section.id]);
       } else {
         for (const field of visibleFields(section)) {
-          if (!CORE_RANDOM_FIELDS.has(field.id) || field.custom || state.locked[field.id]) continue;
+          if (!CORE_RANDOM_FIELDS.has(field.id) || field.custom || isFieldLocked(field.id)) continue;
           if (!ALWAYS_RANDOM_FIELDS.has(field.id) && Math.random() > 0.42) {
             delete next[field.id];
             continue;
@@ -340,7 +361,7 @@ function attachPortraitGenerator(node) {
           chooseRandom(field, next);
         }
       }
-      if (section.id === "action" && state.adult_content && !state.locked.nsfwChain) {
+      if (section.id === "action" && state.adult_content && !isFieldLocked("nsfwChain")) {
         if (Math.random() < 0.42) chooseRandom(fieldMap.get("nsfwChain")?.field || {}, next);
         else delete next.nsfwChain;
       }
@@ -351,11 +372,12 @@ function attachPortraitGenerator(node) {
     };
 
     const randomizeAll = () => {
+      lastCleared = null;
       const next = { ...state.selected };
       for (const section of catalog.sections) {
-        if (state.section_locked[section.id] || state.section_enabled[section.id] === false) continue;
+        if (state.section_enabled[section.id] === false) continue;
         for (const field of visibleFields(section)) {
-          if (!CORE_RANDOM_FIELDS.has(field.id) || field.custom || state.locked[field.id]) continue;
+          if (!CORE_RANDOM_FIELDS.has(field.id) || field.custom || isFieldLocked(field.id)) continue;
           if (!ALWAYS_RANDOM_FIELDS.has(field.id) && Math.random() > 0.42) {
             delete next[field.id];
             continue;
@@ -364,10 +386,10 @@ function attachPortraitGenerator(node) {
         }
       }
       const movementSections = ["posture", "action"].filter((id) => (
-        !state.section_locked[id] && state.section_enabled[id] !== false
+        state.section_enabled[id] !== false
       ));
       if (movementSections.length) randomizeMovement(next, movementSections);
-      if (state.adult_content && !state.locked.nsfwChain && state.section_enabled.action !== false) {
+      if (state.adult_content && !isFieldLocked("nsfwChain") && state.section_enabled.action !== false) {
         if (Math.random() < 0.42) chooseRandom(fieldMap.get("nsfwChain")?.field || {}, next);
         else delete next.nsfwChain;
       }
@@ -399,8 +421,9 @@ function attachPortraitGenerator(node) {
       random.addEventListener("click", randomizeAll);
       const clear = makeButton("清空所有");
       clear.addEventListener("click", () => {
-        state.selected = {};
-        state.overrides = {};
+        state.selected = Object.fromEntries(Object.entries(state.selected).filter(([fieldId]) => isFieldLocked(fieldId)));
+        state.overrides = Object.fromEntries(Object.entries(state.overrides).filter(([fieldId]) => isFieldLocked(fieldId)));
+        lastCleared = null;
         persist();
         renderHome();
       });
@@ -441,9 +464,19 @@ function attachPortraitGenerator(node) {
           const lock = document.createElement("button");
           lock.type = "button";
           lock.className = "zf-pg-lock";
-          lock.textContent = state.locked[field.id] ? "🔒" : "🔓";
-          lock.title = state.locked[field.id] ? "本项已锁定，不参与随机" : "锁定本项";
+          lock.textContent = isFieldLocked(field.id) ? "🔒" : "🔓";
+          lock.title = isFieldLocked(field.id) ? "本项已锁定，点击查看" : "锁定本项";
           lock.addEventListener("click", () => {
+            if (fieldLockSource(field.id) === "section") {
+              modalNotice = "这一项由“本段锁定”保护；请先解锁本段。";
+              openModal(section.id, field.id);
+              return;
+            }
+            if (!hasFieldValue(field.id)) {
+              modalNotice = "请先选择一个素材，再锁定本项。";
+              openModal(section.id, field.id);
+              return;
+            }
             state.locked[field.id] = !state.locked[field.id];
             persist();
             renderHome();
@@ -452,8 +485,18 @@ function attachPortraitGenerator(node) {
           remove.type = "button";
           remove.className = "zf-pg-remove";
           remove.textContent = "×";
-          remove.title = "清除本项内容";
+          remove.title = isFieldLocked(field.id) ? "本项已锁定，不能清除" : "清除本项内容";
           remove.addEventListener("click", () => {
+            if (isFieldLocked(field.id)) {
+              modalNotice = "本项已锁定；解锁后才能清除。";
+              openModal(section.id, field.id);
+              return;
+            }
+            lastCleared = {
+              fieldId: field.id,
+              selected: state.selected[field.id],
+              override: state.overrides[field.id],
+            };
             delete state.selected[field.id];
             delete state.overrides[field.id];
             persist();
@@ -540,14 +583,30 @@ function attachPortraitGenerator(node) {
       const sectionName = document.createElement("strong");
       sectionName.textContent = section.title;
       const sectionRandom = makeButton("本段随机");
-      sectionRandom.disabled = Boolean(state.section_locked[section.id] || state.section_enabled[section.id] === false);
+      sectionRandom.disabled = Boolean(state.section_enabled[section.id] === false);
       sectionRandom.addEventListener("click", () => {
         randomizeSection(section);
+        modalNotice = state.section_locked[section.id]
+          ? "本段已锁定的选择保持不变；未锁定分类已重新随机。"
+          : "本段已重新随机。";
         renderModal();
       });
-      const sectionLock = makeButton((state.section_locked[section.id] ? "🔒 " : "🔓 ") + "本段锁定", state.section_locked[section.id] ? "zf-pg-tool-active" : "");
+      const sectionLock = makeButton(
+        state.section_locked[section.id] ? "🔒 本段已锁定" : "🔓 锁定本段",
+        state.section_locked[section.id] ? "zf-pg-tool-active" : "",
+      );
       sectionLock.addEventListener("click", () => {
-        state.section_locked[section.id] = !state.section_locked[section.id];
+        const willLock = !state.section_locked[section.id];
+        state.section_locked[section.id] = willLock;
+        if (willLock) {
+          for (const item of section.fields) {
+            if (hasFieldValue(item.id)) state.section_lock_items[item.id] = true;
+          }
+          modalNotice = "已锁定本段当前选择；尚未选择的分类仍会继续随机。";
+        } else {
+          for (const item of section.fields) delete state.section_lock_items[item.id];
+          modalNotice = "本段锁定已解除；单独锁定的项目仍保持锁定。";
+        }
         persist();
         renderModal();
       });
@@ -568,7 +627,7 @@ function attachPortraitGenerator(node) {
         tab.type = "button";
         tab.className = "zf-pg-field-tab"
           + (item.id === field?.id ? " active" : "")
-          + (state.locked[item.id] ? " locked" : "");
+          + (isFieldLocked(item.id) ? " locked" : "");
         const dot = document.createElement("span");
         dot.className = "zf-pg-tab-dot";
         dot.textContent = state.pinned[item.id] ? "●" : "○";
@@ -580,7 +639,7 @@ function attachPortraitGenerator(node) {
           renderModal();
         });
         const text = document.createElement("span");
-        text.textContent = shortLabel(item.label);
+        text.textContent = shortLabel(item.label) + (isFieldLocked(item.id) ? " 🔒" : "");
         tab.append(dot, text);
         tab.addEventListener("click", () => {
           activeFieldId = item.id;
@@ -597,16 +656,54 @@ function attachPortraitGenerator(node) {
       detailHead.className = "zf-pg-detail-head";
       const fieldTitle = document.createElement("h3");
       fieldTitle.textContent = field?.label || "";
-      const fieldLock = makeButton((state.locked[field?.id] ? "🔒 " : "🔓 ") + "本项锁定", state.locked[field?.id] ? "zf-pg-tool-active" : "");
+      const fieldLock = makeButton(
+        isFieldLocked(field?.id) ? "🔒 本项已锁定" : "🔓 锁定本项",
+        isFieldLocked(field?.id) ? "zf-pg-tool-active" : "",
+      );
       fieldLock.addEventListener("click", () => {
+        if (fieldLockSource(field.id) === "section") {
+          modalNotice = "这一项由“本段锁定”保护；请先解锁本段。";
+          renderModal();
+          return;
+        }
+        if (!hasFieldValue(field.id)) {
+          modalNotice = "请先选择一个素材，再锁定本项。";
+          renderModal();
+          return;
+        }
         state.locked[field.id] = !state.locked[field.id];
+        modalNotice = state.locked[field.id] ? "本项已锁定；解锁前选择、清除和随机都不会改变它。" : "本项锁定已解除。";
         persist();
         renderModal();
       });
-      const fieldClear = makeButton("清除本项");
+      const canUndoClear = lastCleared?.fieldId === field?.id && !hasFieldValue(field.id);
+      const fieldClear = makeButton(canUndoClear ? "撤销清除" : (hasFieldValue(field?.id) ? "清除本项" : "本项未选择"));
+      fieldClear.disabled = !canUndoClear && !hasFieldValue(field?.id);
       fieldClear.addEventListener("click", () => {
+        if (canUndoClear) {
+          if (lastCleared.selected != null) state.selected[field.id] = lastCleared.selected;
+          if (lastCleared.override != null) state.overrides[field.id] = lastCleared.override;
+          const restored = displayValue(field, state) || shortLabel(field.label);
+          lastCleared = null;
+          modalNotice = `已恢复“${restored}”。`;
+          persist();
+          renderModal();
+          return;
+        }
+        if (isFieldLocked(field.id)) {
+          modalNotice = "本项已锁定；解锁后才能清除。";
+          renderModal();
+          return;
+        }
+        const cleared = displayValue(field, state) || shortLabel(field.label);
+        lastCleared = {
+          fieldId: field.id,
+          selected: state.selected[field.id],
+          override: state.overrides[field.id],
+        };
         delete state.selected[field.id];
         delete state.overrides[field.id];
+        modalNotice = `已清除“${cleared}”；点击“撤销清除”可以恢复。`;
         persist();
         renderModal();
       });
@@ -616,6 +713,11 @@ function attachPortraitGenerator(node) {
       search.value = searchTerm;
       detailHead.append(fieldTitle, fieldLock, fieldClear, search);
       detail.appendChild(detailHead);
+
+      const notice = document.createElement("div");
+      notice.className = "zf-pg-notice";
+      notice.textContent = modalNotice;
+      detail.appendChild(notice);
 
       const options = document.createElement("div");
       options.className = "zf-pg-options";
@@ -637,8 +739,11 @@ function attachPortraitGenerator(node) {
           const card = document.createElement("div");
           card.setAttribute("role", "button");
           card.tabIndex = 0;
+          const selectedOption = String(state.selected[field.id]) === String(item.value);
+          const selectedLocked = selectedOption && isFieldLocked(field.id);
           card.className = "zf-pg-option"
-            + (String(state.selected[field.id]) === String(item.value) ? " selected" : "")
+            + (selectedOption ? " selected" : "")
+            + (selectedLocked ? " locked" : "")
             + (customized ? " modified" : "");
           const value = document.createElement("div");
           value.className = "zf-pg-option-value";
@@ -649,6 +754,12 @@ function attachPortraitGenerator(node) {
             badge.textContent = "已修改";
             value.appendChild(badge);
           }
+          if (selectedLocked) {
+            const lockBadge = document.createElement("span");
+            lockBadge.className = "zf-pg-option-badge";
+            lockBadge.textContent = "🔒 已锁定";
+            value.appendChild(lockBadge);
+          }
           const description = document.createElement("div");
           description.className = "zf-pg-option-desc";
           description.textContent = customized
@@ -657,14 +768,33 @@ function attachPortraitGenerator(node) {
           card.append(value, description);
           card.addEventListener("click", () => {
             if (card.classList.contains("zf-pg-option-editor")) return;
+            if (isFieldLocked(field.id)) {
+              modalNotice = "本项已锁定；先解锁才能更换选择。";
+              notice.textContent = modalNotice;
+              return;
+            }
             const preservedTop = options.scrollTop;
             state.selected[field.id] = item.value;
             delete state.overrides[field.id];
             clearMovementPeers(field.id);
             if (field.id === "stylePreset") applyPreset(item.value);
+            lastCleared = null;
+            if (state.section_locked[section.id]) {
+              state.section_lock_items[field.id] = true;
+              modalNotice = "已选择并纳入本段锁定；解锁本段前不会被改变。";
+              persist();
+              renderModal();
+              return;
+            }
+            modalNotice = "";
             persist();
-            for (const sibling of options.querySelectorAll(".zf-pg-option")) sibling.classList.remove("selected");
+            for (const sibling of options.querySelectorAll(".zf-pg-option")) {
+              sibling.classList.remove("selected", "locked");
+            }
             card.classList.add("selected");
+            fieldClear.textContent = "清除本项";
+            fieldClear.disabled = false;
+            notice.textContent = "";
             options.scrollTop = preservedTop;
             requestAnimationFrame(() => { options.scrollTop = preservedTop; });
           });
@@ -672,6 +802,11 @@ function attachPortraitGenerator(node) {
             event.preventDefault();
             event.stopPropagation();
             if (card.classList.contains("zf-pg-option-editor")) return;
+            if (isFieldLocked(field.id)) {
+              modalNotice = "本项已锁定；先解锁才能修改素材内容。";
+              notice.textContent = modalNotice;
+              return;
+            }
             card.className = "zf-pg-option zf-pg-option-editor selected" + (customized ? " modified" : "");
             card.removeAttribute("role");
             card.removeAttribute("tabindex");

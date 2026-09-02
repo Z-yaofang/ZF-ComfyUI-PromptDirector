@@ -10,7 +10,7 @@ const repoRoot = path.resolve(repoRootArg);
 const installedRoot = path.resolve(installedRootArg);
 const directWorkflow = path.resolve(directWorkflowArg);
 const directorWorkflow = path.resolve(directorWorkflowArg);
-const stamp = "20260903-portrait-v4";
+const stamp = "20260903-portrait-v5";
 
 const runtimeFiles = [
   "nodes.py",
@@ -38,7 +38,7 @@ const backup = (workflowPath) => {
 };
 
 const defaultState = JSON.stringify({
-  version: 4,
+  version: 5,
   adult_content: false,
   selected: {},
   enabled: {},
@@ -46,6 +46,7 @@ const defaultState = JSON.stringify({
   pinned: {},
   locked: {},
   section_locked: {},
+  section_lock_items: {},
   section_enabled: {},
   option_overrides: {},
 });
@@ -55,9 +56,9 @@ const migratePortraitState = (node) => {
   const source = node.widgets_values_named?.state_json ?? node.widgets_values?.[0];
   try { previous = JSON.parse(String(source || "")); } catch { previous = {}; }
   if (!previous || typeof previous !== "object" || Array.isArray(previous)) previous = {};
-  const next = { ...JSON.parse(defaultState), ...previous, version: 4 };
+  const next = { ...JSON.parse(defaultState), ...previous, version: 5 };
   delete next.expanded;
-  for (const key of ["selected", "enabled", "overrides", "pinned", "locked", "section_locked", "section_enabled", "option_overrides"]) {
+  for (const key of ["selected", "enabled", "overrides", "pinned", "locked", "section_locked", "section_lock_items", "section_enabled", "option_overrides"]) {
     if (!next[key] || typeof next[key] !== "object" || Array.isArray(next[key])) next[key] = {};
   }
   const serialized = JSON.stringify(next);
@@ -71,7 +72,7 @@ const migratePortraitState = (node) => {
   };
   node.widgets_values[2] = Boolean(next.adult_content);
   node.size = [Math.max(470, Number(node.size?.[0]) || 470), 145];
-  node.properties = { ...(node.properties || {}), ver: "local-portrait-v4" };
+  node.properties = { ...(node.properties || {}), ver: "local-portrait-v5" };
 };
 
 const removeLink = (workflow, linkId) => {
@@ -111,7 +112,7 @@ const portraitNode = (id, position, order) => ({
   ],
   properties: {
     aux_id: "Z-yaofang/ZF-ComfyUI-PromptDirector",
-    ver: "local-portrait-v4",
+    ver: "local-portrait-v5",
     "Node name for S&R": "ZFPortraitPromptGenerator",
     widget_ue_connectable: {},
   },

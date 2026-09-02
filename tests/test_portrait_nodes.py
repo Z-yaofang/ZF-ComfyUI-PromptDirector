@@ -33,17 +33,21 @@ def _state(
     adult_content=False,
     section_enabled=None,
     option_overrides=None,
+    locked=None,
+    section_locked=None,
+    section_lock_items=None,
 ):
     return json.dumps(
         {
-            "version": 4,
+            "version": 5,
             "adult_content": adult_content,
             "selected": selected or {},
             "enabled": {},
             "overrides": overrides or {},
             "pinned": {},
-            "locked": {},
-            "section_locked": {},
+            "locked": locked or {},
+            "section_locked": section_locked or {},
+            "section_lock_items": section_lock_items or {},
             "section_enabled": section_enabled or {},
             "option_overrides": option_overrides or {},
         },
@@ -84,7 +88,7 @@ def test_legacy_pose_selection_migrates_to_the_new_action_group():
     migrated = json.loads(selection_json)
 
     assert "原地旋转中定格" in prompt
-    assert migrated["version"] == 4
+    assert migrated["version"] == 5
     assert migrated["selected"]["actionSpinning"] == "I023"
     assert "sfwSimPick" not in migrated["selected"]
 
@@ -93,6 +97,18 @@ def test_legacy_pose_selection_migrates_to_the_new_action_group():
     posture_migrated = json.loads(posture_selection)
     assert "站立，双腿并拢" in posture_prompt
     assert posture_migrated["selected"]["postureStanding"] == "F001"
+
+
+def test_legacy_section_lock_snapshots_only_existing_selections():
+    lens = _option("lens")
+    legacy = json.loads(_state(selected={"lens": lens["value"]}, section_locked={"camera": True}))
+    legacy["version"] = 4
+    _, _, selection_json, _ = MODULE.ZFPortraitPromptGenerator().generate(json.dumps(legacy, ensure_ascii=False))
+    migrated = json.loads(selection_json)
+
+    assert migrated["version"] == 5
+    assert migrated["section_lock_items"]["lens"] is True
+    assert "viewpoint" not in migrated["section_lock_items"]
 
 
 def test_portrait_prompt_and_world_asset_work_without_reverse_analysis():
@@ -184,6 +200,7 @@ def test_frontend_repair_only_clears_overrides():
     assert "state.selected = {}" not in repair_block
     assert "state.pinned = {}" not in repair_block
     assert "state.locked = {}" not in repair_block
+    assert "state.section_lock_items = {}" not in repair_block
 
 
 def test_world_asset_is_the_complete_catalog_and_does_not_depend_on_random_selection():
@@ -256,6 +273,17 @@ def test_modal_preserves_option_and_tab_scroll_positions():
     assert "nextTabs.scrollLeft = previousView.tabsLeft" in source
     assert "nextOptions.scrollTop = previousView.optionsTop" in source
     assert "options.scrollTop = preservedTop" in source
+
+
+def test_clear_is_undoable_and_locks_protect_selected_cards():
+    source = (ROOT / "web" / "portrait_generator.js").read_text(encoding="utf-8")
+
+    assert 'canUndoClear ? "撤销清除"' in source
+    assert 'lastCleared = {' in source
+    assert 'lockBadge.textContent = "🔒 已锁定"' in source
+    assert 'if (isFieldLocked(field.id))' in source
+    assert 'if (state.section_locked[section.id])' in source
+    assert "尚未选择的分类仍会继续随机" in source
 
 
 def test_option_edit_changes_current_prompt_and_complete_asset_library():
