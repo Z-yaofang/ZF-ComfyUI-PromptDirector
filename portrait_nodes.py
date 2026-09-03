@@ -41,22 +41,6 @@ DEFAULT_PORTRAIT_STATE = json.dumps(
 )
 
 
-SECTION_PREFIXES = {
-    "shooting_light": "拍摄与光影",
-    "subject": "人物主体",
-    "person_detail": "人物细节",
-    "hair": "发型",
-    "styling_expression": "妆造表达",
-    "wear_state": "穿着状态",
-    "clothing": "服装",
-    "accessories": "配饰",
-    "clothing_expression": "服装表现",
-    "posture": "姿态",
-    "action": "动作",
-    "bg": "环境",
-    "comp": "构图",
-    "extra": "风格细节",
-}
 PROMPT_SECTION_ORDER = (
     "shooting_light",
     "subject",
@@ -606,6 +590,269 @@ def _field_texts(state, adult_requested):
     return normal_text, adult_text, by_section
 
 
+def _resolved_prompt_fields(state, adult_requested):
+    """Resolve the active catalog fields without exposing section metadata."""
+    resolved = {}
+    adult_present = False
+    for section, field in PORTRAIT_FIELDS:
+        if state["section_enabled"].get(section["id"], True) is False:
+            continue
+        field_id = field["id"]
+        if state["enabled"].get(field_id, True) is False:
+            continue
+        override = _clean_text(state["overrides"].get(field_id))
+        option_text, option_is_adult = _option_text(
+            field,
+            state["selected"].get(field_id),
+            state["option_overrides"],
+        )
+        text = override or option_text
+        if not text:
+            continue
+        is_adult = bool(field.get("adult") or option_is_adult)
+        if is_adult and not adult_requested:
+            continue
+        resolved[field_id] = text
+        adult_present = adult_present or is_adult
+    return resolved, adult_present
+
+
+def _sentence(text):
+    text = _clean_text(text)
+    if not text:
+        return ""
+    if re.search(r"[。！？.!?]$", text):
+        return text
+    return f"{text}。"
+
+
+def _join_prompt_parts(parts):
+    output = ""
+    for part in parts:
+        if not part:
+            continue
+        if (
+            output
+            and not re.search(r"[\u4e00-\u9fff\u3000。！？，、；：]$", output)
+            and re.match(r"[\u4e00-\u9fff]", part)
+        ):
+            output += " "
+        output += part
+    return output
+
+
+def _leg_ratio_description(state, fields):
+    custom = _clean_text(state["overrides"].get("legRatio"))
+    if custom:
+        return custom
+    if "legRatio" not in fields:
+        return ""
+    try:
+        ratio = float(state["selected"].get("legRatio", 1) or 1)
+    except (TypeError, ValueError):
+        return fields["legRatio"]
+    if ratio <= 1:
+        return ""
+    if ratio >= 1.9:
+        return "双腿极其修长，腿长接近上半身两倍，九头身超模比例，满屏长腿"
+    if ratio >= 1.7:
+        return f"双腿极为修长，腿长约为上半身的{ratio:.1f}倍，逆天长腿，九头身比例"
+    if ratio >= 1.45:
+        return f"双腿修长挺拔，腿长约为上半身的{ratio:.1f}倍，高挑显腿长"
+    if ratio >= 1.2:
+        return f"双腿修长匀称，腿长约为上半身的{ratio:.1f}倍，身形比例极佳"
+    return "双腿比例自然修长，腿长略长于上半身"
+
+
+def _build_portrait_prompt(state, adult_requested, reference=""):
+    """Build the same clean, prose-style prompt shape used by the source HTML."""
+    fields, adult_present = _resolved_prompt_fields(state, adult_requested)
+    selected = state["selected"]
+    parts = []
+
+    # The source HTML places an active wear state before the photographic setup.
+    wear_state = fields.get("nsfwState", "")
+    if wear_state:
+        prefix = "成年人物，" if adult_present else ""
+        parts.append(_sentence(f"{prefix}{wear_state}"))
+
+    camera = []
+    for field_id in ("lens", "viewpoint"):
+        if fields.get(field_id):
+            camera.append(fields[field_id])
+    if fields.get("shotSize"):
+        camera.append(f"取{fields['shotSize']}景别")
+    if fields.get("dof"):
+        camera.append(fields["dof"])
+    if fields.get("device"):
+        camera.append(f"画面以{fields['device']}呈现")
+    if camera:
+        parts.append(_sentence("，".join(camera)))
+
+    for field_id in ("mainLight", "ambient", "colorTone", "film", "cine"):
+        if fields.get(field_id):
+            parts.append(_sentence(fields[field_id]))
+
+    person = []
+    temperament = fields.get("temperament", "")
+    age = fields.get("age", "")
+    if temperament and age:
+        person.append(f"{temperament}的{age}")
+    elif temperament or age:
+        person.append(temperament or age)
+    if adult_present and not wear_state and not re.search(r"(?:1[89]|[2-9]\d)\s*岁|成年", age):
+        person.insert(0, "成年人物")
+    if fields.get("race"):
+        person.append(fields["race"])
+    skin = fields.get("skin", "")
+    texture = fields.get("texture", "")
+    if skin or texture:
+        person.append(f"{skin}{texture}")
+    if fields.get("face"):
+        person.append(fields["face"])
+    body_and_legs = [fields.get(field_id, "") for field_id in ("body", "leg")]
+    body_and_legs = [item for item in body_and_legs if item]
+    if body_and_legs:
+        person.append("、".join(body_and_legs))
+    ratio_text = _leg_ratio_description(state, fields)
+    if ratio_text:
+        person.append(ratio_text)
+    for field_id in (
+        "breastSize", "breastShape", "shoulder", "chestPos", "waist", "hip", "arm",
+        "nsfwLowerBody", "nsfwBreastDetail", "firstImp",
+    ):
+        if fields.get(field_id):
+            person.append(fields[field_id])
+    if person:
+        parts.append(_sentence(f"人物为{'，'.join(person)}"))
+
+    tattoo = fields.get("tattoo", "")
+    tattoo_position = fields.get("tattooPos", "")
+    if tattoo and tattoo_position:
+        parts.append(_sentence(f"{tattoo_position}有一枚{tattoo}纹身，墨色贴合皮肤轮廓自然晕染"))
+
+    hair = []
+    hair_core = "".join(fields.get(field_id, "") for field_id in ("hairLen", "hairColor", "hairCurl"))
+    if hair_core:
+        hair.append(hair_core)
+    for field_id in ("hairTie", "hairBangs", "hairState", "hairAccFront", "hairAccBack", "hairAccSide"):
+        if fields.get(field_id):
+            hair.append(fields[field_id])
+    if hair:
+        parts.append(_sentence("，".join(hair)))
+
+    makeup = []
+    if fields.get("makeup"):
+        makeup.append(f"妆容为{fields['makeup']}")
+    for field_id in ("makeupDetail", "smudge", "nails"):
+        if fields.get(field_id):
+            makeup.append(fields[field_id])
+    if makeup:
+        parts.append(_sentence("，".join(makeup)))
+
+    expression = [fields.get(field_id, "") for field_id in ("emotion", "eye", "mouth")]
+    expression = [item for item in expression if item]
+    if expression:
+        parts.append(_sentence("，".join(expression)))
+    imperfections = [fields.get(field_id, "") for field_id in ("imperf1", "imperf2")]
+    imperfections = list(dict.fromkeys(item for item in imperfections if item))
+    if imperfections:
+        parts.append(_sentence("，".join(imperfections)))
+
+    movement = ""
+    for _, field in PORTRAIT_FIELDS:
+        if field["id"] in MOVEMENT_FIELD_IDS and fields.get(field["id"]):
+            movement = fields[field["id"]]
+            break
+    reaction = fields.get("nsfwChain", "")
+    if reaction:
+        movement = f"{movement.rstrip('，,。 ')}，{reaction}" if movement else reaction
+    if movement:
+        parts.append(_sentence(movement))
+
+    clothing = []
+    cloth_item = fields.get("clothItem", "")
+    cloth_category = str(selected.get("clothCat") or "")
+    if cloth_item:
+        if cloth_category == "上下装":
+            clothing.append(f"上身穿着{cloth_item}")
+        else:
+            clothing.append(f"身着{cloth_item}")
+    for field_id, prefix in (
+        ("clothMat", ""),
+        ("clothPattern", ""),
+        ("clothDeco", ""),
+        ("outerwear", "外搭"),
+        ("collarStyle", ""),
+        ("topLength", ""),
+        ("clothLayer", ""),
+        ("bottomStyle", "下身搭配"),
+        ("bottomLength", ""),
+        ("splitColor", ""),
+    ):
+        if fields.get(field_id):
+            text = fields[field_id]
+            if field_id == "clothDeco":
+                text = f"{text}装饰细节"
+            clothing.append(f"{prefix}{text}")
+
+    lingerie_item = fields.get("lingerieItem", "")
+    if lingerie_item:
+        lingerie_category = fields.get("lingerieCat", "")
+        if lingerie_category:
+            clothing.append(f"身着{lingerie_category}风格的情趣内衣")
+        clothing.append(lingerie_item)
+        if fields.get("lingerieColor1"):
+            clothing.append(f"主色调为{fields['lingerieColor1']}")
+        if fields.get("lingerieColor2"):
+            clothing.append(f"辅色调为{fields['lingerieColor2']}")
+
+    panty = f"{fields.get('pantyColor', '')}{fields.get('pantyStyle', '')}".strip()
+    if panty:
+        clothing.append(f"下身穿着{panty}")
+    for field_id in ("sfwExposure", "clothTransparency", "nsfwExposure"):
+        if fields.get(field_id):
+            clothing.append(fields[field_id])
+    if clothing:
+        parts.append(_sentence("，".join(clothing)))
+
+    accessories = []
+    if fields.get("shoes"):
+        accessories.append(f"脚穿{fields['shoes']}")
+    sock_type = fields.get("sockType", "")
+    if sock_type:
+        sock_name = "".join(
+            fields.get(field_id, "")
+            for field_id in ("sockColor", "sockLen")
+        ) + str(selected.get("sockType") or "")
+        sock_details = [sock_type]
+        if fields.get("sockOpacity"):
+            sock_details.append(fields["sockOpacity"])
+        accessories.append(f"双腿穿着{sock_name}，{'，'.join(sock_details)}")
+    if fields.get("accessory"):
+        accessories.append(fields["accessory"])
+    if accessories:
+        parts.append(_sentence("，".join(accessories)))
+
+    for field_id in ("scene", "prop", "weather"):
+        if fields.get(field_id):
+            parts.append(_sentence(fields[field_id]))
+
+    composition = []
+    if fields.get("comp"):
+        composition.append(fields["comp"])
+    if fields.get("compPos"):
+        composition.append(f"人物{fields['compPos']}")
+    if composition:
+        parts.append(_sentence("，".join(composition)))
+    if fields.get("styleTag"):
+        parts.append(_sentence(f"整体呈现{fields['styleTag']}风格"))
+
+    if reference:
+        parts.append(_sentence(f"参考画面要点：{reference}"))
+    return _join_prompt_parts(parts)
+
+
 def _normalize_reference(value):
     text = str(value or "").strip()
     if not text:
@@ -634,17 +881,6 @@ def _normalize_reference(value):
         text = "，".join(item for item in pieces if item)
     text = re.sub(r"```(?:json|text|markdown)?|```", "", text, flags=re.I)
     return _clean_text(text)[:3000]
-
-
-def _join_sections(by_section, allowed=None):
-    parts = []
-    for section_id in PROMPT_SECTION_ORDER:
-        if allowed is not None and section_id not in allowed:
-            continue
-        values = list(dict.fromkeys(item for item in by_section.get(section_id, []) if item))
-        if values:
-            parts.append(f"{SECTION_PREFIXES.get(section_id, section_id)}：{'，'.join(values)}")
-    return "；".join(parts)
 
 
 def _catalog_asset_sections(include_adult, option_overrides=None):
@@ -770,14 +1006,10 @@ class ZFPortraitPromptGenerator:
             _resolve_clothing_conflicts(state, adult_requested)
         _resolve_movement_conflicts(state)
 
-        normal_text, adult_text, by_section = _field_texts(state, adult_requested)
+        _, _, by_section = _field_texts(state, adult_requested)
 
-        prompt_body = _join_sections(by_section)
-        if adult_requested and adult_text:
-            prompt_body = f"明确的成年人物，{prompt_body}" if prompt_body else "明确的成年人物"
-        if reference:
-            prompt_body = f"{prompt_body}；参考画面要点：{reference}" if prompt_body else f"参考画面要点：{reference}"
-        portrait_prompt = prompt_body or "单人肖像创作，人物身份、外观、服装、动作与环境保持统一自然"
+        prompt_body = _build_portrait_prompt(state, adult_requested, reference)
+        portrait_prompt = prompt_body or "单人肖像创作，人物身份、外观、服装、动作与环境保持统一自然。"
 
         world_asset, normal_asset_count, adult_asset_count = _catalog_asset_sections(
             adult_requested,

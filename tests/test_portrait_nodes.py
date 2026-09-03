@@ -27,6 +27,11 @@ def _option(field_id, adult=None):
     )
 
 
+def _option_by_value(field_id, value):
+    field = MODULE.PORTRAIT_FIELD_BY_ID[field_id][1]
+    return next(item for item in field["options"] if item.get("value") == value)
+
+
 def _state(
     selected=None,
     overrides=None,
@@ -147,6 +152,98 @@ def test_portrait_prompt_and_world_asset_work_without_reverse_analysis():
     assert "成人内容关闭" in status
 
 
+def test_portrait_prompt_uses_html_style_prose_without_section_headers():
+    lens = _option_by_value("lens", "广角")
+    viewpoint = _option_by_value("viewpoint", "平视正面")
+    device = _option_by_value("device", "手机自拍")
+    main_light = _option_by_value("mainLight", "自然光")
+    tone = _option_by_value("colorTone", "中性白")
+    cloth_item = _option_by_value("clothItem", "上下装｜白色棉质衬衫")
+    scene = _option_by_value("scene", "卧室")
+    composition = _option_by_value("comp", "三分法")
+    state = _state(
+        selected={
+            "lens": lens["value"],
+            "viewpoint": viewpoint["value"],
+            "shotSize": "半身",
+            "device": device["value"],
+            "mainLight": main_light["value"],
+            "colorTone": tone["value"],
+            "temperament": "清纯",
+            "age": "24岁轻熟女",
+            "race": "欧美",
+            "skin": "冷白皮",
+            "texture": "哑光质感",
+            "face": "瓜子脸",
+            "clothCat": "上下装",
+            "clothItem": cloth_item["value"],
+            "scene": scene["value"],
+            "comp": composition["value"],
+            "compPos": "居于画面中央",
+        },
+    )
+
+    prompt = MODULE.ZFPortraitPromptGenerator().generate(state)[0]
+
+    assert "拍摄与光影：" not in prompt
+    assert "人物主体：" not in prompt
+    assert "服装：" not in prompt
+    assert lens["text"] in prompt
+    assert viewpoint["text"] in prompt
+    assert "取半身景别" in prompt
+    assert f"画面以{device['text']}呈现" in prompt
+    assert "人物为清纯的24岁轻熟女，欧美，冷白皮哑光质感，瓜子脸" in prompt
+    assert f"上身穿着{cloth_item['text']}" in prompt
+    assert scene["text"] in prompt
+    assert f"{composition['text']}，人物居于画面中央" in prompt
+
+
+def test_prompt_omits_selector_metadata_and_keeps_full_option_descriptions():
+    cloth_item = _option_by_value("clothItem", "连衣裙｜白色缎面吊带长裙")
+    state = _state(
+        selected={
+            "stylePreset": "法式优雅",
+            "clothCat": "连衣裙",
+            "clothItem": cloth_item["value"],
+        },
+    )
+
+    prompt = MODULE.ZFPortraitPromptGenerator().generate(state)[0]
+
+    assert "stylePreset" not in prompt
+    assert "主件类别" not in prompt
+    assert "法式优雅" not in prompt
+    assert f"身着{cloth_item['text']}" in prompt
+
+
+def test_adult_prompt_is_natural_prose_instead_of_a_policy_prefix():
+    wear_state = _option("nsfwState")
+    age = _option_by_value("age", "24岁轻熟女")
+    state = _state(
+        selected={"nsfwState": wear_state["value"], "age": age["value"]},
+        adult_content=True,
+    )
+
+    prompt = MODULE.ZFPortraitPromptGenerator().generate(state, adult_content=True)[0]
+
+    assert prompt.startswith(f"成年人物，{wear_state['text']}。")
+    assert "明确的成年人物" not in prompt
+    assert "穿着状态：" not in prompt
+
+
+def test_prompt_keeps_a_space_between_english_and_chinese_sentences():
+    posture = _option("postureStanding")
+    scene = _option_by_value("scene", "卧室")
+    state = _state(
+        selected={"postureStanding": posture["value"], "scene": scene["value"]},
+        overrides={"postureStanding": "standing still."},
+    )
+
+    prompt = MODULE.ZFPortraitPromptGenerator().generate(state)[0]
+
+    assert f"standing still. {scene['text']}" in prompt
+
+
 def test_adult_material_is_excluded_while_switch_is_off():
     adult_field = next(field for _, field in MODULE.PORTRAIT_FIELDS if field.get("adult") and field.get("options"))
     adult_option = next(item for item in adult_field["options"] if item.get("text") and item.get("value") != "不启用")
@@ -173,7 +270,8 @@ def test_adult_mode_requires_adult_context_and_blocks_minor_override():
         adult_content=True,
     )
     assert adult_option["text"] in prompt
-    assert "明确的成年人物" in prompt
+    assert _option("age")["text"] in prompt
+    assert "明确的成年人物" not in prompt
     assert adult_option["text"] in world_asset
     assert "【成人扩展边界】" in world_asset
     assert "成人内容开启" in status
