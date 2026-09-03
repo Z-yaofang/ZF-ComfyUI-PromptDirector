@@ -281,6 +281,10 @@ def _is_locked(state, field_id):
     return bool(state["locked"].get(field_id) or state["section_lock_items"].get(field_id))
 
 
+def _is_locked(state, field_id):
+    return bool(state["locked"].get(field_id) or state["section_lock_items"].get(field_id))
+
+
 def _has_value(state, field_id):
     return bool(_clean_text(state["selected"].get(field_id)) or _clean_text(state["overrides"].get(field_id)))
 
@@ -1123,6 +1127,10 @@ class ZFPortraitPromptGenerator:
             adult_requested,
             state["option_overrides"],
         )
+        if reference:
+            world_asset += f"\n\n【外部参考素材】\n{reference}"
+        if adult_requested:
+            world_asset += "\n\n【成人扩展边界】\n只用于明确的成年人物。"
 
         normalized_state = {
             "version": 6,
@@ -1141,10 +1149,13 @@ class ZFPortraitPromptGenerator:
         }
         active_count = sum(len(values) for values in by_section.values())
         asset_count = normal_asset_count + adult_asset_count
-        status = f"当前提示词 {active_count} 项；完整资产库 {asset_count} 项"
-return (
-    portrait_prompt,
-    world_asset,
-    json.dumps(normalized_state, ensure_ascii=False, separators=(",", ":")),
-    status,
-)
+        if adult_blocked:
+            status = f"当前提示词 {active_count} 项；完整资产库 {asset_count} 项；检测到未成年描述，成人扩展未参与输出"
+        else:
+            status = f"当前提示词 {active_count} 项；完整资产库 {asset_count} 项；成人内容{'开启' if adult_requested else '关闭'}"
+        return (
+            portrait_prompt,
+            world_asset,
+            json.dumps(normalized_state, ensure_ascii=False, separators=(",", ":")),
+            status,
+        )
