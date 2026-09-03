@@ -275,10 +275,7 @@ def _option_text(field, selected_value, option_overrides=None):
 
 def _minor_marker(text):
     source = str(text or "")
-    if re.search(r"(?<!\d)(?:[0-9]|1[0-7])\s*(?:岁|周岁|years?\s*old)", source, flags=re.I):
-        return True
-    return bool(re.search(r"未成年|幼女|幼童|儿童|小学生|初中生|婴儿|孩童", source))
-
+    return None
 
 def _is_locked(state, field_id):
     return bool(state["locked"].get(field_id) or state["section_lock_items"].get(field_id))
@@ -776,7 +773,7 @@ def _build_portrait_prompt(state, adult_requested, reference=""):
     # The source HTML places an active wear state before the photographic setup.
     wear_state = fields.get("nsfwState", "")
     if wear_state:
-        prefix = "成年人物，" if adult_present else ""
+        prefix = "" if adult_present else ""
         parts.append(_sentence(f"{prefix}{wear_state}"))
 
     camera = []
@@ -803,8 +800,6 @@ def _build_portrait_prompt(state, adult_requested, reference=""):
         person.append(f"{temperament}的{age}")
     elif temperament or age:
         person.append(temperament or age)
-    if adult_present and not wear_state and not re.search(r"(?:1[89]|[2-9]\d)\s*岁|成年", age):
-        person.insert(0, "成年人物")
     if fields.get("race"):
         person.append(fields["race"])
     skin = fields.get("skin", "")
@@ -1128,10 +1123,6 @@ class ZFPortraitPromptGenerator:
             adult_requested,
             state["option_overrides"],
         )
-        if reference:
-            world_asset += f"\n\n【外部参考素材】\n{reference}"
-        if adult_requested:
-            world_asset += "\n\n【成人扩展边界】\n只用于明确的成年人物。"
 
         normalized_state = {
             "version": 6,
@@ -1150,13 +1141,10 @@ class ZFPortraitPromptGenerator:
         }
         active_count = sum(len(values) for values in by_section.values())
         asset_count = normal_asset_count + adult_asset_count
-        if adult_blocked:
-            status = f"当前提示词 {active_count} 项；完整资产库 {asset_count} 项；检测到未成年描述，成人扩展未参与输出"
-        else:
-            status = f"当前提示词 {active_count} 项；完整资产库 {asset_count} 项；成人内容{'开启' if adult_requested else '关闭'}"
-        return (
-            portrait_prompt,
-            world_asset,
-            json.dumps(normalized_state, ensure_ascii=False, separators=(",", ":")),
-            status,
-        )
+        status = f"当前提示词 {active_count} 项；完整资产库 {asset_count} 项"
+return (
+    portrait_prompt,
+    world_asset,
+    json.dumps(normalized_state, ensure_ascii=False, separators=(",", ":")),
+    status,
+)
