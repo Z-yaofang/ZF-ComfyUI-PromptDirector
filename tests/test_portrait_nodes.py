@@ -433,6 +433,19 @@ def test_clear_is_undoable_and_locks_protect_selected_cards():
     assert "尚未选择的分类仍会继续随机" in source
 
 
+def test_frontend_keeps_locked_choices_pinned_and_recovers_older_states():
+    source = (ROOT / "web" / "portrait_generator.js").read_text(encoding="utf-8")
+
+    assert "recoveredLockedPin" in source
+    assert "if (willLock) state.pinned[field.id] = true;" in source
+    assert "state.pinned[item.id] = true;" in source
+    assert "本项已锁定并固定到节点首页" in source
+
+    adult_toggle_block = source[source.index('adultToggle.addEventListener("change"'):]
+    adult_toggle_block = adult_toggle_block[:adult_toggle_block.index("renderHome();")]
+    assert "delete state.pinned[adultField.id]" not in adult_toggle_block
+
+
 def test_option_edit_changes_current_prompt_and_complete_asset_library():
     lens = _option("lens")
     key = f"lens::{lens['value']}"
@@ -545,6 +558,44 @@ def test_auto_random_preserves_locked_outfit_and_does_not_add_another_family():
         assert result["clothCat"] == cloth_item["group"]
         assert not any(result.get(field_id) for field_id in MODULE.LINGERIE_FIELD_IDS)
         assert result.get("nsfwState") not in MODULE.NO_CLOTHING_STATES
+
+
+def test_auto_random_preserves_locked_regular_posture_in_prompt():
+    posture = _option("postureStanding")
+    state = _state(
+        selected={"postureStanding": posture["value"]},
+        locked={"postureStanding": True},
+        auto_random=True,
+    )
+
+    for _ in range(30):
+        prompt, _, selection_json, _ = MODULE.ZFPortraitPromptGenerator().generate(state)
+        result = json.loads(selection_json)
+        assert result["selected"]["postureStanding"] == posture["value"]
+        assert result["locked"]["postureStanding"] is True
+        assert posture["text"] in prompt
+        assert sum(bool(result["selected"].get(field_id)) for field_id in MODULE.MOVEMENT_FIELD_IDS) == 1
+
+
+def test_auto_random_preserves_locked_adult_posture_in_prompt():
+    posture = _option("adultPostureSupine")
+    state = _state(
+        selected={"adultPostureSupine": posture["value"]},
+        locked={"adultPostureSupine": True},
+        adult_content=True,
+        auto_random=True,
+    )
+
+    for _ in range(30):
+        prompt, _, selection_json, _ = MODULE.ZFPortraitPromptGenerator().generate(
+            state,
+            adult_content=True,
+        )
+        result = json.loads(selection_json)
+        assert result["selected"]["adultPostureSupine"] == posture["value"]
+        assert result["locked"]["adultPostureSupine"] is True
+        assert posture["text"] in prompt
+        assert sum(bool(result["selected"].get(field_id)) for field_id in MODULE.MOVEMENT_FIELD_IDS) == 1
 
 
 def test_no_clothing_state_removes_unlocked_outfit_and_expression_fields():

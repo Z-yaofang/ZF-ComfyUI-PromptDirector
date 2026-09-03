@@ -341,6 +341,18 @@ function attachPortraitGenerator(node) {
       markChanged();
     };
 
+    // A locked choice must stay visible on the node. Older states could hold
+    // the value and lock correctly while omitting its home-page pin, which
+    // made the choice look as if it had disappeared after closing the modal.
+    let recoveredLockedPin = false;
+    for (const { field } of all) {
+      if (isFieldLocked(field.id) && hasFieldValue(field.id) && !state.pinned[field.id]) {
+        state.pinned[field.id] = true;
+        recoveredLockedPin = true;
+      }
+    }
+    if (recoveredLockedPin) persist();
+
     const resize = () => {
       const pinnedCount = all.filter(({ field }) => state.pinned[field.id] && (state.adult_content || !field.adult)).length;
       const width = Math.max(470, node.size?.[0] || 0);
@@ -830,7 +842,9 @@ function attachPortraitGenerator(node) {
               openModal(section.id, field.id);
               return;
             }
-            state.locked[field.id] = !state.locked[field.id];
+            const willLock = !state.locked[field.id];
+            state.locked[field.id] = willLock;
+            if (willLock) state.pinned[field.id] = true;
             persist();
             renderHome();
           });
@@ -953,7 +967,10 @@ function attachPortraitGenerator(node) {
         state.section_locked[section.id] = willLock;
         if (willLock) {
           for (const item of section.fields) {
-            if (hasFieldValue(item.id)) state.section_lock_items[item.id] = true;
+            if (hasFieldValue(item.id)) {
+              state.section_lock_items[item.id] = true;
+              state.pinned[item.id] = true;
+            }
           }
           modalNotice = "已锁定本段当前选择；尚未选择的分类仍会继续随机。";
         } else {
@@ -1024,8 +1041,10 @@ function attachPortraitGenerator(node) {
           renderModal();
           return;
         }
-        state.locked[field.id] = !state.locked[field.id];
-        modalNotice = state.locked[field.id] ? "本项已锁定；解锁前选择、清除和随机都不会改变它。" : "本项锁定已解除。";
+        const willLock = !state.locked[field.id];
+        state.locked[field.id] = willLock;
+        if (willLock) state.pinned[field.id] = true;
+        modalNotice = willLock ? "本项已锁定并固定到节点首页；解锁前选择、清除和随机都不会改变它。" : "本项锁定已解除。";
         persist();
         renderModal();
       });
@@ -1261,10 +1280,6 @@ function attachPortraitGenerator(node) {
         if (state.adult_content) {
           completeAdultComposition();
         } else {
-          for (const { field: adultField } of all) {
-            if (!adultField.adult) continue;
-            delete state.pinned[adultField.id];
-          }
           if (!visibleFields(currentSection()).length) {
             activeSectionId = catalog.sections.find((item) => visibleFields(item).length)?.id || activeSectionId;
             activeFieldId = null;
