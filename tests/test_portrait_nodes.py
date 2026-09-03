@@ -392,6 +392,15 @@ def test_frontend_uses_pinned_rows_and_has_no_result_chip_summary():
     assert "临时启用或停用这一项" not in source
 
 
+def test_frontend_treats_adult_toggle_as_an_exclusive_random_mode():
+    source = (ROOT / "web" / "portrait_generator.js").read_text(encoding="utf-8")
+
+    assert 'family = state.adult_content ? "lingerie" : "standard"' in source
+    assert "Boolean(field.adult) === Boolean(state.adult_content)" in source
+    assert 'const degreeIds = state.adult_content\n              ? ["nsfwExposure"]' in source
+    assert "随机与自动随机必定生成扩展内容" in source
+
+
 def test_asset_cards_are_edited_in_place_and_saved_explicitly():
     source = (ROOT / "web" / "portrait_generator.js").read_text(encoding="utf-8")
 
@@ -474,6 +483,42 @@ def test_auto_random_changes_every_execution_without_outfit_or_movement_conflict
         assert not (standard and lingerie)
         assert sum(bool(selected.get(field_id)) for field_id in MODULE.MOVEMENT_FIELD_IDS) == 1
         assert sum(bool(selected.get(field_id)) for field_id in MODULE.CLOTHING_DEGREE_FIELD_IDS) <= 1
+        movement_id = next(field_id for field_id in MODULE.MOVEMENT_FIELD_IDS if selected.get(field_id))
+        assert MODULE.PORTRAIT_FIELD_BY_ID[movement_id][1].get("adult") is True
+        assert selected.get("nsfwState")
+        if selected["nsfwState"] not in MODULE.NO_CLOTHING_STATES:
+            assert lingerie
+            assert selected.get("nsfwExposure")
+
+
+def test_enabling_adult_mode_guarantees_adult_output_without_pressing_random():
+    prompt, _, selection_json, status = MODULE.ZFPortraitPromptGenerator().generate(
+        _state(adult_content=True),
+        adult_content=True,
+    )
+    state = json.loads(selection_json)
+    adult_ids = {
+        field["id"]
+        for _, field in MODULE.PORTRAIT_FIELDS
+        if field.get("adult")
+    }
+
+    assert any(state["selected"].get(field_id) for field_id in adult_ids)
+    assert "成人内容开启" in status
+    assert "成年人物" in prompt
+
+
+def test_regular_auto_random_never_selects_adult_fields():
+    state = _state(auto_random=True)
+    adult_ids = {
+        field["id"]
+        for _, field in MODULE.PORTRAIT_FIELDS
+        if field.get("adult")
+    }
+
+    for _ in range(30):
+        result = json.loads(MODULE.ZFPortraitPromptGenerator().generate(state)[2])["selected"]
+        assert not any(result.get(field_id) for field_id in adult_ids)
 
 
 def test_auto_random_preserves_locked_outfit_and_does_not_add_another_family():
@@ -489,6 +534,7 @@ def test_auto_random_preserves_locked_outfit_and_does_not_add_another_family():
         assert result["clothItem"] == cloth_item["value"]
         assert result["clothCat"] == cloth_item["group"]
         assert not any(result.get(field_id) for field_id in MODULE.LINGERIE_FIELD_IDS)
+        assert result.get("nsfwState") not in MODULE.NO_CLOTHING_STATES
 
 
 def test_no_clothing_state_removes_unlocked_outfit_and_expression_fields():
