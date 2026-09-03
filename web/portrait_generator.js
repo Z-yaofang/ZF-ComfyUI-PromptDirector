@@ -533,7 +533,9 @@ function attachPortraitGenerator(node) {
         const standardLocked = hasLockedClothingValue(STANDARD_CLOTHING_FIELD_IDS, next);
         const lingerieLocked = hasLockedClothingValue(LINGERIE_FIELD_IDS, next);
         let family = selectedClothingFamily(next);
-        if (!standardLocked && !lingerieLocked) family = state.adult_content ? "lingerie" : "standard";
+        // Match the source HTML: adult enhancement is layered on top of the
+        // ordinary outfit. Lingerie remains an explicit replacement choice.
+        if (!standardLocked && !lingerieLocked) family = "standard";
         if (standardLocked && !lingerieLocked) family = "standard";
         if (lingerieLocked && !standardLocked) family = "lingerie";
 
@@ -611,6 +613,72 @@ function attachPortraitGenerator(node) {
       next[picked.field.id] = picked.option.value;
     };
 
+    const completeAdultComposition = () => {
+      const next = { ...state.selected };
+
+      // Fill the complete common portrait skeleton without changing anything
+      // the user has already selected or locked. Adult-only fields are added
+      // to this skeleton; they do not replace it.
+      for (const { section, field } of all) {
+        if (state.section_enabled[section.id] === false
+            || state.enabled[field.id] === false
+            || !CORE_RANDOM_FIELDS.has(field.id)
+            || CLOTHING_MANAGED_FIELD_IDS.has(field.id)
+            || MOVEMENT_FIELD_IDS.has(field.id)
+            || field.custom
+            || isFieldLocked(field.id)
+            || hasFieldValue(field.id, next)) continue;
+        chooseRandom(field, next);
+      }
+
+      const movementSections = ["posture", "action"].filter((id) => (
+        state.section_enabled[id] !== false
+      ));
+      if (movementSections.length) randomizeMovement(next, movementSections);
+
+      const chooseIfMissing = (fieldId) => {
+        const target = fieldMap.get(fieldId);
+        if (!target
+            || state.section_enabled[target.section.id] === false
+            || state.enabled[fieldId] === false
+            || isFieldLocked(fieldId)
+            || hasFieldValue(fieldId, next)) return null;
+        return chooseRandom(target.field, next);
+      };
+
+      chooseIfMissing("nsfwState");
+      const noClothing = NO_CLOTHING_STATES.has(String(next.nsfwState || ""));
+      if (noClothing) {
+        clearUnlockedFields(STANDARD_CLOTHING_FIELD_IDS, next);
+        clearUnlockedFields(LINGERIE_FIELD_IDS, next);
+        clearUnlockedFields(CLOTHING_EXPRESSION_FIELD_IDS, next);
+      } else {
+        let family = selectedClothingFamily(next);
+        if (!family) family = "standard";
+        if (family === "standard") {
+          clearUnlockedFields(LINGERIE_FIELD_IDS, next);
+          chooseIfMissing("clothCat");
+          chooseIfMissing("clothItem");
+          const hasLockedDegree = [...CLOTHING_DEGREE_FIELD_IDS].some((fieldId) => (
+            isFieldLocked(fieldId) && hasFieldValue(fieldId, next)
+          ));
+          if (!hasLockedDegree) {
+            clearUnlockedFields(new Set(["sfwExposure", "clothTransparency"]), next);
+            chooseIfMissing("nsfwExposure");
+          }
+        } else {
+          clearUnlockedFields(STANDARD_CLOTHING_FIELD_IDS, next);
+          chooseIfMissing("lingerieCat");
+          chooseIfMissing("lingerieItem");
+        }
+      }
+
+      if (state.section_enabled.action !== false && Math.random() < 0.42) {
+        chooseIfMissing("nsfwChain");
+      }
+      state.selected = next;
+    };
+
     const randomizeSection = (section) => {
       if (!section || state.section_enabled[section.id] === false) return;
       lastCleared = null;
@@ -622,7 +690,7 @@ function attachPortraitGenerator(node) {
       } else {
         for (const field of visibleFields(section)) {
           if (!CORE_RANDOM_FIELDS.has(field.id) || CLOTHING_MANAGED_FIELD_IDS.has(field.id) || field.custom || isFieldLocked(field.id)) continue;
-          if (!ALWAYS_RANDOM_FIELDS.has(field.id) && Math.random() > 0.42) {
+          if (!state.adult_content && !ALWAYS_RANDOM_FIELDS.has(field.id) && Math.random() > 0.42) {
             delete next[field.id];
             continue;
           }
@@ -653,7 +721,7 @@ function attachPortraitGenerator(node) {
         if (state.section_enabled[section.id] === false) continue;
         for (const field of visibleFields(section)) {
           if (!CORE_RANDOM_FIELDS.has(field.id) || CLOTHING_MANAGED_FIELD_IDS.has(field.id) || field.custom || isFieldLocked(field.id)) continue;
-          if (!ALWAYS_RANDOM_FIELDS.has(field.id) && Math.random() > 0.42) {
+          if (!state.adult_content && !ALWAYS_RANDOM_FIELDS.has(field.id) && Math.random() > 0.42) {
             delete next[field.id];
             continue;
           }
@@ -1187,10 +1255,12 @@ function attachPortraitGenerator(node) {
       adultText.textContent = "成人内容（默认关闭）";
       adultRow.append(adultToggle, adultText);
       const adultHint = document.createElement("small");
-      adultHint.textContent = "关闭时只使用常规素材；开启后切换为扩展模式，随机与自动随机必定生成扩展内容，不再混抽常规姿态或服装。";
+      adultHint.textContent = "关闭时只使用常规素材；开启后保留完整人物与画面素材，并叠加成人细节、成人动作和服装表现，随机与自动随机都会明确生成扩展内容。";
       adultToggle.addEventListener("change", () => {
         state.adult_content = adultToggle.checked;
-        if (!state.adult_content) {
+        if (state.adult_content) {
+          completeAdultComposition();
+        } else {
           for (const { field: adultField } of all) {
             if (!adultField.adult) continue;
             delete state.pinned[adultField.id];

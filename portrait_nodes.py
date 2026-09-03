@@ -83,6 +83,11 @@ ACTION_FIELD_IDS = {
     "adultActionTransition", "adultActionWalking", "adultActionJumping", "adultActionSpinning",
 }
 MOVEMENT_FIELD_IDS = POSTURE_FIELD_IDS | ACTION_FIELD_IDS
+ADULT_MOVEMENT_FIELD_IDS = {
+    field_id for field_id in MOVEMENT_FIELD_IDS
+    if PORTRAIT_FIELD_BY_ID.get(field_id, ({}, {}))[1].get("adult")
+}
+REGULAR_MOVEMENT_FIELD_IDS = MOVEMENT_FIELD_IDS - ADULT_MOVEMENT_FIELD_IDS
 STANDARD_CLOTHING_FIELD_IDS = {
     "stylePreset", "clothCat", "clothItem", "outerwear", "collarStyle", "topLength",
     "bottomStyle", "splitColor", "bottomLength",
@@ -465,7 +470,10 @@ def _randomize_clothing(state, rng, adult_requested):
         elif standard_locked:
             family = "standard"
         else:
-            family = "lingerie" if adult_requested else "standard"
+            # The source HTML keeps ordinary clothing as the main outfit when
+            # NSFW enhancement is enabled. Lingerie is a separate, explicit
+            # replacement mode rather than the default adult random family.
+            family = "standard"
 
         if family == "lingerie":
             _clear_unlocked(state, STANDARD_CLOTHING_FIELD_IDS)
@@ -534,7 +542,10 @@ def _randomize_state(state, rng, adult_requested):
             continue
         if field.get("adult") and not adult_requested or _is_locked(state, field_id):
             continue
-        if field_id not in ALWAYS_RANDOM_FIELDS and rng.random() > 0.42:
+        # Adult mode is an extension of the complete normal portrait recipe,
+        # not a small adult-only draw. Keep optional common dimensions in the
+        # generated prompt so the result still describes a full person/scene.
+        if not adult_requested and field_id not in ALWAYS_RANDOM_FIELDS and rng.random() > 0.42:
             _clear_unlocked(state, {field_id})
             continue
         _choose_random(state, field_id, rng, adult_requested)
@@ -553,6 +564,9 @@ def _randomize_state(state, rng, adult_requested):
             for option in _usable_options(field, state, adult_requested):
                 candidates.append((field["id"], option["value"], bool(field.get("adult"))))
         if adult_requested:
+            # Only the movement branch switches to the adult library. All
+            # photographic, character, clothing and environment fields remain
+            # in the normal prompt skeleton.
             candidates = [item for item in candidates if item[2]]
         else:
             candidates = [item for item in candidates if not item[2]]
@@ -588,7 +602,7 @@ def _has_active_adult_selection(state):
 
 
 def _ensure_adult_selection(state, rng):
-    """Guarantee that enabling adult mode produces an adult prompt, not a mixed-pool miss."""
+    """Guarantee an adult overlay without replacing the normal prompt skeleton."""
     if _has_active_adult_selection(state):
         return True
     priority_groups = (
@@ -621,6 +635,26 @@ def _ensure_adult_selection(state, rng):
             _choose_random(state, "lingerieCat", rng, True)
         _choose_random(state, picked_id, rng, True)
         if _has_active_adult_selection(state):
+            return True
+    return False
+
+
+def _has_active_normal_selection(state):
+    """Return whether the state already contains any usable normal material."""
+    for section, field in PORTRAIT_FIELDS:
+        if field.get("adult"):
+            continue
+        if state["section_enabled"].get(section["id"], True) is False:
+            continue
+        if state["enabled"].get(field["id"], True) is False:
+            continue
+        override = _clean_text(state["overrides"].get(field["id"]))
+        option_text, option_is_adult = _option_text(
+            field,
+            state["selected"].get(field["id"]),
+            state["option_overrides"],
+        )
+        if override or (option_text and not option_is_adult):
             return True
     return False
 
@@ -1071,6 +1105,12 @@ class ZFPortraitPromptGenerator:
         if state.get("auto_random"):
             effective_seed = secrets.randbelow(0x80000000)
             _randomize_state(state, random.Random(effective_seed), adult_requested)
+        elif adult_requested and not _has_active_normal_selection(state):
+            # The source HTML fills its empty normal fields when NSFW is
+            # switched on. Do the same for an empty/legacy node state so merely
+            # enabling the extension cannot yield a fragment made only from
+            # one adult detail.
+            _randomize_state(state, random.Random(effective_seed), True)
         else:
             _resolve_clothing_conflicts(state, adult_requested)
         _resolve_movement_conflicts(state)

@@ -392,13 +392,15 @@ def test_frontend_uses_pinned_rows_and_has_no_result_chip_summary():
     assert "临时启用或停用这一项" not in source
 
 
-def test_frontend_treats_adult_toggle_as_an_exclusive_random_mode():
+def test_frontend_layers_adult_material_onto_the_complete_normal_recipe():
     source = (ROOT / "web" / "portrait_generator.js").read_text(encoding="utf-8")
 
-    assert 'family = state.adult_content ? "lingerie" : "standard"' in source
+    assert 'if (!standardLocked && !lingerieLocked) family = "standard"' in source
     assert "Boolean(field.adult) === Boolean(state.adult_content)" in source
     assert 'const degreeIds = state.adult_content\n              ? ["nsfwExposure"]' in source
-    assert "随机与自动随机必定生成扩展内容" in source
+    assert "completeAdultComposition" in source
+    assert "保留完整人物与画面素材" in source
+    assert "不再混抽常规姿态或服装" not in source
 
 
 def test_asset_cards_are_edited_in_place_and_saved_explicitly():
@@ -486,8 +488,11 @@ def test_auto_random_changes_every_execution_without_outfit_or_movement_conflict
         movement_id = next(field_id for field_id in MODULE.MOVEMENT_FIELD_IDS if selected.get(field_id))
         assert MODULE.PORTRAIT_FIELD_BY_ID[movement_id][1].get("adult") is True
         assert selected.get("nsfwState")
+        assert selected.get("nsfwLowerBody")
+        assert selected.get("nsfwBreastDetail")
         if selected["nsfwState"] not in MODULE.NO_CLOTHING_STATES:
-            assert lingerie
+            assert standard
+            assert not lingerie
             assert selected.get("nsfwExposure")
 
 
@@ -504,6 +509,11 @@ def test_enabling_adult_mode_guarantees_adult_output_without_pressing_random():
     }
 
     assert any(state["selected"].get(field_id) for field_id in adult_ids)
+    assert state["selected"].get("lens")
+    assert state["selected"].get("age")
+    assert state["selected"].get("hairLen")
+    assert state["selected"].get("scene")
+    assert state["selected"].get("comp")
     assert "成人内容开启" in status
     assert "成年人物" in prompt
 
