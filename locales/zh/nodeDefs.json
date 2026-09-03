@@ -51,5 +51,29 @@
         "name": "实际路线"
       }
     }
+  },
+  "ZFPortraitPromptGenerator": {
+    "display_name": "ZF 人像提示词生成器",
+    "description": "按当前选择组装人像提示词；数量大于 1 时直接输出提示词列表，驱动下游节点连续出图。",
+    "inputs": {
+      "reference_analysis": {
+        "name": "参考图分析"
+      },
+      "quantity": {
+        "name": "数量",
+        "tooltip": "连续出图数量。第 1 条沿用当前选择，后续条目随机生成并保留所有锁定项。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "人像提示词"
+      },
+      "1": {
+        "name": "选择状态"
+      },
+      "2": {
+        "name": "状态"
+      }
+    }
   }
 }

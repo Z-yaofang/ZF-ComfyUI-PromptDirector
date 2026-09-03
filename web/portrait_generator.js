@@ -356,7 +356,7 @@ function attachPortraitGenerator(node) {
     const resize = () => {
       const pinnedCount = all.filter(({ field }) => state.pinned[field.id] && (state.adult_content || !field.adult)).length;
       const width = Math.max(470, node.size?.[0] || 0);
-      const height = Math.max(145, Math.min(470, 112 + pinnedCount * 43));
+      const height = Math.max(171, Math.min(496, 138 + pinnedCount * 43));
       node.setSize?.([width, height]);
       markChanged();
     };

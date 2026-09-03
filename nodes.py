@@ -1628,5 +1628,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ZFDecisiveLlamaParams": "ZF Llama参数透传",
     "ZFPromptValidator": "ZF 提示词整理与观察",
     "ZFLazyPromptSwitch": "ZF 提示词总开关",
-    "ZFPortraitPromptGenerator": "ZF 人像提示词与人物资产",
+    "ZFPortraitPromptGenerator": "ZF 人像提示词生成器",
 }

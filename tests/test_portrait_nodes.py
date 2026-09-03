@@ -17,6 +17,12 @@ def _load_module():
 MODULE = _load_module()
 
 
+def _generate(*args, **kwargs):
+    """Return the first prompt plus scalar metadata for single-prompt behavior tests."""
+    prompts, selection_json, status = MODULE.ZFPortraitPromptGenerator().generate(*args, **kwargs)
+    return prompts[0], None, selection_json, status
+
+
 def _option(field_id, adult=None):
     field = MODULE.PORTRAIT_FIELD_BY_ID[field_id][1]
     return next(
@@ -109,7 +115,7 @@ def test_main_sections_follow_the_portrait_decision_order():
 
 def test_legacy_pose_selection_migrates_to_the_new_action_group():
     legacy_state = _state(selected={"sfwSimPick": "I023"})
-    prompt, _, selection_json, _ = MODULE.ZFPortraitPromptGenerator().generate(legacy_state)
+    prompt, _, selection_json, _ = _generate(legacy_state)
     migrated = json.loads(selection_json)
 
     assert "原地旋转中定格" in prompt
@@ -118,7 +124,7 @@ def test_legacy_pose_selection_migrates_to_the_new_action_group():
     assert "sfwSimPick" not in migrated["selected"]
 
     posture_state = _state(selected={"sfwSimPick": "F001"})
-    posture_prompt, _, posture_selection, _ = MODULE.ZFPortraitPromptGenerator().generate(posture_state)
+    posture_prompt, _, posture_selection, _ = _generate(posture_state)
     posture_migrated = json.loads(posture_selection)
     assert "站立，双腿并拢" in posture_prompt
     assert posture_migrated["selected"]["postureStanding"] == "F001"
@@ -128,7 +134,7 @@ def test_legacy_section_lock_snapshots_only_existing_selections():
     lens = _option("lens")
     legacy = json.loads(_state(selected={"lens": lens["value"]}, section_locked={"camera": True}))
     legacy["version"] = 4
-    _, _, selection_json, _ = MODULE.ZFPortraitPromptGenerator().generate(json.dumps(legacy, ensure_ascii=False))
+    _, _, selection_json, _ = _generate(json.dumps(legacy, ensure_ascii=False))
     migrated = json.loads(selection_json)
 
     assert migrated["version"] == 6
@@ -136,19 +142,18 @@ def test_legacy_section_lock_snapshots_only_existing_selections():
     assert "viewpoint" not in migrated["section_lock_items"]
 
 
-def test_portrait_prompt_and_world_asset_work_without_reverse_analysis():
+def test_portrait_prompt_works_without_reverse_analysis():
     lens = _option("lens")
     age = _option("age")
     scene = _option("scene")
     state = _state(selected={"lens": lens["value"], "age": age["value"], "scene": scene["value"]})
 
-    prompt, world_asset, selection_json, status = MODULE.ZFPortraitPromptGenerator().generate(state)
+    prompt, _, selection_json, status = _generate(state)
 
     assert lens["text"] in prompt
     assert scene["text"] in prompt
-    assert "【人物资产库｜常规】" in world_asset
-    assert scene["text"] in world_asset
     assert json.loads(selection_json)["adult_content"] is False
+    assert "已生成 1 条提示词" in status
     assert "成人内容关闭" in status
 
 
@@ -183,7 +188,7 @@ def test_portrait_prompt_uses_html_style_prose_without_section_headers():
         },
     )
 
-    prompt = MODULE.ZFPortraitPromptGenerator().generate(state)[0]
+    prompt = _generate(state)[0]
 
     assert "拍摄与光影：" not in prompt
     assert "人物主体：" not in prompt
@@ -208,7 +213,7 @@ def test_prompt_omits_selector_metadata_and_keeps_full_option_descriptions():
         },
     )
 
-    prompt = MODULE.ZFPortraitPromptGenerator().generate(state)[0]
+    prompt = _generate(state)[0]
 
     assert "stylePreset" not in prompt
     assert "主件类别" not in prompt
@@ -224,7 +229,7 @@ def test_adult_prompt_is_natural_prose_instead_of_a_policy_prefix():
         adult_content=True,
     )
 
-    prompt = MODULE.ZFPortraitPromptGenerator().generate(state, adult_content=True)[0]
+    prompt = _generate(state, adult_content=True)[0]
 
     assert prompt.startswith(f"成年人物，{wear_state['text']}。")
     assert "明确的成年人物" not in prompt
@@ -239,7 +244,7 @@ def test_prompt_keeps_a_space_between_english_and_chinese_sentences():
         overrides={"postureStanding": "standing still."},
     )
 
-    prompt = MODULE.ZFPortraitPromptGenerator().generate(state)[0]
+    prompt = _generate(state)[0]
 
     assert f"standing still. {scene['text']}" in prompt
 
@@ -249,14 +254,12 @@ def test_adult_material_is_excluded_while_switch_is_off():
     adult_option = next(item for item in adult_field["options"] if item.get("text") and item.get("value") != "不启用")
     state = _state(selected={adult_field["id"]: adult_option["value"]}, adult_content=True)
 
-    prompt, world_asset, *_ = MODULE.ZFPortraitPromptGenerator().generate(
+    prompt, *_ = _generate(
         state,
         adult_content=False,
     )
 
     assert adult_option["text"] not in prompt
-    assert adult_option["text"] not in world_asset
-    assert "【成人扩展边界】" not in world_asset
 
 
 def test_adult_mode_requires_adult_context_and_blocks_minor_override():
@@ -265,15 +268,13 @@ def test_adult_mode_requires_adult_context_and_blocks_minor_override():
     selected = {adult_field["id"]: adult_option["value"], "age": _option("age")["value"]}
     safe_state = _state(selected=selected, adult_content=True)
 
-    prompt, world_asset, _, status = MODULE.ZFPortraitPromptGenerator().generate(
+    prompt, _, _, status = _generate(
         safe_state,
         adult_content=True,
     )
     assert adult_option["text"] in prompt
     assert _option("age")["text"] in prompt
     assert "明确的成年人物" not in prompt
-    assert adult_option["text"] in world_asset
-    assert "【成人扩展边界】" in world_asset
     assert "成人内容开启" in status
 
     blocked_state = _state(
@@ -281,20 +282,19 @@ def test_adult_mode_requires_adult_context_and_blocks_minor_override():
         overrides={"age": "16岁"},
         adult_content=True,
     )
-    blocked_prompt, blocked_asset, blocked_selection, blocked_status = MODULE.ZFPortraitPromptGenerator().generate(
+    blocked_prompt, _, blocked_selection, blocked_status = _generate(
         blocked_state,
         adult_content=True,
     )
     assert adult_option["text"] not in blocked_prompt
-    assert "【成人扩展边界】" not in blocked_asset
     assert json.loads(blocked_selection)["adult_content"] is False
     assert "未参与输出" in blocked_status
 
 
 def test_reference_analysis_is_optional_material_not_a_random_dependency():
     state = _state(selected={"lens": _option("lens")["value"]})
-    prompt_without_reference, *_ = MODULE.ZFPortraitPromptGenerator().generate(state)
-    prompt_with_reference, *_ = MODULE.ZFPortraitPromptGenerator().generate(
+    prompt_without_reference, *_ = _generate(state)
+    prompt_with_reference, *_ = _generate(
         state,
         reference_analysis=json.dumps(
             {
@@ -321,33 +321,34 @@ def test_frontend_repair_only_clears_overrides():
     assert "state.section_lock_items = {}" not in repair_block
 
 
-def test_world_asset_is_the_complete_catalog_and_does_not_depend_on_random_selection():
-    empty_asset = MODULE.ZFPortraitPromptGenerator().generate(_state())[1]
-    selected_asset = MODULE.ZFPortraitPromptGenerator().generate(
-        _state(selected={"lens": _option("lens")["value"], "scene": _option("scene")["value"]})
-    )[1]
+def test_portrait_node_outputs_a_prompt_list_without_world_asset():
+    node = MODULE.ZFPortraitPromptGenerator
+    prompts, selection_json, status = node().generate(_state())
 
-    assert empty_asset == selected_asset
-    assert len(empty_asset) > 25000
-    assert "镜头类型（必选）" in empty_asset
-    assert "场景（必选）" in empty_asset
-    assert "【服装】" in empty_asset
-    assert "【配饰】" in empty_asset
+    assert node.RETURN_NAMES == ("portrait_prompt", "selection_json", "status")
+    assert node.OUTPUT_IS_LIST == (True, False, False)
+    assert isinstance(prompts, list) and len(prompts) == 1
+    assert json.loads(selection_json)["version"] == 6
+    assert "已生成 1 条提示词" in status
 
 
-def test_adult_toggle_adds_the_complete_adult_asset_catalog():
-    adult_field = next(field for _, field in MODULE.PORTRAIT_FIELDS if field.get("adult") and field.get("options"))
-    adult_option = next(item for item in adult_field["options"] if item.get("value") not in ("", "不启用"))
-    regular_asset = MODULE.ZFPortraitPromptGenerator().generate(_state(), adult_content=False)[1]
-    adult_asset = MODULE.ZFPortraitPromptGenerator().generate(
-        _state(adult_content=True),
-        adult_content=True,
-    )[1]
+def test_quantity_three_generates_unique_prompts_and_preserves_locks():
+    node = MODULE.ZFPortraitPromptGenerator
+    quantity = node.INPUT_TYPES()["required"]["quantity"][1]
+    lens = _option("lens")
+    state = _state(
+        selected={"lens": lens["value"]},
+        locked={"lens": True},
+    )
 
-    assert "【人物资产库｜成人扩展】" not in regular_asset
-    assert "【人物资产库｜成人扩展】" in adult_asset
-    assert adult_option["text"] in adult_asset
-    assert len(adult_asset) > len(regular_asset)
+    prompts, selection_json, status = node().generate(state, seed=1234, quantity=3)
+
+    assert quantity["default"] == 1
+    assert quantity["min"] == 1 and quantity["max"] == 100
+    assert len(prompts) == len(set(prompts)) == 3
+    assert all(lens["text"] in prompt for prompt in prompts)
+    assert json.loads(selection_json)["locked"]["lens"] is True
+    assert "已生成 3 条提示词" in status
 
 
 def test_asset_catalog_does_not_export_pose_cancelling_policy_clauses():
@@ -364,16 +365,15 @@ def test_asset_catalog_does_not_export_pose_cancelling_policy_clauses():
     assert not any(term in serialized for term in forbidden)
 
 
-def test_disabling_a_section_only_removes_it_from_current_prompt():
+def test_disabling_a_section_removes_it_from_current_prompt():
     lens = _option("lens")
     state = _state(
         selected={"lens": lens["value"]},
         section_enabled={"shooting_light": False},
     )
-    prompt, world_asset, *_ = MODULE.ZFPortraitPromptGenerator().generate(state)
+    prompt, *_ = _generate(state)
 
     assert lens["text"] not in prompt
-    assert lens["text"] in world_asset
 
 
 def test_frontend_uses_pinned_rows_and_has_no_result_chip_summary():
@@ -446,7 +446,7 @@ def test_frontend_keeps_locked_choices_pinned_and_recovers_older_states():
     assert "delete state.pinned[adultField.id]" not in adult_toggle_block
 
 
-def test_option_edit_changes_current_prompt_and_complete_asset_library():
+def test_option_edit_changes_current_prompt_and_saved_state():
     lens = _option("lens")
     key = f"lens::{lens['value']}"
     customized = "自定义镜头资产描述"
@@ -455,18 +455,16 @@ def test_option_edit_changes_current_prompt_and_complete_asset_library():
         option_overrides={key: customized},
     )
 
-    prompt, world_asset, selection_json, _ = MODULE.ZFPortraitPromptGenerator().generate(state)
+    prompt, _, selection_json, _ = _generate(state)
 
     assert customized in prompt
-    assert customized in world_asset
-    assert lens["text"] not in world_asset
     assert json.loads(selection_json)["option_overrides"][key] == customized
 
 
 def test_portrait_node_display_name_is_model_agnostic():
     source = (ROOT / "nodes.py").read_text(encoding="utf-8")
 
-    assert '"ZFPortraitPromptGenerator": "ZF 人像提示词与人物资产"' in source
+    assert '"ZFPortraitPromptGenerator": "ZF 人像提示词生成器"' in source
     assert '"ZFPortraitPromptGenerator": "ZF K2' not in source
 
 
@@ -485,7 +483,7 @@ def test_unlock_all_only_removes_locks_and_keeps_selections():
 def test_auto_random_changes_every_execution_without_outfit_or_movement_conflicts():
     state = _state(adult_content=True, auto_random=True)
     results = [
-        json.loads(MODULE.ZFPortraitPromptGenerator().generate(state, adult_content=True)[2])
+        json.loads(_generate(state, adult_content=True)[2])
         for _ in range(80)
     ]
 
@@ -510,7 +508,7 @@ def test_auto_random_changes_every_execution_without_outfit_or_movement_conflict
 
 
 def test_enabling_adult_mode_guarantees_adult_output_without_pressing_random():
-    prompt, _, selection_json, status = MODULE.ZFPortraitPromptGenerator().generate(
+    prompt, _, selection_json, status = _generate(
         _state(adult_content=True),
         adult_content=True,
     )
@@ -540,7 +538,7 @@ def test_regular_auto_random_never_selects_adult_fields():
     }
 
     for _ in range(30):
-        result = json.loads(MODULE.ZFPortraitPromptGenerator().generate(state)[2])["selected"]
+        result = json.loads(_generate(state)[2])["selected"]
         assert not any(result.get(field_id) for field_id in adult_ids)
 
 
@@ -553,7 +551,7 @@ def test_auto_random_preserves_locked_outfit_and_does_not_add_another_family():
     state = _state(selected=selected, locked={"clothItem": True}, auto_random=True)
 
     for _ in range(30):
-        result = json.loads(MODULE.ZFPortraitPromptGenerator().generate(state)[2])["selected"]
+        result = json.loads(_generate(state)[2])["selected"]
         assert result["clothItem"] == cloth_item["value"]
         assert result["clothCat"] == cloth_item["group"]
         assert not any(result.get(field_id) for field_id in MODULE.LINGERIE_FIELD_IDS)
@@ -569,7 +567,7 @@ def test_auto_random_preserves_locked_regular_posture_in_prompt():
     )
 
     for _ in range(30):
-        prompt, _, selection_json, _ = MODULE.ZFPortraitPromptGenerator().generate(state)
+        prompt, _, selection_json, _ = _generate(state)
         result = json.loads(selection_json)
         assert result["selected"]["postureStanding"] == posture["value"]
         assert result["locked"]["postureStanding"] is True
@@ -587,7 +585,7 @@ def test_auto_random_preserves_locked_adult_posture_in_prompt():
     )
 
     for _ in range(30):
-        prompt, _, selection_json, _ = MODULE.ZFPortraitPromptGenerator().generate(
+        prompt, _, selection_json, _ = _generate(
             state,
             adult_content=True,
         )
@@ -611,7 +609,7 @@ def test_no_clothing_state_removes_unlocked_outfit_and_expression_fields():
         adult_content=True,
     )
 
-    result = json.loads(MODULE.ZFPortraitPromptGenerator().generate(state, adult_content=True)[2])["selected"]
+    result = json.loads(_generate(state, adult_content=True)[2])["selected"]
     assert result["nsfwState"] == "仅剩配饰"
     assert not any(result.get(field_id) for field_id in MODULE.STANDARD_CLOTHING_FIELD_IDS)
     assert not any(result.get(field_id) for field_id in MODULE.LINGERIE_FIELD_IDS)
@@ -626,5 +624,5 @@ def test_existing_multiple_movement_selections_are_reduced_to_one():
         },
     )
 
-    result = json.loads(MODULE.ZFPortraitPromptGenerator().generate(state)[2])["selected"]
+    result = json.loads(_generate(state)[2])["selected"]
     assert sum(bool(result.get(field_id)) for field_id in MODULE.MOVEMENT_FIELD_IDS) == 1
