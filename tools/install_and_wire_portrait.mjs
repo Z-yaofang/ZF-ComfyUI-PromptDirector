@@ -10,7 +10,7 @@ const repoRoot = path.resolve(repoRootArg);
 const installedRoot = path.resolve(installedRootArg);
 const directWorkflow = path.resolve(directWorkflowArg);
 const directorWorkflow = path.resolve(directorWorkflowArg);
-const stamp = "20260903-portrait-v5";
+const stamp = "20260903-portrait-v6";
 
 const runtimeFiles = [
   "nodes.py",
@@ -38,8 +38,9 @@ const backup = (workflowPath) => {
 };
 
 const defaultState = JSON.stringify({
-  version: 5,
+  version: 6,
   adult_content: false,
+  auto_random: false,
   selected: {},
   enabled: {},
   overrides: {},
@@ -56,11 +57,33 @@ const migratePortraitState = (node) => {
   const source = node.widgets_values_named?.state_json ?? node.widgets_values?.[0];
   try { previous = JSON.parse(String(source || "")); } catch { previous = {}; }
   if (!previous || typeof previous !== "object" || Array.isArray(previous)) previous = {};
-  const next = { ...JSON.parse(defaultState), ...previous, version: 5 };
+  const previousVersion = Number(previous.version || 0);
+  const next = { ...JSON.parse(defaultState), ...previous, version: 6 };
   delete next.expanded;
   for (const key of ["selected", "enabled", "overrides", "pinned", "locked", "section_locked", "section_lock_items", "section_enabled", "option_overrides"]) {
     if (!next[key] || typeof next[key] !== "object" || Array.isArray(next[key])) next[key] = {};
   }
+  if (previousVersion < 6) {
+    const targets = {
+      camera: ["shooting_light"], light: ["shooting_light"],
+      person: ["subject", "person_detail"],
+      makeup: ["styling_expression"], expression: ["styling_expression"],
+      cloth: ["wear_state", "clothing", "accessories", "clothing_expression"],
+    };
+    for (const collectionName of ["section_locked", "section_enabled"]) {
+      const collection = next[collectionName];
+      for (const [legacyId, nextIds] of Object.entries(targets)) {
+        if (!Object.prototype.hasOwnProperty.call(collection, legacyId)) continue;
+        const value = collection[legacyId];
+        for (const nextId of nextIds) {
+          if (collectionName === "section_locked") collection[nextId] = Boolean(collection[nextId] || value);
+          else if (collection[nextId] == null || value === false) collection[nextId] = value;
+        }
+        delete collection[legacyId];
+      }
+    }
+  }
+  next.auto_random = Boolean(next.auto_random);
   const serialized = JSON.stringify(next);
   node.widgets_values = Array.isArray(node.widgets_values) ? node.widgets_values : [serialized, 0, false];
   node.widgets_values[0] = serialized;
@@ -72,7 +95,7 @@ const migratePortraitState = (node) => {
   };
   node.widgets_values[2] = Boolean(next.adult_content);
   node.size = [Math.max(470, Number(node.size?.[0]) || 470), 145];
-  node.properties = { ...(node.properties || {}), ver: "local-portrait-v5" };
+  node.properties = { ...(node.properties || {}), ver: "local-portrait-v6" };
 };
 
 const removeLink = (workflow, linkId) => {
@@ -112,7 +135,7 @@ const portraitNode = (id, position, order) => ({
   ],
   properties: {
     aux_id: "Z-yaofang/ZF-ComfyUI-PromptDirector",
-    ver: "local-portrait-v5",
+    ver: "local-portrait-v6",
     "Node name for S&R": "ZFPortraitPromptGenerator",
     widget_ue_connectable: {},
   },

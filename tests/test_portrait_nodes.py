@@ -36,11 +36,13 @@ def _state(
     locked=None,
     section_locked=None,
     section_lock_items=None,
+    auto_random=False,
 ):
     return json.dumps(
         {
-            "version": 5,
+            "version": 6,
             "adult_content": adult_content,
+            "auto_random": auto_random,
             "selected": selected or {},
             "enabled": {},
             "overrides": overrides or {},
@@ -82,13 +84,31 @@ def test_pose_and_action_are_real_sections_without_mode_or_custom_pages():
     assert MODULE.PORTRAIT_FIELD_BY_ID["race"][1]["label"] == "人种"
 
 
+def test_main_sections_follow_the_portrait_decision_order():
+    sections = MODULE.PORTRAIT_CATALOG["sections"]
+    assert [(section["id"], section["title"]) for section in sections[:9]] == [
+        ("shooting_light", "拍摄与光影"),
+        ("subject", "人物主体"),
+        ("person_detail", "人物细节"),
+        ("hair", "发型与头饰"),
+        ("styling_expression", "妆造表达"),
+        ("wear_state", "穿着状态"),
+        ("clothing", "服装"),
+        ("accessories", "配饰"),
+        ("clothing_expression", "服装表现"),
+    ]
+    assert [len(section["fields"]) for section in sections[:9]] == [8, 7, 12, 9, 7, 1, 15, 6, 7]
+    all_ids = [field["id"] for section in sections for field in section["fields"]]
+    assert len(all_ids) == len(set(all_ids)) == 111
+
+
 def test_legacy_pose_selection_migrates_to_the_new_action_group():
     legacy_state = _state(selected={"sfwSimPick": "I023"})
     prompt, _, selection_json, _ = MODULE.ZFPortraitPromptGenerator().generate(legacy_state)
     migrated = json.loads(selection_json)
 
     assert "原地旋转中定格" in prompt
-    assert migrated["version"] == 5
+    assert migrated["version"] == 6
     assert migrated["selected"]["actionSpinning"] == "I023"
     assert "sfwSimPick" not in migrated["selected"]
 
@@ -106,7 +126,7 @@ def test_legacy_section_lock_snapshots_only_existing_selections():
     _, _, selection_json, _ = MODULE.ZFPortraitPromptGenerator().generate(json.dumps(legacy, ensure_ascii=False))
     migrated = json.loads(selection_json)
 
-    assert migrated["version"] == 5
+    assert migrated["version"] == 6
     assert migrated["section_lock_items"]["lens"] is True
     assert "viewpoint" not in migrated["section_lock_items"]
 
@@ -213,7 +233,8 @@ def test_world_asset_is_the_complete_catalog_and_does_not_depend_on_random_selec
     assert len(empty_asset) > 25000
     assert "镜头类型（必选）" in empty_asset
     assert "场景（必选）" in empty_asset
-    assert "服装与配饰" in empty_asset
+    assert "【服装】" in empty_asset
+    assert "【配饰】" in empty_asset
 
 
 def test_adult_toggle_adds_the_complete_adult_asset_catalog():
@@ -249,7 +270,7 @@ def test_disabling_a_section_only_removes_it_from_current_prompt():
     lens = _option("lens")
     state = _state(
         selected={"lens": lens["value"]},
-        section_enabled={"camera": False},
+        section_enabled={"shooting_light": False},
     )
     prompt, world_asset, *_ = MODULE.ZFPortraitPromptGenerator().generate(state)
 
@@ -267,6 +288,9 @@ def test_frontend_uses_pinned_rows_and_has_no_result_chip_summary():
     assert "本段锁定" in source
     assert "本段不启用" in source
     assert "本项锁定" in source
+    assert 'makeButton("解锁所有")' in source
+    assert '"自动随机：开"' in source and '"自动随机：关"' in source
+    assert 'makeButton("清空所有")' not in source
     assert "临时启用或停用这一项" not in source
 
 
@@ -322,3 +346,80 @@ def test_portrait_node_display_name_is_model_agnostic():
 
     assert '"ZFPortraitPromptGenerator": "ZF 人像提示词与人物资产"' in source
     assert '"ZFPortraitPromptGenerator": "ZF K2' not in source
+
+
+def test_unlock_all_only_removes_locks_and_keeps_selections():
+    source = (ROOT / "web" / "portrait_generator.js").read_text(encoding="utf-8")
+    block = source[source.index('const unlockAll = makeButton("解锁所有")'):]
+    block = block[:block.index('const autoRandom =')]
+
+    assert "state.locked = {}" in block
+    assert "state.section_locked = {}" in block
+    assert "state.section_lock_items = {}" in block
+    assert "state.selected = {}" not in block
+    assert "state.overrides = {}" not in block
+
+
+def test_auto_random_changes_every_execution_without_outfit_or_movement_conflicts():
+    state = _state(adult_content=True, auto_random=True)
+    results = [
+        json.loads(MODULE.ZFPortraitPromptGenerator().generate(state, adult_content=True)[2])
+        for _ in range(80)
+    ]
+
+    assert len({item["seed"] for item in results}) > 70
+    assert len({tuple(sorted(item["selected"].items())) for item in results}) > 70
+    for item in results:
+        selected = item["selected"]
+        standard = any(selected.get(field_id) for field_id in MODULE.STANDARD_CLOTHING_FIELD_IDS)
+        lingerie = any(selected.get(field_id) for field_id in MODULE.LINGERIE_FIELD_IDS)
+        assert not (standard and lingerie)
+        assert sum(bool(selected.get(field_id)) for field_id in MODULE.MOVEMENT_FIELD_IDS) == 1
+        assert sum(bool(selected.get(field_id)) for field_id in MODULE.CLOTHING_DEGREE_FIELD_IDS) <= 1
+
+
+def test_auto_random_preserves_locked_outfit_and_does_not_add_another_family():
+    cloth_item = _option("clothItem")
+    selected = {
+        "clothCat": cloth_item["group"],
+        "clothItem": cloth_item["value"],
+    }
+    state = _state(selected=selected, locked={"clothItem": True}, auto_random=True)
+
+    for _ in range(30):
+        result = json.loads(MODULE.ZFPortraitPromptGenerator().generate(state)[2])["selected"]
+        assert result["clothItem"] == cloth_item["value"]
+        assert result["clothCat"] == cloth_item["group"]
+        assert not any(result.get(field_id) for field_id in MODULE.LINGERIE_FIELD_IDS)
+
+
+def test_no_clothing_state_removes_unlocked_outfit_and_expression_fields():
+    state = _state(
+        selected={
+            "nsfwState": "仅剩配饰",
+            "clothCat": _option("clothCat")["value"],
+            "clothItem": _option("clothItem")["value"],
+            "lingerieCat": _option("lingerieCat")["value"],
+            "lingerieItem": _option("lingerieItem")["value"],
+            "clothTransparency": _option("clothTransparency")["value"],
+        },
+        adult_content=True,
+    )
+
+    result = json.loads(MODULE.ZFPortraitPromptGenerator().generate(state, adult_content=True)[2])["selected"]
+    assert result["nsfwState"] == "仅剩配饰"
+    assert not any(result.get(field_id) for field_id in MODULE.STANDARD_CLOTHING_FIELD_IDS)
+    assert not any(result.get(field_id) for field_id in MODULE.LINGERIE_FIELD_IDS)
+    assert not any(result.get(field_id) for field_id in MODULE.CLOTHING_EXPRESSION_FIELD_IDS)
+
+
+def test_existing_multiple_movement_selections_are_reduced_to_one():
+    state = _state(
+        selected={
+            "postureStanding": _option("postureStanding")["value"],
+            "actionWalking": _option("actionWalking")["value"],
+        },
+    )
+
+    result = json.loads(MODULE.ZFPortraitPromptGenerator().generate(state)[2])["selected"]
+    assert sum(bool(result.get(field_id)) for field_id in MODULE.MOVEMENT_FIELD_IDS) == 1

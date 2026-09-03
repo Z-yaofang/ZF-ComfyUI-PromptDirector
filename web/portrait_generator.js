@@ -30,6 +30,29 @@ const ACTION_FIELD_IDS = new Set([
   "adultActionTransition", "adultActionWalking", "adultActionJumping", "adultActionSpinning",
 ]);
 const MOVEMENT_FIELD_IDS = new Set([...POSTURE_FIELD_IDS, ...ACTION_FIELD_IDS]);
+const STANDARD_CLOTHING_FIELD_IDS = new Set([
+  "stylePreset", "clothCat", "clothItem", "outerwear", "collarStyle", "topLength",
+  "bottomStyle", "splitColor", "bottomLength",
+]);
+const LINGERIE_FIELD_IDS = new Set([
+  "lingerieCat", "lingerieItem", "lingerieColor1", "lingerieColor2", "pantyColor", "pantyStyle",
+]);
+const ACCESSORY_FIELD_IDS = new Set([
+  "shoes", "sockType", "sockLen", "sockColor", "sockOpacity", "accessory",
+]);
+const CLOTHING_EXPRESSION_FIELD_IDS = new Set([
+  "clothMat", "clothPattern", "clothDeco", "clothLayer", "sfwExposure",
+  "clothTransparency", "nsfwExposure",
+]);
+const CLOTHING_DEGREE_FIELD_IDS = new Set(["sfwExposure", "clothTransparency", "nsfwExposure"]);
+const CLOTHING_MANAGED_FIELD_IDS = new Set([
+  "nsfwState",
+  ...STANDARD_CLOTHING_FIELD_IDS,
+  ...LINGERIE_FIELD_IDS,
+  ...ACCESSORY_FIELD_IDS,
+  ...CLOTHING_EXPRESSION_FIELD_IDS,
+]);
+const NO_CLOTHING_STATES = new Set(["仅剩配饰", "裸露加配饰"]);
 
 let catalogPromise;
 
@@ -82,8 +105,9 @@ function hideWidget(widget, marker) {
 
 function defaultState() {
   return {
-    version: 5,
+    version: 6,
     adult_content: false,
+    auto_random: false,
     selected: {},
     enabled: {},
     overrides: {},
@@ -156,7 +180,31 @@ function migrateLegacyMovement(state) {
     state.section_enabled.action ??= state.section_enabled.pose;
     delete state.section_enabled.pose;
   }
-  state.version = 5;
+  return state;
+}
+
+function migrateLegacySections(state, previousVersion) {
+  if (previousVersion >= 6) return state;
+  const targets = {
+    camera: ["shooting_light"],
+    light: ["shooting_light"],
+    person: ["subject", "person_detail"],
+    makeup: ["styling_expression"],
+    expression: ["styling_expression"],
+    cloth: ["wear_state", "clothing", "accessories", "clothing_expression"],
+  };
+  for (const collectionName of ["section_locked", "section_enabled"]) {
+    const collection = state[collectionName];
+    for (const [legacyId, nextIds] of Object.entries(targets)) {
+      if (!Object.prototype.hasOwnProperty.call(collection, legacyId)) continue;
+      const value = collection[legacyId];
+      for (const nextId of nextIds) {
+        if (collectionName === "section_locked") collection[nextId] = Boolean(collection[nextId] || value);
+        else if (collection[nextId] == null || value === false) collection[nextId] = value;
+      }
+      delete collection[legacyId];
+    }
+  }
   return state;
 }
 
@@ -165,13 +213,17 @@ function normalizeState(raw) {
   try { value = JSON.parse(String(raw || "")); } catch { value = {}; }
   if (!value || typeof value !== "object" || Array.isArray(value)) value = {};
   const previousVersion = Number(value.version || 0);
-  const next = { ...defaultState(), ...value, version: 5 };
+  const next = { ...defaultState(), ...value, version: 6 };
   for (const key of ["selected", "enabled", "overrides", "pinned", "locked", "section_locked", "section_lock_items", "section_enabled", "option_overrides"]) {
     next[key] = value[key] && typeof value[key] === "object" && !Array.isArray(value[key]) ? value[key] : {};
   }
   next.__snapshotLegacySectionLocks = previousVersion < 5;
   delete next.expanded;
-  return migrateLegacyMovement(next);
+  migrateLegacyMovement(next);
+  migrateLegacySections(next, previousVersion);
+  next.auto_random = Boolean(next.auto_random);
+  next.version = 6;
+  return next;
 }
 
 function optionFor(field, value) {
@@ -204,7 +256,8 @@ function usableOptions(field, state) {
     if (matched.length) values = matched;
   }
   if (field.id === "lingerieItem" && state.selected.lingerieCat) {
-    const matched = values.filter((item) => item.group === state.selected.lingerieCat);
+    const category = String(state.selected.lingerieCat).split("·").at(-1);
+    const matched = values.filter((item) => item.group === category);
     if (matched.length) values = matched;
   }
   return values;
@@ -278,7 +331,7 @@ function attachPortraitGenerator(node) {
     const fieldLockSource = (fieldId) => state.section_lock_items[fieldId] ? "section" : (state.locked[fieldId] ? "item" : "");
 
     const persist = () => {
-      state.version = 5;
+      state.version = 6;
       stateWidget.value = JSON.stringify(state);
       adultWidget.value = Boolean(state.adult_content);
       stateWidget.callback?.(stateWidget.value);
@@ -303,6 +356,118 @@ function attachPortraitGenerator(node) {
       }
     };
 
+    const clearUnlockedFields = (fieldIds, selected = state.selected) => {
+      for (const fieldId of fieldIds) {
+        if (isFieldLocked(fieldId)) continue;
+        delete selected[fieldId];
+        delete state.overrides[fieldId];
+      }
+    };
+
+    const hasLockedClothingValue = (fieldIds, selected = state.selected) => (
+      [...fieldIds].some((fieldId) => isFieldLocked(fieldId) && hasFieldValue(fieldId, selected))
+    );
+
+    const selectedClothingFamily = (selected = state.selected) => {
+      const standard = [...STANDARD_CLOTHING_FIELD_IDS].some((fieldId) => hasFieldValue(fieldId, selected));
+      const lingerie = [...LINGERIE_FIELD_IDS].some((fieldId) => hasFieldValue(fieldId, selected));
+      if (standard && !lingerie) return "standard";
+      if (lingerie && !standard) return "lingerie";
+      if (standard && lingerie) {
+        if (hasLockedClothingValue(LINGERIE_FIELD_IDS, selected)) return "lingerie";
+        return "standard";
+      }
+      return "";
+    };
+
+    const lingerieCategoryForGroup = (group) => {
+      const categoryField = fieldMap.get("lingerieCat")?.field;
+      return usableOptions(categoryField || {}, state).find((option) => (
+        String(option.value).split("·").at(-1) === group
+      ))?.value || "";
+    };
+
+    const prepareClothingSelection = (field, item) => {
+      if (!CLOTHING_MANAGED_FIELD_IDS.has(field.id)) return true;
+      const currentState = String(state.selected.nsfwState || "");
+      if ((STANDARD_CLOTHING_FIELD_IDS.has(field.id) || LINGERIE_FIELD_IDS.has(field.id))
+          && NO_CLOTHING_STATES.has(currentState)) {
+        if (isFieldLocked("nsfwState")) {
+          modalNotice = "当前穿着状态已锁定为无服装；先解锁穿着状态才能选择服装。";
+          return false;
+        }
+        delete state.selected.nsfwState;
+        delete state.overrides.nsfwState;
+      }
+      if (STANDARD_CLOTHING_FIELD_IDS.has(field.id)) {
+        if (hasLockedClothingValue(LINGERIE_FIELD_IDS)) {
+          modalNotice = "另一套服装已锁定；先解锁后才能切换服装体系。";
+          return false;
+        }
+        clearUnlockedFields(LINGERIE_FIELD_IDS);
+      }
+      if (LINGERIE_FIELD_IDS.has(field.id)) {
+        if (hasLockedClothingValue(STANDARD_CLOTHING_FIELD_IDS)) {
+          modalNotice = "另一套服装已锁定；先解锁后才能切换服装体系。";
+          return false;
+        }
+        clearUnlockedFields(STANDARD_CLOTHING_FIELD_IDS);
+      }
+      if (field.id === "clothCat") {
+        const lockedItem = optionFor(fieldMap.get("clothItem")?.field || {}, state.selected.clothItem);
+        if (isFieldLocked("clothItem") && lockedItem?.group && lockedItem.group !== item.value) {
+          modalNotice = "主件款式已锁定在另一类别；先解锁主件款式。";
+          return false;
+        }
+        if (lockedItem?.group !== item.value) clearUnlockedFields(new Set(["clothItem"]));
+      }
+      if (field.id === "clothItem" && item.group) {
+        if (isFieldLocked("clothCat") && state.selected.clothCat !== item.group) {
+          modalNotice = "主件类别已锁定；当前款式不属于该类别。";
+          return false;
+        }
+        if (!isFieldLocked("clothCat")) state.selected.clothCat = item.group;
+      }
+      if (field.id === "lingerieCat") {
+        const lockedItem = optionFor(fieldMap.get("lingerieItem")?.field || {}, state.selected.lingerieItem);
+        const category = String(item.value).split("·").at(-1);
+        if (isFieldLocked("lingerieItem") && lockedItem?.group && lockedItem.group !== category) {
+          modalNotice = "具体款式已锁定在另一类别；先解锁具体款式。";
+          return false;
+        }
+        if (lockedItem?.group !== category) clearUnlockedFields(new Set(["lingerieItem"]));
+      }
+      if (field.id === "lingerieItem" && item.group) {
+        const categoryValue = lingerieCategoryForGroup(item.group);
+        if (isFieldLocked("lingerieCat") && state.selected.lingerieCat !== categoryValue) {
+          modalNotice = "服装类别已锁定；当前款式不属于该类别。";
+          return false;
+        }
+        if (!isFieldLocked("lingerieCat") && categoryValue) state.selected.lingerieCat = categoryValue;
+      }
+      if (CLOTHING_DEGREE_FIELD_IDS.has(field.id)) {
+        const lockedPeer = [...CLOTHING_DEGREE_FIELD_IDS].find((fieldId) => (
+          fieldId !== field.id && isFieldLocked(fieldId) && hasFieldValue(fieldId)
+        ));
+        if (lockedPeer) {
+          modalNotice = "另一项服装表现程度已锁定；先解锁后才能切换。";
+          return false;
+        }
+        clearUnlockedFields(new Set([...CLOTHING_DEGREE_FIELD_IDS].filter((id) => id !== field.id)));
+      }
+      if (field.id === "nsfwState" && NO_CLOTHING_STATES.has(String(item.value))) {
+        if (hasLockedClothingValue(STANDARD_CLOTHING_FIELD_IDS)
+            || hasLockedClothingValue(LINGERIE_FIELD_IDS)) {
+          modalNotice = "已有服装被锁定；先解锁服装才能选择无服装状态。";
+          return false;
+        }
+        clearUnlockedFields(STANDARD_CLOTHING_FIELD_IDS);
+        clearUnlockedFields(LINGERIE_FIELD_IDS);
+        clearUnlockedFields(CLOTHING_EXPRESSION_FIELD_IDS);
+      }
+      return true;
+    };
+
     const applyPreset = (name) => {
       const preset = catalog.style_presets?.[name];
       if (!preset) return;
@@ -315,9 +480,99 @@ function attachPortraitGenerator(node) {
 
     const chooseRandom = (field, selected) => {
       const candidates = usableOptions(field, { ...state, selected });
-      if (!candidates.length) return;
+      if (!candidates.length) return null;
       const picked = candidates[Math.floor(Math.random() * candidates.length)];
       selected[field.id] = picked.value;
+      delete state.overrides[field.id];
+      return picked;
+    };
+
+    const randomizeClothing = (next, sectionIds) => {
+      const allowed = new Set(sectionIds);
+      const fieldEnabled = (fieldId) => {
+        const target = fieldMap.get(fieldId);
+        return Boolean(target)
+          && allowed.has(target.section.id)
+          && state.section_enabled[target.section.id] !== false
+          && state.enabled[fieldId] !== false
+          && (state.adult_content || !target.field.adult);
+      };
+      const randomField = (fieldId, probability = 1) => {
+        if (!fieldEnabled(fieldId) || isFieldLocked(fieldId)) return null;
+        if (Math.random() > probability) {
+          clearUnlockedFields(new Set([fieldId]), next);
+          return null;
+        }
+        return chooseRandom(fieldMap.get(fieldId).field, next);
+      };
+
+      if (allowed.has("wear_state")) randomField("nsfwState", 0.42);
+      const noClothing = NO_CLOTHING_STATES.has(String(next.nsfwState || ""));
+
+      if (noClothing) {
+        clearUnlockedFields(STANDARD_CLOTHING_FIELD_IDS, next);
+        clearUnlockedFields(LINGERIE_FIELD_IDS, next);
+        clearUnlockedFields(CLOTHING_EXPRESSION_FIELD_IDS, next);
+      } else if (allowed.has("clothing") && state.section_enabled.clothing !== false) {
+        const standardLocked = hasLockedClothingValue(STANDARD_CLOTHING_FIELD_IDS, next);
+        const lingerieLocked = hasLockedClothingValue(LINGERIE_FIELD_IDS, next);
+        let family = selectedClothingFamily(next);
+        if (!standardLocked && !lingerieLocked) family = state.adult_content && Math.random() < 0.35 ? "lingerie" : "standard";
+        if (standardLocked && !lingerieLocked) family = "standard";
+        if (lingerieLocked && !standardLocked) family = "lingerie";
+
+        if (family === "lingerie") {
+          clearUnlockedFields(STANDARD_CLOTHING_FIELD_IDS, next);
+          const lockedItem = optionFor(fieldMap.get("lingerieItem")?.field || {}, next.lingerieItem);
+          if (isFieldLocked("lingerieItem") && lockedItem?.group && !isFieldLocked("lingerieCat")) {
+            next.lingerieCat = lingerieCategoryForGroup(lockedItem.group);
+          } else if (!isFieldLocked("lingerieCat")) randomField("lingerieCat");
+          if (!isFieldLocked("lingerieItem")) randomField("lingerieItem");
+          randomField("lingerieColor1", 0.42);
+          randomField("lingerieColor2", 0.42);
+          clearUnlockedFields(new Set(["pantyColor", "pantyStyle"]), next);
+        } else {
+          clearUnlockedFields(LINGERIE_FIELD_IDS, next);
+          if (!isFieldLocked("stylePreset")) clearUnlockedFields(new Set(["stylePreset"]), next);
+          const lockedItem = optionFor(fieldMap.get("clothItem")?.field || {}, next.clothItem);
+          if (isFieldLocked("clothItem") && lockedItem?.group && !isFieldLocked("clothCat")) next.clothCat = lockedItem.group;
+          else if (!isFieldLocked("clothCat")) randomField("clothCat");
+          if (!isFieldLocked("clothItem")) randomField("clothItem");
+          randomField("outerwear", 0.42);
+          randomField("bottomLength", 0.42);
+          if (next.clothCat === "上下装") {
+            for (const fieldId of ["collarStyle", "topLength", "bottomStyle", "splitColor"]) randomField(fieldId, 0.42);
+          } else {
+            clearUnlockedFields(new Set(["collarStyle", "topLength", "bottomStyle", "splitColor"]), next);
+          }
+        }
+      }
+
+      if (allowed.has("accessories") && state.section_enabled.accessories !== false) {
+        for (const fieldId of ACCESSORY_FIELD_IDS) randomField(fieldId, 0.42);
+      }
+
+      if (allowed.has("clothing_expression") && state.section_enabled.clothing_expression !== false) {
+        clearUnlockedFields(CLOTHING_DEGREE_FIELD_IDS, next);
+        if (!noClothing) {
+          const family = selectedClothingFamily(next);
+          if (family === "standard") {
+            for (const fieldId of ["clothMat", "clothPattern", "clothDeco", "clothLayer"]) randomField(fieldId, 0.42);
+          } else {
+            clearUnlockedFields(new Set(["clothMat", "clothPattern", "clothDeco", "clothLayer"]), next);
+          }
+          const lockedDegree = [...CLOTHING_DEGREE_FIELD_IDS].some((fieldId) => (
+            isFieldLocked(fieldId) && hasFieldValue(fieldId, next)
+          ));
+          if (!lockedDegree && Math.random() < 0.42) {
+            const degreeIds = family === "lingerie" && state.adult_content
+              ? ["nsfwExposure"]
+              : ["sfwExposure", "clothTransparency", ...(state.adult_content ? ["nsfwExposure"] : [])];
+            const candidates = degreeIds.filter((fieldId) => fieldEnabled(fieldId) && !isFieldLocked(fieldId));
+            if (candidates.length) randomField(candidates[Math.floor(Math.random() * candidates.length)]);
+          }
+        }
+      }
     };
 
     const randomizeMovement = (next, sectionIds) => {
@@ -351,9 +606,11 @@ function attachPortraitGenerator(node) {
       const next = { ...state.selected };
       if (section.id === "posture" || section.id === "action") {
         randomizeMovement(next, [section.id]);
+      } else if (["wear_state", "clothing", "accessories", "clothing_expression"].includes(section.id)) {
+        randomizeClothing(next, [section.id]);
       } else {
         for (const field of visibleFields(section)) {
-          if (!CORE_RANDOM_FIELDS.has(field.id) || field.custom || isFieldLocked(field.id)) continue;
+          if (!CORE_RANDOM_FIELDS.has(field.id) || CLOTHING_MANAGED_FIELD_IDS.has(field.id) || field.custom || isFieldLocked(field.id)) continue;
           if (!ALWAYS_RANDOM_FIELDS.has(field.id) && Math.random() > 0.42) {
             delete next[field.id];
             continue;
@@ -377,7 +634,7 @@ function attachPortraitGenerator(node) {
       for (const section of catalog.sections) {
         if (state.section_enabled[section.id] === false) continue;
         for (const field of visibleFields(section)) {
-          if (!CORE_RANDOM_FIELDS.has(field.id) || field.custom || isFieldLocked(field.id)) continue;
+          if (!CORE_RANDOM_FIELDS.has(field.id) || CLOTHING_MANAGED_FIELD_IDS.has(field.id) || field.custom || isFieldLocked(field.id)) continue;
           if (!ALWAYS_RANDOM_FIELDS.has(field.id) && Math.random() > 0.42) {
             delete next[field.id];
             continue;
@@ -385,6 +642,7 @@ function attachPortraitGenerator(node) {
           chooseRandom(field, next);
         }
       }
+      randomizeClothing(next, ["wear_state", "clothing", "accessories", "clothing_expression"]);
       const movementSections = ["posture", "action"].filter((id) => (
         state.section_enabled[id] !== false
       ));
@@ -419,17 +677,26 @@ function attachPortraitGenerator(node) {
       toolbar.className = "zf-pg-toolbar";
       const random = makeButton("随机");
       random.addEventListener("click", randomizeAll);
-      const clear = makeButton("清空所有");
-      clear.addEventListener("click", () => {
-        state.selected = Object.fromEntries(Object.entries(state.selected).filter(([fieldId]) => isFieldLocked(fieldId)));
-        state.overrides = Object.fromEntries(Object.entries(state.overrides).filter(([fieldId]) => isFieldLocked(fieldId)));
+      const unlockAll = makeButton("解锁所有");
+      unlockAll.title = "解除所有本项锁定和本段锁定，保留当前选择";
+      unlockAll.addEventListener("click", () => {
+        state.locked = {};
+        state.section_locked = {};
+        state.section_lock_items = {};
         lastCleared = null;
+        persist();
+        renderHome();
+      });
+      const autoRandom = makeButton(state.auto_random ? "自动随机：开" : "自动随机：关", state.auto_random ? "zf-pg-tool-active" : "");
+      autoRandom.title = state.auto_random ? "已开启：每次执行工作流都会自动随机" : "开启后每次执行工作流都会自动随机";
+      autoRandom.addEventListener("click", () => {
+        state.auto_random = !state.auto_random;
         persist();
         renderHome();
       });
       const add = makeButton("＋ 添加项目", "zf-pg-add");
       add.addEventListener("click", () => openModal());
-      toolbar.append(random, clear, add);
+      toolbar.append(random, unlockAll, autoRandom, add);
       root.appendChild(toolbar);
 
       const pinned = all.filter(({ field }) => state.pinned[field.id] && (state.adult_content || !field.adult));
@@ -773,6 +1040,20 @@ function attachPortraitGenerator(node) {
               notice.textContent = modalNotice;
               return;
             }
+            if (MOVEMENT_FIELD_IDS.has(field.id)) {
+              const lockedPeer = [...MOVEMENT_FIELD_IDS].find((fieldId) => (
+                fieldId !== field.id && isFieldLocked(fieldId) && hasFieldValue(fieldId)
+              ));
+              if (lockedPeer) {
+                modalNotice = "另一项姿态或动作已锁定；先解锁后才能切换。";
+                notice.textContent = modalNotice;
+                return;
+              }
+            }
+            if (!prepareClothingSelection(field, item)) {
+              notice.textContent = modalNotice;
+              return;
+            }
             const preservedTop = options.scrollTop;
             state.selected[field.id] = item.value;
             delete state.overrides[field.id];
@@ -896,6 +1177,10 @@ function attachPortraitGenerator(node) {
             if (!adultField.adult) continue;
             delete state.pinned[adultField.id];
           }
+          if (!visibleFields(currentSection()).length) {
+            activeSectionId = catalog.sections.find((item) => visibleFields(item).length)?.id || activeSectionId;
+            activeFieldId = null;
+          }
         }
         persist();
         renderModal();
@@ -964,5 +1249,15 @@ app.registerExtension({
       originalConfigure?.apply(this, arguments);
       setTimeout(() => attachPortraitGenerator(this), 0);
     };
+  },
+  nodeCreated(node) {
+    if (node?.comfyClass === NODE_NAME || node?.constructor?.comfyClass === NODE_NAME || node?.type === NODE_NAME) {
+      setTimeout(() => attachPortraitGenerator(node), 0);
+    }
+  },
+  loadedGraphNode(node) {
+    if (node?.comfyClass === NODE_NAME || node?.constructor?.comfyClass === NODE_NAME || node?.type === NODE_NAME) {
+      setTimeout(() => attachPortraitGenerator(node), 0);
+    }
   },
 });

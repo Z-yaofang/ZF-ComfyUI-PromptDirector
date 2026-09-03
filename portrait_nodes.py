@@ -1,5 +1,7 @@
 import json
+import random
 import re
+import secrets
 from pathlib import Path
 
 
@@ -21,8 +23,9 @@ PORTRAIT_FIELDS = [
 PORTRAIT_FIELD_BY_ID = {field["id"]: (section, field) for section, field in PORTRAIT_FIELDS}
 DEFAULT_PORTRAIT_STATE = json.dumps(
     {
-        "version": 5,
+        "version": 6,
         "adult_content": False,
+        "auto_random": False,
         "selected": {},
         "enabled": {},
         "overrides": {},
@@ -39,33 +42,80 @@ DEFAULT_PORTRAIT_STATE = json.dumps(
 
 
 SECTION_PREFIXES = {
-    "person": "人物",
+    "shooting_light": "拍摄与光影",
+    "subject": "人物主体",
+    "person_detail": "人物细节",
     "hair": "发型",
-    "makeup": "妆容",
-    "expression": "神态",
-    "cloth": "服装",
+    "styling_expression": "妆造表达",
+    "wear_state": "穿着状态",
+    "clothing": "服装",
+    "accessories": "配饰",
+    "clothing_expression": "服装表现",
     "posture": "姿态",
     "action": "动作",
-    "camera": "镜头",
-    "light": "光影",
     "bg": "环境",
     "comp": "构图",
     "extra": "风格细节",
 }
 PROMPT_SECTION_ORDER = (
-    "person",
+    "shooting_light",
+    "subject",
+    "person_detail",
     "hair",
-    "makeup",
-    "expression",
-    "cloth",
+    "styling_expression",
+    "wear_state",
+    "clothing",
+    "accessories",
+    "clothing_expression",
     "posture",
     "action",
-    "camera",
-    "light",
     "bg",
     "comp",
     "extra",
 )
+
+CORE_RANDOM_FIELDS = {
+    "lens", "viewpoint", "shotSize", "dof", "device", "mainLight", "ambient", "colorTone",
+    "temperament", "age", "race", "face", "skin", "texture", "body", "leg", "firstImp",
+    "hairLen", "hairColor", "hairCurl", "hairTie", "hairBangs", "hairState",
+    "makeup", "makeupDetail", "emotion", "eye", "mouth",
+    "scene", "prop", "weather", "comp", "compPos",
+}
+ALWAYS_RANDOM_FIELDS = {
+    "lens", "viewpoint", "shotSize", "mainLight", "colorTone", "temperament", "age",
+    "race", "face", "skin", "body", "leg", "firstImp", "hairLen", "hairColor",
+    "emotion", "eye", "mouth", "scene", "comp", "compPos",
+}
+POSTURE_FIELD_IDS = {
+    "postureSupine", "postureProne", "postureSide", "postureKneeling", "postureSitting",
+    "postureStanding", "postureSquatting", "postureSuspended", "postureSpecial",
+    "adultPostureSupine", "adultPostureProne", "adultPostureSide", "adultPostureKneeling",
+    "adultPostureSitting", "adultPostureStanding", "adultPostureSquatting",
+    "adultPostureSuspended", "adultPostureSpecial",
+}
+ACTION_FIELD_IDS = {
+    "actionTransition", "actionWalking", "actionJumping", "actionSpinning",
+    "adultActionTransition", "adultActionWalking", "adultActionJumping", "adultActionSpinning",
+}
+MOVEMENT_FIELD_IDS = POSTURE_FIELD_IDS | ACTION_FIELD_IDS
+STANDARD_CLOTHING_FIELD_IDS = {
+    "stylePreset", "clothCat", "clothItem", "outerwear", "collarStyle", "topLength",
+    "bottomStyle", "splitColor", "bottomLength",
+}
+LINGERIE_FIELD_IDS = {
+    "lingerieCat", "lingerieItem", "lingerieColor1", "lingerieColor2", "pantyColor", "pantyStyle",
+}
+ACCESSORY_FIELD_IDS = {"shoes", "sockType", "sockLen", "sockColor", "sockOpacity", "accessory"}
+CLOTHING_EXPRESSION_FIELD_IDS = {
+    "clothMat", "clothPattern", "clothDeco", "clothLayer", "sfwExposure",
+    "clothTransparency", "nsfwExposure",
+}
+CLOTHING_DEGREE_FIELD_IDS = {"sfwExposure", "clothTransparency", "nsfwExposure"}
+CLOTHING_MANAGED_FIELD_IDS = (
+    {"nsfwState"} | STANDARD_CLOTHING_FIELD_IDS | LINGERIE_FIELD_IDS
+    | ACCESSORY_FIELD_IDS | CLOTHING_EXPRESSION_FIELD_IDS
+)
+NO_CLOTHING_STATES = {"仅剩配饰", "裸露加配饰"}
 
 
 def _legacy_movement_field(field_id, value):
@@ -148,7 +198,31 @@ def _migrate_legacy_movement(state):
         value = state["section_enabled"].pop("pose")
         state["section_enabled"].setdefault("posture", value)
         state["section_enabled"].setdefault("action", value)
-    state["version"] = 5
+    return state
+
+
+def _migrate_legacy_sections(state, previous_version):
+    if previous_version >= 6:
+        return state
+    targets = {
+        "camera": ("shooting_light",),
+        "light": ("shooting_light",),
+        "person": ("subject", "person_detail"),
+        "makeup": ("styling_expression",),
+        "expression": ("styling_expression",),
+        "cloth": ("wear_state", "clothing", "accessories", "clothing_expression"),
+    }
+    for collection_name in ("section_locked", "section_enabled"):
+        collection = state[collection_name]
+        for legacy_id, next_ids in targets.items():
+            if legacy_id not in collection:
+                continue
+            value = collection.pop(legacy_id)
+            for next_id in next_ids:
+                if collection_name == "section_locked":
+                    collection[next_id] = bool(collection.get(next_id) or value)
+                elif next_id not in collection or value is False:
+                    collection[next_id] = value
     return state
 
 
@@ -177,6 +251,7 @@ def _parse_state(value):
         if not isinstance(state.get(key), dict):
             state[key] = {}
     state = _migrate_legacy_movement(state)
+    state = _migrate_legacy_sections(state, previous_version)
     if previous_version < 5:
         for section, field in PORTRAIT_FIELDS:
             if not state["section_locked"].get(section["id"]):
@@ -184,6 +259,9 @@ def _parse_state(value):
             field_id = field["id"]
             if state["selected"].get(field_id) or state["overrides"].get(field_id):
                 state["section_lock_items"][field_id] = True
+    state["auto_random"] = bool(state.get("auto_random", False))
+    state["adult_content"] = bool(state.get("adult_content", False))
+    state["version"] = 6
     return state
 
 
@@ -209,6 +287,289 @@ def _minor_marker(text):
     if re.search(r"(?<!\d)(?:[0-9]|1[0-7])\s*(?:岁|周岁|years?\s*old)", source, flags=re.I):
         return True
     return bool(re.search(r"未成年|幼女|幼童|儿童|小学生|初中生|婴儿|孩童", source))
+
+
+def _is_locked(state, field_id):
+    return bool(state["locked"].get(field_id) or state["section_lock_items"].get(field_id))
+
+
+def _has_value(state, field_id):
+    return bool(_clean_text(state["selected"].get(field_id)) or _clean_text(state["overrides"].get(field_id)))
+
+
+def _clear_unlocked(state, field_ids):
+    for field_id in field_ids:
+        if _is_locked(state, field_id):
+            continue
+        state["selected"].pop(field_id, None)
+        state["overrides"].pop(field_id, None)
+
+
+def _usable_options(field, state, adult_requested):
+    if field.get("adult") and not adult_requested:
+        return []
+    options = [
+        option for option in field.get("options", [])
+        if _clean_text(option.get("value"))
+        and _clean_text(option.get("value")) != "不启用"
+        and (adult_requested or not option.get("adult"))
+    ]
+    if field["id"] == "clothItem" and state["selected"].get("clothCat"):
+        matched = [option for option in options if option.get("group") == state["selected"]["clothCat"]]
+        if matched:
+            options = matched
+    if field["id"] == "lingerieItem" and state["selected"].get("lingerieCat"):
+        category = str(state["selected"]["lingerieCat"]).split("·")[-1]
+        matched = [option for option in options if option.get("group") == category]
+        if matched:
+            options = matched
+    return options
+
+
+def _choose_random(state, field_id, rng, adult_requested):
+    target = PORTRAIT_FIELD_BY_ID.get(field_id)
+    if not target or _is_locked(state, field_id):
+        return None
+    _, field = target
+    options = _usable_options(field, state, adult_requested)
+    if not options:
+        return None
+    picked = rng.choice(options)
+    state["selected"][field_id] = picked["value"]
+    state["overrides"].pop(field_id, None)
+    return picked
+
+
+def _locked_value_in(state, field_ids):
+    return any(_is_locked(state, field_id) and _has_value(state, field_id) for field_id in field_ids)
+
+
+def _selected_clothing_family(state):
+    standard = any(_has_value(state, field_id) for field_id in STANDARD_CLOTHING_FIELD_IDS)
+    lingerie = any(_has_value(state, field_id) for field_id in LINGERIE_FIELD_IDS)
+    if standard and not lingerie:
+        return "standard"
+    if lingerie and not standard:
+        return "lingerie"
+    if standard and lingerie:
+        return "lingerie" if _locked_value_in(state, LINGERIE_FIELD_IDS) else "standard"
+    return ""
+
+
+def _option_for(field_id, value):
+    target = PORTRAIT_FIELD_BY_ID.get(field_id)
+    if not target:
+        return None
+    return next(
+        (option for option in target[1].get("options", []) if str(option.get("value")) == str(value)),
+        None,
+    )
+
+
+def _lingerie_category_for_group(group):
+    target = PORTRAIT_FIELD_BY_ID.get("lingerieCat")
+    if not target:
+        return ""
+    return next(
+        (
+            str(option.get("value")) for option in target[1].get("options", [])
+            if str(option.get("value", "")).split("·")[-1] == str(group)
+        ),
+        "",
+    )
+
+
+def _resolve_clothing_conflicts(state, adult_requested):
+    if not adult_requested:
+        _clear_unlocked(state, {field_id for field_id in CLOTHING_MANAGED_FIELD_IDS if PORTRAIT_FIELD_BY_ID.get(field_id, ({}, {}))[1].get("adult")})
+
+    if str(state["selected"].get("nsfwState", "")) in NO_CLOTHING_STATES:
+        _clear_unlocked(state, STANDARD_CLOTHING_FIELD_IDS)
+        _clear_unlocked(state, LINGERIE_FIELD_IDS)
+        _clear_unlocked(state, CLOTHING_EXPRESSION_FIELD_IDS)
+        return
+
+    standard = any(_has_value(state, field_id) for field_id in STANDARD_CLOTHING_FIELD_IDS)
+    lingerie = any(_has_value(state, field_id) for field_id in LINGERIE_FIELD_IDS)
+    if standard and lingerie:
+        standard_locked = _locked_value_in(state, STANDARD_CLOTHING_FIELD_IDS)
+        lingerie_locked = _locked_value_in(state, LINGERIE_FIELD_IDS)
+        if lingerie_locked and not standard_locked:
+            _clear_unlocked(state, STANDARD_CLOTHING_FIELD_IDS)
+        else:
+            _clear_unlocked(state, LINGERIE_FIELD_IDS)
+
+    cloth_item = _option_for("clothItem", state["selected"].get("clothItem"))
+    if cloth_item and cloth_item.get("group"):
+        if _is_locked(state, "clothCat") and state["selected"].get("clothCat") != cloth_item["group"]:
+            _clear_unlocked(state, {"clothItem"})
+        elif not _is_locked(state, "clothCat"):
+            state["selected"]["clothCat"] = cloth_item["group"]
+
+    lingerie_item = _option_for("lingerieItem", state["selected"].get("lingerieItem"))
+    if lingerie_item and lingerie_item.get("group"):
+        category = _lingerie_category_for_group(lingerie_item["group"])
+        if _is_locked(state, "lingerieCat") and state["selected"].get("lingerieCat") != category:
+            _clear_unlocked(state, {"lingerieItem"})
+        elif category and not _is_locked(state, "lingerieCat"):
+            state["selected"]["lingerieCat"] = category
+
+    selected_degrees = [field_id for field_id in CLOTHING_DEGREE_FIELD_IDS if _has_value(state, field_id)]
+    if len(selected_degrees) > 1:
+        keep = next((field_id for field_id in selected_degrees if _is_locked(state, field_id)), selected_degrees[0])
+        _clear_unlocked(state, set(selected_degrees) - {keep})
+
+
+def _resolve_movement_conflicts(state):
+    selected = [field_id for field_id in MOVEMENT_FIELD_IDS if _has_value(state, field_id)]
+    if len(selected) <= 1:
+        return
+    keep = next((field_id for field_id in selected if _is_locked(state, field_id)), selected[0])
+    _clear_unlocked(state, set(selected) - {keep})
+
+
+def _randomize_clothing(state, rng, adult_requested):
+    selected = state["selected"]
+
+    def field_enabled(field_id):
+        target = PORTRAIT_FIELD_BY_ID.get(field_id)
+        if not target:
+            return False
+        section, field = target
+        return (
+            state["section_enabled"].get(section["id"], True) is not False
+            and state["enabled"].get(field_id, True) is not False
+            and (adult_requested or not field.get("adult"))
+        )
+
+    def random_field(field_id, probability=1.0):
+        if not field_enabled(field_id) or _is_locked(state, field_id):
+            return None
+        if rng.random() > probability:
+            _clear_unlocked(state, {field_id})
+            return None
+        return _choose_random(state, field_id, rng, adult_requested)
+
+    if adult_requested and state["section_enabled"].get("wear_state", True) is not False:
+        random_field("nsfwState", 0.42)
+    else:
+        _clear_unlocked(state, {"nsfwState"})
+
+    no_clothing = str(selected.get("nsfwState", "")) in NO_CLOTHING_STATES
+    if no_clothing:
+        _clear_unlocked(state, STANDARD_CLOTHING_FIELD_IDS)
+        _clear_unlocked(state, LINGERIE_FIELD_IDS)
+        _clear_unlocked(state, CLOTHING_EXPRESSION_FIELD_IDS)
+    elif state["section_enabled"].get("clothing", True) is not False:
+        standard_locked = _locked_value_in(state, STANDARD_CLOTHING_FIELD_IDS)
+        lingerie_locked = _locked_value_in(state, LINGERIE_FIELD_IDS)
+        if lingerie_locked and not standard_locked:
+            family = "lingerie"
+        elif standard_locked:
+            family = "standard"
+        else:
+            family = "lingerie" if adult_requested and rng.random() < 0.35 else "standard"
+
+        if family == "lingerie":
+            _clear_unlocked(state, STANDARD_CLOTHING_FIELD_IDS)
+            locked_item = _option_for("lingerieItem", selected.get("lingerieItem")) if _is_locked(state, "lingerieItem") else None
+            if locked_item and locked_item.get("group") and not _is_locked(state, "lingerieCat"):
+                selected["lingerieCat"] = _lingerie_category_for_group(locked_item["group"])
+            elif not _is_locked(state, "lingerieCat"):
+                random_field("lingerieCat")
+            if not _is_locked(state, "lingerieItem"):
+                random_field("lingerieItem")
+            random_field("lingerieColor1", 0.42)
+            random_field("lingerieColor2", 0.42)
+            _clear_unlocked(state, {"pantyColor", "pantyStyle"})
+        else:
+            _clear_unlocked(state, LINGERIE_FIELD_IDS)
+            if not _is_locked(state, "stylePreset"):
+                _clear_unlocked(state, {"stylePreset"})
+            locked_item = _option_for("clothItem", selected.get("clothItem")) if _is_locked(state, "clothItem") else None
+            if locked_item and locked_item.get("group") and not _is_locked(state, "clothCat"):
+                selected["clothCat"] = locked_item["group"]
+            elif not _is_locked(state, "clothCat"):
+                random_field("clothCat")
+            if not _is_locked(state, "clothItem"):
+                random_field("clothItem")
+            random_field("outerwear", 0.42)
+            random_field("bottomLength", 0.42)
+            if selected.get("clothCat") == "上下装":
+                for field_id in ("collarStyle", "topLength", "bottomStyle", "splitColor"):
+                    random_field(field_id, 0.42)
+            else:
+                _clear_unlocked(state, {"collarStyle", "topLength", "bottomStyle", "splitColor"})
+
+    if state["section_enabled"].get("accessories", True) is not False:
+        for field_id in ACCESSORY_FIELD_IDS:
+            random_field(field_id, 0.42)
+
+    if state["section_enabled"].get("clothing_expression", True) is not False:
+        _clear_unlocked(state, CLOTHING_DEGREE_FIELD_IDS)
+        if not no_clothing:
+            family = _selected_clothing_family(state)
+            if family == "standard":
+                for field_id in ("clothMat", "clothPattern", "clothDeco", "clothLayer"):
+                    random_field(field_id, 0.42)
+            else:
+                _clear_unlocked(state, {"clothMat", "clothPattern", "clothDeco", "clothLayer"})
+            locked_degree = any(_is_locked(state, field_id) and _has_value(state, field_id) for field_id in CLOTHING_DEGREE_FIELD_IDS)
+            if not locked_degree and rng.random() < 0.42:
+                degree_ids = ["nsfwExposure"] if family == "lingerie" and adult_requested else [
+                    "sfwExposure", "clothTransparency", *(["nsfwExposure"] if adult_requested else []),
+                ]
+                candidates = [field_id for field_id in degree_ids if field_enabled(field_id)]
+                if candidates:
+                    random_field(rng.choice(candidates))
+
+    _resolve_clothing_conflicts(state, adult_requested)
+
+
+def _randomize_state(state, rng, adult_requested):
+    for section, field in PORTRAIT_FIELDS:
+        field_id = field["id"]
+        if state["section_enabled"].get(section["id"], True) is False:
+            continue
+        if state["enabled"].get(field_id, True) is False:
+            continue
+        if field_id not in CORE_RANDOM_FIELDS or field_id in CLOTHING_MANAGED_FIELD_IDS or field_id in MOVEMENT_FIELD_IDS:
+            continue
+        if field.get("adult") and not adult_requested or _is_locked(state, field_id):
+            continue
+        if field_id not in ALWAYS_RANDOM_FIELDS and rng.random() > 0.42:
+            _clear_unlocked(state, {field_id})
+            continue
+        _choose_random(state, field_id, rng, adult_requested)
+
+    locked_movement = any(_is_locked(state, field_id) and _has_value(state, field_id) for field_id in MOVEMENT_FIELD_IDS)
+    if not locked_movement:
+        _clear_unlocked(state, MOVEMENT_FIELD_IDS)
+        candidates = []
+        for section, field in PORTRAIT_FIELDS:
+            if field["id"] not in MOVEMENT_FIELD_IDS:
+                continue
+            if state["section_enabled"].get(section["id"], True) is False:
+                continue
+            if field.get("adult") and not adult_requested:
+                continue
+            for option in _usable_options(field, state, adult_requested):
+                candidates.append((field["id"], option["value"], bool(field.get("adult"))))
+        if adult_requested:
+            choose_adult = rng.random() < 0.5
+            same_side = [item for item in candidates if item[2] is choose_adult]
+            if same_side:
+                candidates = same_side
+        if candidates:
+            field_id, value, _ = rng.choice(candidates)
+            state["selected"][field_id] = value
+
+    if adult_requested and state["section_enabled"].get("action", True) is not False and not _is_locked(state, "nsfwChain"):
+        if rng.random() < 0.42:
+            _choose_random(state, "nsfwChain", rng, adult_requested)
+        else:
+            _clear_unlocked(state, {"nsfwChain"})
+    _randomize_clothing(state, rng, adult_requested)
 
 
 def _field_texts(state, adult_requested):
@@ -384,17 +745,32 @@ class ZFPortraitPromptGenerator:
         "人物资产库",
     ]
 
+    @classmethod
+    def IS_CHANGED(cls, state_json, seed=0, adult_content=False, reference_analysis=None):
+        state = _parse_state(state_json)
+        if state.get("auto_random"):
+            return float("nan")
+        return f"{state_json}|{int(seed)}|{bool(adult_content)}|{reference_analysis or ''}"
+
     def generate(self, state_json, seed=0, adult_content=False, reference_analysis=None):
         state = _parse_state(state_json)
         reference = _normalize_reference(reference_analysis)
         adult_requested = bool(adult_content)
-        normal_text, adult_text, by_section = _field_texts(state, adult_requested)
-
-        safety_source = " ".join(normal_text + [reference] + list(state["overrides"].values()))
+        normal_before, _, _ = _field_texts(state, False)
+        safety_source = " ".join(normal_before + [reference] + list(state["overrides"].values()))
         adult_blocked = adult_requested and _minor_marker(safety_source)
         if adult_blocked:
             adult_requested = False
-            _, _, by_section = _field_texts(state, False)
+
+        effective_seed = int(seed)
+        if state.get("auto_random"):
+            effective_seed = secrets.randbelow(0x80000000)
+            _randomize_state(state, random.Random(effective_seed), adult_requested)
+        else:
+            _resolve_clothing_conflicts(state, adult_requested)
+        _resolve_movement_conflicts(state)
+
+        normal_text, adult_text, by_section = _field_texts(state, adult_requested)
 
         prompt_body = _join_sections(by_section)
         if adult_requested and adult_text:
@@ -413,9 +789,10 @@ class ZFPortraitPromptGenerator:
             world_asset += "\n\n【成人扩展边界】\n只用于明确的成年人物。"
 
         normalized_state = {
-            "version": 5,
-            "seed": int(seed),
+            "version": 6,
+            "seed": effective_seed,
             "adult_content": adult_requested,
+            "auto_random": bool(state.get("auto_random")),
             "selected": state["selected"],
             "enabled": state["enabled"],
             "overrides": state["overrides"],

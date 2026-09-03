@@ -171,22 +171,7 @@ const actionFields = (options, adult = false) => {
   )).filter((item) => item.options.length);
 };
 
-const sectionTitles = {
-  camera: "镜头与拍摄",
-  light: "光线与色彩",
-  person: "人物基础",
-  hair: "发型与头饰",
-  makeup: "妆容与手部",
-  expression: "表情与视线",
-  cloth: "服装与配饰",
-  posture: "姿态",
-  action: "动作",
-  bg: "场景与道具",
-  comp: "画面构图",
-  extra: "风格与质感",
-};
-
-const sections = context.SECTIONS.flatMap((section) => {
+const sourceSections = context.SECTIONS.flatMap((section) => {
   let fields = section.fields || [];
   if (section.id === "cloth") {
     fields = [
@@ -202,13 +187,13 @@ const sections = context.SECTIONS.flatMap((section) => {
     return [
       {
         id: "posture",
-        title: sectionTitles.posture,
+        title: "姿态",
         open: Boolean(section.open),
         fields: [...postureFields(normalOptions), ...postureFields(adultOptions, true)],
       },
       {
         id: "action",
-        title: sectionTitles.action,
+        title: "动作",
         open: Boolean(section.open),
         fields: [...actionFields(normalOptions), ...actionFields(adultOptions, true), ...chain],
       },
@@ -218,15 +203,69 @@ const sections = context.SECTIONS.flatMap((section) => {
   }
   return [{
     id: section.id,
-    title: sectionTitles[section.id] || cleanLabel(section.title),
+    title: cleanLabel(section.title),
     open: Boolean(section.open),
     fields,
   }];
 });
 
+const sourceMap = new Map(sourceSections.map((section) => [section.id, section]));
+const fieldsFrom = (sectionId, ids = null) => {
+  const fields = sourceMap.get(sectionId)?.fields || [];
+  if (!ids) return fields;
+  const wanted = new Set(ids);
+  return fields.filter((item) => wanted.has(item.id));
+};
+const section = (id, title, fields, sourceId = id) => ({
+  id,
+  title,
+  open: Boolean(sourceMap.get(sourceId)?.open),
+  fields,
+});
+
+const PERSON_SUBJECT_FIELDS = [
+  "temperament", "age", "race", "face", "skin", "texture", "body",
+];
+const CLOTHING_FIELDS = [
+  "stylePreset", "clothCat", "clothItem", "outerwear", "collarStyle", "topLength",
+  "bottomStyle", "splitColor", "bottomLength", "lingerieCat", "lingerieItem",
+  "lingerieColor1", "lingerieColor2", "pantyColor", "pantyStyle",
+];
+const ACCESSORY_FIELDS = [
+  "shoes", "sockType", "sockLen", "sockColor", "sockOpacity", "accessory",
+];
+const CLOTHING_EXPRESSION_FIELDS = [
+  "clothMat", "clothPattern", "clothDeco", "clothLayer", "sfwExposure",
+  "clothTransparency", "nsfwExposure",
+];
+
+const personSubjectSet = new Set(PERSON_SUBJECT_FIELDS);
+const sections = [
+  section("shooting_light", "拍摄与光影", [
+    ...fieldsFrom("camera"),
+    ...fieldsFrom("light"),
+  ], "camera"),
+  section("subject", "人物主体", fieldsFrom("person", PERSON_SUBJECT_FIELDS), "person"),
+  section("person_detail", "人物细节", fieldsFrom("person").filter((item) => !personSubjectSet.has(item.id)), "person"),
+  section("hair", "发型与头饰", fieldsFrom("hair")),
+  section("styling_expression", "妆造表达", [
+    ...fieldsFrom("makeup"),
+    ...fieldsFrom("expression"),
+  ], "makeup"),
+  section("wear_state", "穿着状态", fieldsFrom("cloth", ["nsfwState"]), "cloth"),
+  section("clothing", "服装", fieldsFrom("cloth", CLOTHING_FIELDS), "cloth"),
+  section("accessories", "配饰", fieldsFrom("cloth", ACCESSORY_FIELDS), "cloth"),
+  section("clothing_expression", "服装表现", fieldsFrom("cloth", CLOTHING_EXPRESSION_FIELDS), "cloth"),
+  section("posture", "姿态", fieldsFrom("posture")),
+  section("action", "动作", fieldsFrom("action")),
+  section("bg", "场景与道具", fieldsFrom("bg")),
+  section("comp", "画面构图", fieldsFrom("comp")),
+  section("extra", "风格与质感", fieldsFrom("extra")),
+];
+
 const catalog = {
-  version: 2,
-  source: "K2 人像提示词生成器 v12（获授权参考素材的工程化整理）",
+  version: 3,
+  source: "人像提示词生成器 v12（获授权参考素材的工程化整理）",
   sections,
   style_presets: context.STYLE_PRESETS || {},
 };
