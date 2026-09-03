@@ -1,3 +1,4 @@
+import copy
 import json
 import random
 import re
@@ -275,10 +276,9 @@ def _option_text(field, selected_value, option_overrides=None):
 
 def _minor_marker(text):
     source = str(text or "")
-    return None
-
-def _is_locked(state, field_id):
-    return bool(state["locked"].get(field_id) or state["section_lock_items"].get(field_id))
+    if re.search(r"(?<!\d)(?:[0-9]|1[0-7])\s*(?:岁|周岁|years?\s*old)", source, flags=re.I):
+        return True
+    return bool(re.search(r"未成年|幼女|幼童|儿童|小学生|初中生|婴儿|孩童", source))
 
 
 def _is_locked(state, field_id):
@@ -777,7 +777,7 @@ def _build_portrait_prompt(state, adult_requested, reference=""):
     # The source HTML places an active wear state before the photographic setup.
     wear_state = fields.get("nsfwState", "")
     if wear_state:
-        prefix = "" if adult_present else ""
+        prefix = "成年人物，" if adult_present else ""
         parts.append(_sentence(f"{prefix}{wear_state}"))
 
     camera = []
@@ -804,6 +804,8 @@ def _build_portrait_prompt(state, adult_requested, reference=""):
         person.append(f"{temperament}的{age}")
     elif temperament or age:
         person.append(temperament or age)
+    if adult_present and not wear_state and not re.search(r"(?:1[89]|[2-9]\d)\s*岁|成年", age):
+        person.insert(0, "成年人物")
     if fields.get("race"):
         person.append(fields["race"])
     skin = fields.get("skin", "")
@@ -985,50 +987,8 @@ def _normalize_reference(value):
     return _clean_text(text)[:3000]
 
 
-def _catalog_asset_sections(include_adult, option_overrides=None):
-    normal_sections = []
-    adult_sections = []
-    normal_count = 0
-    adult_count = 0
-
-    for section in PORTRAIT_CATALOG.get("sections", []):
-        normal_fields = []
-        adult_fields = []
-        for field in section.get("fields", []):
-            normal_values = []
-            adult_values = []
-            for option in field.get("options", []):
-                option_value = str(option.get("value", ""))
-                key = f"{field['id']}::{option_value}"
-                value = _clean_text(
-                    (option_overrides or {}).get(key)
-                    or option.get("text")
-                    or option.get("value")
-                )
-                if not value:
-                    continue
-                target = adult_values if field.get("adult") or option.get("adult") else normal_values
-                if value not in target:
-                    target.append(value)
-            if normal_values:
-                normal_fields.append(f"{field.get('label', field['id'])}：{'、'.join(normal_values)}")
-                normal_count += len(normal_values)
-            if adult_values:
-                adult_fields.append(f"{field.get('label', field['id'])}：{'、'.join(adult_values)}")
-                adult_count += len(adult_values)
-        if normal_fields:
-            normal_sections.append(f"【{section.get('title', section['id'])}】\n" + "\n".join(normal_fields))
-        if include_adult and adult_fields:
-            adult_sections.append(f"【{section.get('title', section['id'])}】\n" + "\n".join(adult_fields))
-
-    parts = ["【人物资产库｜常规】", "\n\n".join(normal_sections)]
-    if include_adult and adult_sections:
-        parts.extend(["【人物资产库｜成人扩展】", "\n\n".join(adult_sections)])
-    return "\n\n".join(parts), normal_count, adult_count if include_adult else 0
-
-
 class ZFPortraitPromptGenerator:
-    """Front-end driven portrait asset generator with optional reference material."""
+    """Front-end driven portrait prompt generator with optional reference material."""
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -1058,6 +1018,17 @@ class ZFPortraitPromptGenerator:
                         "tooltip": "高级内容选项，默认关闭。",
                     },
                 ),
+                "quantity": (
+                    "INT",
+                    {
+                        "default": 1,
+                        "min": 1,
+                        "max": 100,
+                        "step": 1,
+                        "display": "number",
+                        "tooltip": "连续出图数量。第 1 条沿用当前选择，后续条目随机生成并保留所有锁定项。",
+                    },
+                ),
             },
             "optional": {
                 "reference_analysis": (
@@ -1070,67 +1041,73 @@ class ZFPortraitPromptGenerator:
             },
         }
 
-    RETURN_TYPES = ("STRING", "STRING", "STRING", "STRING")
-    RETURN_NAMES = ("portrait_prompt", "world_asset", "selection_json", "status")
+    RETURN_TYPES = ("STRING", "STRING", "STRING")
+    RETURN_NAMES = ("portrait_prompt", "selection_json", "status")
+    OUTPUT_IS_LIST = (True, False, False)
     FUNCTION = "generate"
-    CATEGORY = "ZF/提示词创意导演/人物资产"
-    DESCRIPTION = "从可编辑的人像素材目录直接组装提示词，也可把输出作为人物世界观资产接入导演台。"
+    CATEGORY = "ZF/提示词创意导演/人像提示词"
+    DESCRIPTION = "从可编辑的人像素材目录组装一条或多条人像提示词；多条输出会驱动下游节点连续出图。"
     SEARCH_ALIASES = [
         "ZF portrait prompt generator",
-        "portrait asset",
+        "portrait batch",
         "人物提示词生成器",
         "人像生成器",
-        "人物资产库",
+        "人像批量生成",
     ]
 
     @classmethod
-    def IS_CHANGED(cls, state_json, seed=0, adult_content=False, reference_analysis=None):
+    def IS_CHANGED(cls, state_json, seed=0, adult_content=False, quantity=1, reference_analysis=None):
         state = _parse_state(state_json)
         if state.get("auto_random"):
             return float("nan")
-        return f"{state_json}|{int(seed)}|{bool(adult_content)}|{reference_analysis or ''}"
+        return f"{state_json}|{int(seed)}|{bool(adult_content)}|{max(1, int(quantity))}|{reference_analysis or ''}"
 
-    def generate(self, state_json, seed=0, adult_content=False, reference_analysis=None):
-        state = _parse_state(state_json)
+    def generate(self, state_json, seed=0, adult_content=False, quantity=1, reference_analysis=None):
+        base_state = _parse_state(state_json)
         reference = _normalize_reference(reference_analysis)
         adult_requested = bool(adult_content)
-        normal_before, _, _ = _field_texts(state, False)
-        safety_source = " ".join(normal_before + [reference] + list(state["overrides"].values()))
+        result_count = max(1, min(100, int(quantity)))
+        normal_before, _, _ = _field_texts(base_state, False)
+        safety_source = " ".join(normal_before + [reference] + list(base_state["overrides"].values()))
         adult_blocked = adult_requested and _minor_marker(safety_source)
         if adult_blocked:
             adult_requested = False
 
         effective_seed = int(seed)
-        if state.get("auto_random"):
+        if base_state.get("auto_random"):
             effective_seed = secrets.randbelow(0x80000000)
-            _randomize_state(state, random.Random(effective_seed), adult_requested)
-        elif adult_requested and not _has_active_normal_selection(state):
-            # The source HTML fills its empty normal fields when NSFW is
-            # switched on. Do the same for an empty/legacy node state so merely
-            # enabling the extension cannot yield a fragment made only from
-            # one adult detail.
-            _randomize_state(state, random.Random(effective_seed), True)
-        else:
-            _resolve_clothing_conflicts(state, adult_requested)
-        _resolve_movement_conflicts(state)
-        if adult_requested:
-            _ensure_adult_selection(state, random.Random(effective_seed ^ 0x5F3759DF))
-            _resolve_clothing_conflicts(state, adult_requested)
+
+        prompts = []
+        first_state = None
+        first_active_count = 0
+        for index in range(result_count):
+            state = copy.deepcopy(base_state)
+            variant_seed = (effective_seed + index * 0x1F123BB5) & 0x7FFFFFFF
+            rng = random.Random(variant_seed)
+            if base_state.get("auto_random") or index > 0:
+                _randomize_state(state, rng, adult_requested)
+            elif adult_requested and not _has_active_normal_selection(state):
+                # The source HTML fills its empty normal fields when NSFW is
+                # switched on. Do the same for an empty/legacy node state so merely
+                # enabling the extension cannot yield a fragment made only from
+                # one adult detail.
+                _randomize_state(state, rng, True)
+            else:
+                _resolve_clothing_conflicts(state, adult_requested)
             _resolve_movement_conflicts(state)
+            if adult_requested:
+                _ensure_adult_selection(state, random.Random(variant_seed ^ 0x5F3759DF))
+                _resolve_clothing_conflicts(state, adult_requested)
+                _resolve_movement_conflicts(state)
 
-        _, _, by_section = _field_texts(state, adult_requested)
+            _, _, by_section = _field_texts(state, adult_requested)
+            prompt_body = _build_portrait_prompt(state, adult_requested, reference)
+            prompts.append(prompt_body or "单人肖像创作，人物身份、外观、服装、动作与环境保持统一自然。")
+            if first_state is None:
+                first_state = state
+                first_active_count = sum(len(values) for values in by_section.values())
 
-        prompt_body = _build_portrait_prompt(state, adult_requested, reference)
-        portrait_prompt = prompt_body or "单人肖像创作，人物身份、外观、服装、动作与环境保持统一自然。"
-
-        world_asset, normal_asset_count, adult_asset_count = _catalog_asset_sections(
-            adult_requested,
-            state["option_overrides"],
-        )
-        if reference:
-            world_asset += f"\n\n【外部参考素材】\n{reference}"
-        if adult_requested:
-            world_asset += "\n\n【成人扩展边界】\n只用于明确的成年人物。"
+        state = first_state or base_state
 
         normalized_state = {
             "version": 6,
@@ -1147,15 +1124,12 @@ class ZFPortraitPromptGenerator:
             "section_enabled": state["section_enabled"],
             "option_overrides": state["option_overrides"],
         }
-        active_count = sum(len(values) for values in by_section.values())
-        asset_count = normal_asset_count + adult_asset_count
         if adult_blocked:
-            status = f"当前提示词 {active_count} 项；完整资产库 {asset_count} 项；检测到未成年描述，成人扩展未参与输出"
+            status = f"已生成 {result_count} 条提示词；首条 {first_active_count} 项；检测到未成年描述，成人扩展未参与输出"
         else:
-            status = f"当前提示词 {active_count} 项；完整资产库 {asset_count} 项；成人内容{'开启' if adult_requested else '关闭'}"
+            status = f"已生成 {result_count} 条提示词；首条 {first_active_count} 项；成人内容{'开启' if adult_requested else '关闭'}"
         return (
-            portrait_prompt,
-            world_asset,
+            prompts,
             json.dumps(normalized_state, ensure_ascii=False, separators=(",", ":")),
             status,
         )
