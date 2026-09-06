@@ -19,7 +19,7 @@ def test_node_keeps_comfy_scalar_mapping_contract():
     assert node.RETURN_TYPES == ("STRING", "STRING")
     inputs = node.INPUT_TYPES()
     assert list(inputs["required"])[:3] == ["llama_model", "role", "prompt"]
-    assert list(inputs["optional"])[2:10] == [
+    assert list(inputs["optional"])[2:11] == [
         "image1",
         "image2",
         "image3",
@@ -28,6 +28,12 @@ def test_node_keeps_comfy_scalar_mapping_contract():
         "image6",
         "image7",
         "image8",
+        "image9",
+    ]
+    assert list(inputs["optional"])[11:14] == [
+        "video_frames",
+        "video_frames2",
+        "video_frames3",
     ]
 
 

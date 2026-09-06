@@ -62,7 +62,7 @@ The diagram above shows the current local-model connection for the director work
 
 - Connect `writer_system_prompt` to `role` and `writer_tasks` to `prompt`.
 - A list of 5, 10, or more director tasks is mapped to the same number of local-model calls and results; the node does not collapse the list or keep only item zero.
-- Up to eight image inputs and one sampled video-frame batch are supported. Images keep their aspect ratio; video audio is not analyzed.
+- Up to nine image inputs and three sampled video-frame batches are supported. Images keep their aspect ratio; each video is sampled independently and video audio is not analyzed.
 - Keep `force_offload` disabled for efficient consecutive tasks, or enable it before a large image/video model needs the VRAM.
 
 ### Workflow utility nodes

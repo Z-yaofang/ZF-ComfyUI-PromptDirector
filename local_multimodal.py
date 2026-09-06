@@ -184,7 +184,7 @@ def _local_generation_parameters(
 
 class ZFPromptDirectorLocalLLM:
     DESCRIPTION = (
-        "导演台专用的本地 llama.cpp 多模态写作节点。支持文本、多图和视频抽帧，"
+        "导演台专用的本地 llama.cpp 多模态写作节点。支持文本、最多九图和三路视频抽帧，"
         "不会发送网络请求；导演台任务列表会由 ComfyUI 自动逐条执行。"
     )
     RETURN_TYPES = ("STRING", "STRING")
@@ -264,9 +264,18 @@ class ZFPromptDirectorLocalLLM:
                 "image6": ("IMAGE",),
                 "image7": ("IMAGE",),
                 "image8": ("IMAGE",),
+                "image9": ("IMAGE",),
                 "video_frames": (
                     "IMAGE",
-                    {"tooltip": "视频抽帧后的 IMAGE 批次；只分析画面，不读取音轨。"},
+                    {"tooltip": "视频1抽帧后的 IMAGE 批次；只分析画面，不读取音轨。"},
+                ),
+                "video_frames2": (
+                    "IMAGE",
+                    {"tooltip": "视频2抽帧后的 IMAGE 批次；只分析画面，不读取音轨。"},
+                ),
+                "video_frames3": (
+                    "IMAGE",
+                    {"tooltip": "视频3抽帧后的 IMAGE 批次；只分析画面，不读取音轨。"},
                 ),
                 "video_max_frames": (
                     "INT",
@@ -275,7 +284,7 @@ class ZFPromptDirectorLocalLLM:
                         "min": 1,
                         "max": 32,
                         "step": 1,
-                        "tooltip": "按时间均匀抽样后送入本地模型的最大帧数。",
+                        "tooltip": "每路视频按时间均匀抽样后送入本地模型的最大帧数。",
                     },
                 ),
             },
@@ -314,28 +323,51 @@ class ZFPromptDirectorLocalLLM:
         image6=None,
         image7=None,
         image8=None,
+        image9=None,
         video_frames=None,
+        video_frames2=None,
+        video_frames3=None,
         video_max_frames=8,
         unique_id=None,
     ):
         try:
             connected_images = [
                 image
-                for image in (image1, image2, image3, image4, image5, image6, image7, image8)
+                for image in (
+                    image1,
+                    image2,
+                    image3,
+                    image4,
+                    image5,
+                    image6,
+                    image7,
+                    image8,
+                    image9,
+                )
                 if image is not None
             ]
             frames = _local_image_frames(connected_images, max_image_size)
-            video_proxy_frames = _local_video_frames(
-                video_frames,
-                max_image_size,
-                video_max_frames,
-            )
+            connected_video_batches = [
+                batch
+                for batch in (video_frames, video_frames2, video_frames3)
+                if batch is not None
+            ]
+            video_proxy_groups = [
+                _local_video_frames(batch, max_image_size, video_max_frames)
+                for batch in connected_video_batches
+            ]
+            video_proxy_frames = [
+                frame for group in video_proxy_groups for frame in group
+            ]
             media_note = _local_media_note(connected_images)
-            if video_proxy_frames:
-                media_note = (f"{media_note}\n" if media_note else "") + (
-                    f"[<Video 1> local visual proxy: {len(video_proxy_frames)} uniformly sampled "
-                    "frames; visual-only; synchronized audio was not analyzed.]"
-                )
+            video_notes = [
+                f"[<Video {index}> local visual proxy: {len(group)} uniformly sampled "
+                "frames; visual-only; synchronized audio was not analyzed.]"
+                for index, group in enumerate(video_proxy_groups, start=1)
+                if group
+            ]
+            if video_notes:
+                media_note = "\n".join(([media_note] if media_note else []) + video_notes)
             effective_prompt = str(prompt or "")
             if media_note:
                 effective_prompt = f"{effective_prompt}\n\n{media_note}"
@@ -378,6 +410,7 @@ class ZFPromptDirectorLocalLLM:
                 {
                     "backend": "ComfyUI-llama-cpp_vlm",
                     "image_count": len(frames) + len(video_proxy_frames),
+                    "video_proxy_clip_count": len(video_proxy_groups),
                     "video_proxy_frame_count": len(video_proxy_frames),
                     "audio_analyzed": False,
                     "state_uid": state_uid,

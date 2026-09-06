@@ -221,7 +221,7 @@ def test_prompt_omits_selector_metadata_and_keeps_full_option_descriptions():
     assert f"身着{cloth_item['text']}" in prompt
 
 
-def test_adult_prompt_is_natural_prose_instead_of_a_policy_prefix():
+def test_adult_prompt_does_not_inject_a_policy_prefix():
     wear_state = _option("nsfwState")
     age = _option_by_value("age", "24岁轻熟女")
     state = _state(
@@ -231,7 +231,8 @@ def test_adult_prompt_is_natural_prose_instead_of_a_policy_prefix():
 
     prompt = _generate(state, adult_content=True)[0]
 
-    assert prompt.startswith(f"成年人物，{wear_state['text']}。")
+    assert prompt.startswith(f"{wear_state['text']}。")
+    assert "成年人物" not in prompt
     assert "明确的成年人物" not in prompt
     assert "穿着状态：" not in prompt
 
@@ -262,7 +263,7 @@ def test_adult_material_is_excluded_while_switch_is_off():
     assert adult_option["text"] not in prompt
 
 
-def test_adult_mode_requires_adult_context_and_blocks_minor_override():
+def test_adult_mode_keeps_user_text_without_local_age_policy_rewriting():
     adult_field = next(field for _, field in MODULE.PORTRAIT_FIELDS if field.get("adult") and field.get("options"))
     adult_option = next(item for item in adult_field["options"] if item.get("text") and item.get("value") != "不启用")
     selected = {adult_field["id"]: adult_option["value"], "age": _option("age")["value"]}
@@ -277,18 +278,19 @@ def test_adult_mode_requires_adult_context_and_blocks_minor_override():
     assert "明确的成年人物" not in prompt
     assert "成人内容开启" in status
 
-    blocked_state = _state(
+    custom_state = _state(
         selected=selected,
         overrides={"age": "16岁"},
         adult_content=True,
     )
-    blocked_prompt, _, blocked_selection, blocked_status = _generate(
-        blocked_state,
+    custom_prompt, _, custom_selection, custom_status = _generate(
+        custom_state,
         adult_content=True,
     )
-    assert adult_option["text"] not in blocked_prompt
-    assert json.loads(blocked_selection)["adult_content"] is False
-    assert "未参与输出" in blocked_status
+    assert adult_option["text"] in custom_prompt
+    assert "16岁" in custom_prompt
+    assert json.loads(custom_selection)["adult_content"] is True
+    assert "成人内容开启" in custom_status
 
 
 def test_reference_analysis_is_optional_material_not_a_random_dependency():
@@ -526,7 +528,7 @@ def test_enabling_adult_mode_guarantees_adult_output_without_pressing_random():
     assert state["selected"].get("scene")
     assert state["selected"].get("comp")
     assert "成人内容开启" in status
-    assert "成年人物" in prompt
+    assert "成年人物" not in prompt
 
 
 def test_regular_auto_random_never_selects_adult_fields():

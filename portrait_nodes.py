@@ -274,14 +274,6 @@ def _option_text(field, selected_value, option_overrides=None):
     return "", False
 
 
-def _minor_marker(text):
-    source = str(text or "")
-    return None
-
-def _is_locked(state, field_id):
-    return bool(state["locked"].get(field_id) or state["section_lock_items"].get(field_id))
-
-
 def _is_locked(state, field_id):
     return bool(state["locked"].get(field_id) or state["section_lock_items"].get(field_id))
 
@@ -1066,11 +1058,6 @@ class ZFPortraitPromptGenerator:
         reference = _normalize_reference(reference_analysis)
         adult_requested = bool(adult_content)
         result_count = max(1, min(100, int(quantity)))
-        normal_before, _, _ = _field_texts(base_state, False)
-        safety_source = " ".join(normal_before + [reference] + list(base_state["overrides"].values()))
-        adult_blocked = adult_requested and _minor_marker(safety_source)
-        if adult_blocked:
-            adult_requested = False
 
         effective_seed = int(seed)
         if base_state.get("auto_random"):
@@ -1123,10 +1110,7 @@ class ZFPortraitPromptGenerator:
             "section_enabled": state["section_enabled"],
             "option_overrides": state["option_overrides"],
         }
-        if adult_blocked:
-            status = f"已生成 {result_count} 条提示词；首条 {first_active_count} 项；检测到未成年描述，成人扩展未参与输出"
-        else:
-            status = f"已生成 {result_count} 条提示词；首条 {first_active_count} 项；成人内容{'开启' if adult_requested else '关闭'}"
+        status = f"已生成 {result_count} 条提示词；首条 {first_active_count} 项；成人内容{'开启' if adult_requested else '关闭'}"
         return (
             prompts,
             json.dumps(normalized_state, ensure_ascii=False, separators=(",", ":")),
