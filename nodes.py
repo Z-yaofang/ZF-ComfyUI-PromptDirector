@@ -11,7 +11,13 @@ from comfy_execution.graph import ExecutionBlocker
 from .flow_nodes import ZFPromptDirectorAnyFilter, ZFPromptDirectorMultiTextSelector
 from .local_multimodal import ZFPromptDirectorLocalLLM
 from .music_nodes import ZFMusic3PromptDirector, ZFMusic3ResponseParser
-from .portrait_nodes import ZFPortraitPromptGenerator
+from .portrait_nodes import ZIPortraitPromptGenerator
+from .h3_focus.node import ZVH3FocusCompiler, ZVH3InterviewForm
+from .h3_focus.outlet_node import ZVH3ReferenceOutlet
+from .media_evidence.node import ZVUniversalMediaEvidenceDesk
+from .media_evidence.outlet_nodes import ZVPictureOutlet, ZVVideoOutlet, ZVAudioOutlet, ZVTimelineAudioOutlet, ZVProcessingWindowOutlet
+from .media_evidence.original_nodes import ZVOriginalPictureOutlet, ZVOriginalVideoOutlet, ZVOriginalAudioOutlet
+from .media_evidence.slot_nodes import ZVPictureSlotOutlet, ZVVideoSlotOutlet, ZVAudioSlotOutlet
 
 
 ROOT = Path(__file__).resolve().parent
@@ -1592,6 +1598,21 @@ class ZFLazyPromptSwitch:
 
 
 NODE_CLASS_MAPPINGS = {
+    "ZVUniversalMediaEvidenceDesk": ZVUniversalMediaEvidenceDesk,
+    "ZVPictureOutlet": ZVPictureOutlet,
+    "ZVOriginalPictureOutlet": ZVOriginalPictureOutlet,
+    "ZVOriginalVideoOutlet": ZVOriginalVideoOutlet,
+    "ZVOriginalAudioOutlet": ZVOriginalAudioOutlet,
+    "ZVPictureSlotOutlet": ZVPictureSlotOutlet,
+    "ZVVideoSlotOutlet": ZVVideoSlotOutlet,
+    "ZVAudioSlotOutlet": ZVAudioSlotOutlet,
+    "ZVVideoOutlet": ZVVideoOutlet,
+    "ZVAudioOutlet": ZVAudioOutlet,
+    "ZVTimelineAudioOutlet": ZVTimelineAudioOutlet,
+    "ZVProcessingWindowOutlet": ZVProcessingWindowOutlet,
+    "ZVH3FocusCompiler": ZVH3FocusCompiler,
+    "ZVH3InterviewForm": ZVH3InterviewForm,
+    "ZVH3ReferenceOutlet": ZVH3ReferenceOutlet,
     "ZFPromptDirectorAnyFilter": ZFPromptDirectorAnyFilter,
     "ZFPromptDirectorMultiTextSelector": ZFPromptDirectorMultiTextSelector,
     "ZFPromptDirectorLocalLLM": ZFPromptDirectorLocalLLM,
@@ -1608,10 +1629,25 @@ NODE_CLASS_MAPPINGS = {
     "ZFDecisiveLlamaParams": ZFDecisiveLlamaParams,
     "ZFPromptValidator": ZFPromptValidator,
     "ZFLazyPromptSwitch": ZFLazyPromptSwitch,
-    "ZFPortraitPromptGenerator": ZFPortraitPromptGenerator,
+    "ZIPortraitPromptGenerator": ZIPortraitPromptGenerator,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
+    "ZVUniversalMediaEvidenceDesk": "ZV 通用素材取证台",
+    "ZVPictureOutlet": "ZV 图片素材出口",
+    "ZVOriginalPictureOutlet": "ZV 原图片出口",
+    "ZVOriginalVideoOutlet": "ZV 原视频出口",
+    "ZVOriginalAudioOutlet": "ZV 原音频出口",
+    "ZVPictureSlotOutlet": "ZV 图片槽位出口",
+    "ZVVideoSlotOutlet": "ZV 视频槽位出口",
+    "ZVAudioSlotOutlet": "ZV 音频槽位出口",
+    "ZVVideoOutlet": "ZV 视频素材出口",
+    "ZVAudioOutlet": "ZV 音频素材出口",
+    "ZVTimelineAudioOutlet": "ZV 时间线混音出口",
+    "ZVProcessingWindowOutlet": "ZV 处理窗口参数出口",
+    "ZVH3FocusCompiler": "ZV H3 结构化计划编译器（高级）",
+    "ZVH3InterviewForm": "ZV H3 基础采访表",
+    "ZVH3ReferenceOutlet": "ZV H3 素材对齐出口（官方容量）",
     "ZFPromptDirectorAnyFilter": "ZF任意过滤器",
     "ZFPromptDirectorMultiTextSelector": "ZF文本动态多路点选",
     "ZFPromptDirectorLocalLLM": "ZF本地多模态指令",
@@ -1628,5 +1664,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ZFDecisiveLlamaParams": "ZF Llama参数透传",
     "ZFPromptValidator": "ZF 提示词整理与观察",
     "ZFLazyPromptSwitch": "ZF 提示词总开关",
-    "ZFPortraitPromptGenerator": "ZF 人像提示词生成器",
+    "ZIPortraitPromptGenerator": "ZI 人像提示词生成器",
 }

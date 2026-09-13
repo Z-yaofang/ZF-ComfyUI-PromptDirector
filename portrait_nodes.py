@@ -24,7 +24,7 @@ PORTRAIT_FIELDS = [
 PORTRAIT_FIELD_BY_ID = {field["id"]: (section, field) for section, field in PORTRAIT_FIELDS}
 DEFAULT_PORTRAIT_STATE = json.dumps(
     {
-        "version": 6,
+        "version": 7,
         "adult_content": False,
         "auto_random": False,
         "selected": {},
@@ -36,6 +36,7 @@ DEFAULT_PORTRAIT_STATE = json.dumps(
         "section_lock_items": {},
         "section_enabled": {},
         "option_overrides": {},
+        "excluded_options": {},
     },
     ensure_ascii=False,
     separators=(",", ":"),
@@ -239,6 +240,7 @@ def _parse_state(value):
         "section_lock_items",
         "section_enabled",
         "option_overrides",
+        "excluded_options",
     ):
         if not isinstance(state.get(key), dict):
             state[key] = {}
@@ -253,7 +255,10 @@ def _parse_state(value):
                 state["section_lock_items"][field_id] = True
     state["auto_random"] = bool(state.get("auto_random", False))
     state["adult_content"] = bool(state.get("adult_content", False))
-    state["version"] = 6
+    state["version"] = 7
+    for field_id, selected in list(state["selected"].items()):
+        if _is_excluded(state, field_id, selected) and not _is_locked(state, field_id):
+            state["selected"].pop(field_id)
     return state
 
 
@@ -264,8 +269,19 @@ def _clean_text(value):
     return text
 
 
-def _option_text(field, selected_value, option_overrides=None):
+def _is_excluded(state, field_id, value):
+    return state.get("excluded_options", {}).get(f"{field_id}::{value or ''}") is True
+
+
+def _active_selection(state, field_id):
+    value = state["selected"].get(field_id)
+    return "" if _is_excluded(state, field_id, value) else value
+
+
+def _option_text(field, selected_value, option_overrides=None, excluded_options=None):
     selected = str(selected_value or "")
+    if (excluded_options or {}).get(f"{field['id']}::{selected}") is True:
+        return "", False
     for option in field.get("options", []):
         if str(option.get("value", "")) == selected:
             key = f"{field['id']}::{selected}"
@@ -279,7 +295,7 @@ def _is_locked(state, field_id):
 
 
 def _has_value(state, field_id):
-    return bool(_clean_text(state["selected"].get(field_id)) or _clean_text(state["overrides"].get(field_id)))
+    return bool(_clean_text(_active_selection(state, field_id)) or _clean_text(state["overrides"].get(field_id)))
 
 
 def _clear_unlocked(state, field_ids):
@@ -299,16 +315,16 @@ def _usable_options(field, state, adult_requested):
         and _clean_text(option.get("value")) != "不启用"
         and (adult_requested or not option.get("adult"))
     ]
-    if field["id"] == "clothItem" and state["selected"].get("clothCat"):
-        matched = [option for option in options if option.get("group") == state["selected"]["clothCat"]]
+    if field["id"] == "clothItem" and _active_selection(state, "clothCat"):
+        matched = [option for option in options if option.get("group") == _active_selection(state, "clothCat")]
         if matched:
             options = matched
-    if field["id"] == "lingerieItem" and state["selected"].get("lingerieCat"):
-        category = str(state["selected"]["lingerieCat"]).split("·")[-1]
+    if field["id"] == "lingerieItem" and _active_selection(state, "lingerieCat"):
+        category = str(_active_selection(state, "lingerieCat")).split("·")[-1]
         matched = [option for option in options if option.get("group") == category]
         if matched:
             options = matched
-    return options
+    return [option for option in options if not _is_excluded(state, field["id"], option["value"])]
 
 
 def _choose_random(state, field_id, rng, adult_requested):
@@ -318,6 +334,7 @@ def _choose_random(state, field_id, rng, adult_requested):
     _, field = target
     options = _usable_options(field, state, adult_requested)
     if not options:
+        state["selected"].pop(field_id, None)
         return None
     picked = rng.choice(options)
     state["selected"][field_id] = picked["value"]
@@ -351,24 +368,31 @@ def _option_for(field_id, value):
     )
 
 
-def _lingerie_category_for_group(group):
+def _lingerie_category_for_group(group, state):
     target = PORTRAIT_FIELD_BY_ID.get("lingerieCat")
     if not target:
         return ""
     return next(
         (
-            str(option.get("value")) for option in target[1].get("options", [])
+            str(option.get("value")) for option in _usable_options(target[1], state, True)
             if str(option.get("value", "")).split("·")[-1] == str(group)
         ),
         "",
     )
 
 
+def _set_derived_category(state, field_id, value):
+    if value and not _is_excluded(state, field_id, value):
+        state["selected"][field_id] = value
+    else:
+        state["selected"].pop(field_id, None)
+
+
 def _resolve_clothing_conflicts(state, adult_requested):
     if not adult_requested:
         _clear_unlocked(state, {field_id for field_id in CLOTHING_MANAGED_FIELD_IDS if PORTRAIT_FIELD_BY_ID.get(field_id, ({}, {}))[1].get("adult")})
 
-    if str(state["selected"].get("nsfwState", "")) in NO_CLOTHING_STATES:
+    if str(_active_selection(state, "nsfwState")) in NO_CLOTHING_STATES:
         _clear_unlocked(state, STANDARD_CLOTHING_FIELD_IDS)
         _clear_unlocked(state, LINGERIE_FIELD_IDS)
         _clear_unlocked(state, CLOTHING_EXPRESSION_FIELD_IDS)
@@ -384,20 +408,20 @@ def _resolve_clothing_conflicts(state, adult_requested):
         else:
             _clear_unlocked(state, LINGERIE_FIELD_IDS)
 
-    cloth_item = _option_for("clothItem", state["selected"].get("clothItem"))
+    cloth_item = _option_for("clothItem", _active_selection(state, "clothItem"))
     if cloth_item and cloth_item.get("group"):
         if _is_locked(state, "clothCat") and state["selected"].get("clothCat") != cloth_item["group"]:
             _clear_unlocked(state, {"clothItem"})
         elif not _is_locked(state, "clothCat"):
-            state["selected"]["clothCat"] = cloth_item["group"]
+            _set_derived_category(state, "clothCat", cloth_item["group"])
 
-    lingerie_item = _option_for("lingerieItem", state["selected"].get("lingerieItem"))
+    lingerie_item = _option_for("lingerieItem", _active_selection(state, "lingerieItem"))
     if lingerie_item and lingerie_item.get("group"):
-        category = _lingerie_category_for_group(lingerie_item["group"])
+        category = _lingerie_category_for_group(lingerie_item["group"], state)
         if _is_locked(state, "lingerieCat") and state["selected"].get("lingerieCat") != category:
             _clear_unlocked(state, {"lingerieItem"})
-        elif category and not _is_locked(state, "lingerieCat"):
-            state["selected"]["lingerieCat"] = category
+        elif not _is_locked(state, "lingerieCat"):
+            _set_derived_category(state, "lingerieCat", category)
 
     selected_degrees = [field_id for field_id in CLOTHING_DEGREE_FIELD_IDS if _has_value(state, field_id)]
     if len(selected_degrees) > 1:
@@ -451,7 +475,7 @@ def _randomize_clothing(state, rng, adult_requested):
     else:
         _clear_unlocked(state, {"nsfwState"})
 
-    no_clothing = str(selected.get("nsfwState", "")) in NO_CLOTHING_STATES
+    no_clothing = str(_active_selection(state, "nsfwState")) in NO_CLOTHING_STATES
     if no_clothing:
         _clear_unlocked(state, STANDARD_CLOTHING_FIELD_IDS)
         _clear_unlocked(state, LINGERIE_FIELD_IDS)
@@ -471,9 +495,9 @@ def _randomize_clothing(state, rng, adult_requested):
 
         if family == "lingerie":
             _clear_unlocked(state, STANDARD_CLOTHING_FIELD_IDS)
-            locked_item = _option_for("lingerieItem", selected.get("lingerieItem")) if _is_locked(state, "lingerieItem") else None
+            locked_item = _option_for("lingerieItem", _active_selection(state, "lingerieItem")) if _is_locked(state, "lingerieItem") else None
             if locked_item and locked_item.get("group") and not _is_locked(state, "lingerieCat"):
-                selected["lingerieCat"] = _lingerie_category_for_group(locked_item["group"])
+                _set_derived_category(state, "lingerieCat", _lingerie_category_for_group(locked_item["group"], state))
             elif not _is_locked(state, "lingerieCat"):
                 random_field("lingerieCat")
             if not _is_locked(state, "lingerieItem"):
@@ -485,9 +509,9 @@ def _randomize_clothing(state, rng, adult_requested):
             _clear_unlocked(state, LINGERIE_FIELD_IDS)
             if not _is_locked(state, "stylePreset"):
                 _clear_unlocked(state, {"stylePreset"})
-            locked_item = _option_for("clothItem", selected.get("clothItem")) if _is_locked(state, "clothItem") else None
+            locked_item = _option_for("clothItem", _active_selection(state, "clothItem")) if _is_locked(state, "clothItem") else None
             if locked_item and locked_item.get("group") and not _is_locked(state, "clothCat"):
-                selected["clothCat"] = locked_item["group"]
+                _set_derived_category(state, "clothCat", locked_item["group"])
             elif not _is_locked(state, "clothCat"):
                 random_field("clothCat")
             if not _is_locked(state, "clothItem"):
@@ -589,6 +613,7 @@ def _has_active_adult_selection(state):
             field,
             state["selected"].get(field["id"]),
             state["option_overrides"],
+            state["excluded_options"],
         )
         if override or option_text:
             return True
@@ -647,6 +672,7 @@ def _has_active_normal_selection(state):
             field,
             state["selected"].get(field["id"]),
             state["option_overrides"],
+            state["excluded_options"],
         )
         if override or (option_text and not option_is_adult):
             return True
@@ -672,6 +698,7 @@ def _field_texts(state, adult_requested):
             field,
             selected.get(field_id),
             state["option_overrides"],
+            state["excluded_options"],
         )
         text = override or option_text
         if not text:
@@ -702,6 +729,7 @@ def _resolved_prompt_fields(state, adult_requested):
             field,
             state["selected"].get(field_id),
             state["option_overrides"],
+            state["excluded_options"],
         )
         text = override or option_text
         if not text:
@@ -978,7 +1006,7 @@ def _normalize_reference(value):
     return _clean_text(text)[:3000]
 
 
-class ZFPortraitPromptGenerator:
+class ZIPortraitPromptGenerator:
     """Front-end driven portrait prompt generator with optional reference material."""
 
     @classmethod
@@ -1036,10 +1064,10 @@ class ZFPortraitPromptGenerator:
     RETURN_NAMES = ("portrait_prompt", "selection_json", "status")
     OUTPUT_IS_LIST = (True, False, False)
     FUNCTION = "generate"
-    CATEGORY = "ZF/提示词创意导演/人像提示词"
+    CATEGORY = "ZI/图片创作/人像提示词"
     DESCRIPTION = "从可编辑的人像素材目录组装一条或多条人像提示词；多条输出会驱动下游节点连续出图。"
     SEARCH_ALIASES = [
-        "ZF portrait prompt generator",
+        "ZI portrait prompt generator",
         "portrait batch",
         "人物提示词生成器",
         "人像生成器",
@@ -1096,7 +1124,7 @@ class ZFPortraitPromptGenerator:
         state = first_state or base_state
 
         normalized_state = {
-            "version": 6,
+            "version": 7,
             "seed": effective_seed,
             "adult_content": adult_requested,
             "auto_random": bool(state.get("auto_random")),
@@ -1109,6 +1137,7 @@ class ZFPortraitPromptGenerator:
             "section_lock_items": state["section_lock_items"],
             "section_enabled": state["section_enabled"],
             "option_overrides": state["option_overrides"],
+            "excluded_options": state["excluded_options"],
         }
         status = f"已生成 {result_count} 条提示词；首条 {first_active_count} 项；成人内容{'开启' if adult_requested else '关闭'}"
         return (

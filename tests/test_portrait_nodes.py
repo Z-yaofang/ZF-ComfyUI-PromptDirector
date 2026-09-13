@@ -2,6 +2,8 @@ import importlib.util
 import json
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -19,7 +21,7 @@ MODULE = _load_module()
 
 def _generate(*args, **kwargs):
     """Return the first prompt plus scalar metadata for single-prompt behavior tests."""
-    prompts, selection_json, status = MODULE.ZFPortraitPromptGenerator().generate(*args, **kwargs)
+    prompts, selection_json, status = MODULE.ZIPortraitPromptGenerator().generate(*args, **kwargs)
     return prompts[0], None, selection_json, status
 
 
@@ -48,6 +50,7 @@ def _state(
     section_locked=None,
     section_lock_items=None,
     auto_random=False,
+    excluded_options=None,
 ):
     return json.dumps(
         {
@@ -63,6 +66,7 @@ def _state(
             "section_lock_items": section_lock_items or {},
             "section_enabled": section_enabled or {},
             "option_overrides": option_overrides or {},
+            "excluded_options": excluded_options or {},
         },
         ensure_ascii=False,
     )
@@ -119,7 +123,7 @@ def test_legacy_pose_selection_migrates_to_the_new_action_group():
     migrated = json.loads(selection_json)
 
     assert "原地旋转中定格" in prompt
-    assert migrated["version"] == 6
+    assert migrated["version"] == 7
     assert migrated["selected"]["actionSpinning"] == "I023"
     assert "sfwSimPick" not in migrated["selected"]
 
@@ -137,7 +141,7 @@ def test_legacy_section_lock_snapshots_only_existing_selections():
     _, _, selection_json, _ = _generate(json.dumps(legacy, ensure_ascii=False))
     migrated = json.loads(selection_json)
 
-    assert migrated["version"] == 6
+    assert migrated["version"] == 7
     assert migrated["section_lock_items"]["lens"] is True
     assert "viewpoint" not in migrated["section_lock_items"]
 
@@ -324,18 +328,18 @@ def test_frontend_repair_only_clears_overrides():
 
 
 def test_portrait_node_outputs_a_prompt_list_without_world_asset():
-    node = MODULE.ZFPortraitPromptGenerator
+    node = MODULE.ZIPortraitPromptGenerator
     prompts, selection_json, status = node().generate(_state())
 
     assert node.RETURN_NAMES == ("portrait_prompt", "selection_json", "status")
     assert node.OUTPUT_IS_LIST == (True, False, False)
     assert isinstance(prompts, list) and len(prompts) == 1
-    assert json.loads(selection_json)["version"] == 6
+    assert json.loads(selection_json)["version"] == 7
     assert "已生成 1 条提示词" in status
 
 
 def test_quantity_three_generates_unique_prompts_and_preserves_locks():
-    node = MODULE.ZFPortraitPromptGenerator
+    node = MODULE.ZIPortraitPromptGenerator
     quantity = node.INPUT_TYPES()["required"]["quantity"][1]
     lens = _option("lens")
     state = _state(
@@ -386,7 +390,7 @@ def test_frontend_uses_pinned_rows_and_has_no_result_chip_summary():
     assert "＋ 添加项目" in source
     assert "本段随机" in source
     assert "本段锁定" in source
-    assert "本段不启用" in source
+    assert 'disabled ? "本段启用" : "本段排除"' in source
     assert "本项锁定" in source
     assert 'makeButton("解锁所有")' in source
     assert '"自动随机：开"' in source and '"自动随机：关"' in source
@@ -466,8 +470,138 @@ def test_option_edit_changes_current_prompt_and_saved_state():
 def test_portrait_node_display_name_is_model_agnostic():
     source = (ROOT / "nodes.py").read_text(encoding="utf-8")
 
-    assert '"ZFPortraitPromptGenerator": "ZF 人像提示词生成器"' in source
-    assert '"ZFPortraitPromptGenerator": "ZF K2' not in source
+    assert '"ZIPortraitPromptGenerator": "ZI 人像提示词生成器"' in source
+    assert '"ZIPortraitPromptGenerator": "ZI K2' not in source
+
+
+def test_age_label_is_concise_and_manual_override_still_round_trips():
+    field = MODULE.PORTRAIT_FIELD_BY_ID["age"][1]
+    assert field["label"] == "年纪身份" and field["editable"] is True
+    catalog = (ROOT / "data" / "portrait_generator_v12.json").read_text(encoding="utf-8")
+    assert "（可手动输入）" not in catalog
+    value = "28岁的陶艺师"
+    prompt, _, selection_json, _ = _generate(_state(overrides={"age": value}))
+    assert value in prompt
+    assert json.loads(selection_json)["overrides"]["age"] == value
+
+
+def test_v6_state_adds_empty_exclusions_and_upgrades_to_v7():
+    old = json.loads(_state())
+    old.pop("excluded_options")
+    assert old["version"] == 6
+    result = json.loads(_generate(json.dumps(old))[2])
+    assert result["version"] == 7 and result["excluded_options"] == {}
+    assert json.loads(MODULE.DEFAULT_PORTRAIT_STATE)["version"] == 7
+
+
+@pytest.mark.parametrize("lock_key", [None, "locked", "section_lock_items"])
+def test_excluded_selected_option_does_not_output_and_preserves_asset_edit(lock_key):
+    lens = _option("lens")
+    key = f"lens::{lens['value']}"
+    exclusions = {key: True, "unknown::preserved": False}
+    args = {lock_key: {"lens": True}} if lock_key else {}
+    state = _state(selected={"lens": lens["value"]}, option_overrides={key: "EXCLUDED_ASSET_TEXT"}, excluded_options=exclusions, **args)
+    prompt, _, saved, _ = _generate(state)
+    saved = json.loads(saved)
+    assert "EXCLUDED_ASSET_TEXT" not in prompt and lens["text"] not in prompt
+    assert saved["excluded_options"] == exclusions
+    assert saved["option_overrides"][key] == "EXCLUDED_ASSET_TEXT"
+    if lock_key:
+        assert saved[lock_key]["lens"] is True and saved["selected"]["lens"] == lens["value"]
+    else:
+        assert "lens" not in saved["selected"]
+
+
+def test_single_field_random_skips_excluded_options_and_restore_makes_them_usable():
+    field = MODULE.PORTRAIT_FIELD_BY_ID["lens"][1]
+    allowed = _option("lens")
+    excluded = {f"lens::{item['value']}": True for item in field["options"] if item['value'] != allowed['value']}
+    state = MODULE._parse_state(_state(excluded_options=excluded))
+    for seed in range(20):
+        assert MODULE._choose_random(state, "lens", MODULE.random.Random(seed), False)['value'] == allowed['value']
+    state['excluded_options'][f"lens::{allowed['value']}"] = True
+    assert MODULE._choose_random(state, "lens", MODULE.random.Random(1), False) is None
+    assert 'lens' not in state['selected']
+    del state['excluded_options'][f"lens::{allowed['value']}"]
+    assert MODULE._choose_random(state, "lens", MODULE.random.Random(1), False)['value'] == allowed['value']
+
+
+@pytest.mark.parametrize("auto_random,quantity", [(True, 1), (False, 8)])
+def test_auto_and_batch_random_never_output_excluded_lens(auto_random, quantity):
+    field = MODULE.PORTRAIT_FIELD_BY_ID['lens'][1]
+    allowed = _option('lens')
+    excluded = {f"lens::{item['value']}": True for item in field['options'] if item['value'] != allowed['value']}
+    edits = {key: 'EXCLUDED_RANDOM_SENTINEL' for key in excluded}
+    state = _state(selected={'lens': allowed['value']}, auto_random=auto_random, excluded_options=excluded, option_overrides=edits)
+    prompts, saved, _ = MODULE.ZIPortraitPromptGenerator().generate(state, quantity=quantity)
+    assert all('EXCLUDED_RANDOM_SENTINEL' not in prompt and allowed['text'] in prompt for prompt in prompts)
+    assert json.loads(saved)['excluded_options'] == excluded
+
+
+@pytest.mark.parametrize("adult", [False, True])
+def test_all_random_branches_filter_excluded_options(adult):
+    excluded = {f"{field['id']}::{option['value']}": True for _, field in MODULE.PORTRAIT_FIELDS for index, option in enumerate(field['options']) if index % 2 == 0}
+    for seed in range(12):
+        state = MODULE._parse_state(_state(excluded_options=excluded))
+        MODULE._randomize_state(state, MODULE.random.Random(seed), adult)
+        if adult:
+            MODULE._ensure_adult_selection(state, MODULE.random.Random(seed))
+        assert all(not MODULE._is_excluded(state, field_id, value) for field_id, value in state['selected'].items())
+
+
+def test_all_options_excluded_stably_skip_every_random_branch():
+    excluded = {f"{field['id']}::{option['value']}": True for _, field in MODULE.PORTRAIT_FIELDS for option in field['options']}
+    prompts, saved, _ = MODULE.ZIPortraitPromptGenerator().generate(_state(auto_random=True, excluded_options=excluded), adult_content=True, quantity=4)
+    assert len(prompts) == 4 and len(set(prompts)) == 1
+    assert json.loads(saved)['selected'] == {} and json.loads(saved)['excluded_options'] == excluded
+
+
+@pytest.mark.parametrize("field_id,category_id", [('clothItem', 'clothCat'), ('lingerieItem', 'lingerieCat')])
+def test_excluding_whole_current_group_does_not_fall_back_to_another_group(field_id, category_id):
+    field = MODULE.PORTRAIT_FIELD_BY_ID[field_id][1]
+    group = next(option['group'] for option in field['options'] if option.get('group'))
+    state = MODULE._parse_state(_state())
+    category = group if category_id == 'clothCat' else MODULE._lingerie_category_for_group(group, state)
+    state['selected'][category_id] = category
+    state['excluded_options'] = {f"{field_id}::{option['value']}": True for option in field['options'] if option.get('group') == group}
+    assert MODULE._usable_options(field, state, True) == []
+
+
+@pytest.mark.parametrize("field_id,category_id", [('clothItem', 'clothCat'), ('lingerieItem', 'lingerieCat')])
+def test_locked_item_does_not_reintroduce_excluded_derived_category(field_id, category_id):
+    field = MODULE.PORTRAIT_FIELD_BY_ID[field_id][1]
+    option = next(option for option in field['options'] if option.get('group'))
+    state = MODULE._parse_state(_state(selected={field_id: option['value']}, locked={field_id: True}))
+    category = option['group'] if category_id == 'clothCat' else MODULE._lingerie_category_for_group(option['group'], state)
+    state['excluded_options'][f'{category_id}::{category}'] = True
+    MODULE._randomize_state(state, MODULE.random.Random(4), True)
+    assert state['selected'][field_id] == option['value']
+    assert state['selected'].get(category_id) != category
+
+
+def test_frontend_exclusions_are_visible_persistent_and_guarded():
+    source = (ROOT / 'web' / 'portrait_generator.js').read_text(encoding='utf-8')
+    assert 'version: 7' in source and 'state.version = 7' in source and 'excluded_options: {}' in source
+    assert 'const matches = displayableOptions(field, state)' in source
+    assert 'return displayableOptions(field, state).filter((item) => !isExcluded' in source
+    toggle = source[source.index('exclude.addEventListener("click"'):source.index('card.append(value, description, exclude)')]
+    assert 'event.stopPropagation()' in toggle and 'exclude.addEventListener("dblclick"' in toggle
+    assert 'current && isFieldLocked(field.id)' in toggle and 'delete state.selected[field.id]' in toggle
+    assert 'option_overrides' not in toggle
+    assert source.count('if (isExcluded(field, state, item.value) || card.classList.contains') == 2
+    restore = source[source.index('restoreOptions.addEventListener("click"'):source.index('search.addEventListener("input"')]
+    assert 'displayableOptions(field, state)' in restore and 'searchTerm' not in restore and 'state.selected' not in restore
+    assert 'makeButton("＋ 一键添加")' in source and 'restoreOptions.disabled =' in source
+    repair = source[source.index('repair.addEventListener("click"'):source.index('const advanced =')]
+    assert 'excluded_options' not in repair
+
+
+def test_editor_is_prepended_in_its_own_row_with_visible_wrapping_actions():
+    source = (ROOT / 'web' / 'portrait_generator.js').read_text(encoding='utf-8')
+    assert 'options.prepend(editorCard)' in source and 'options.scrollTop = 0' in source
+    assert '.zf-pg-options{grid-row:3;' in source
+    assert '.zf-pg-option-editor{grid-column:1/-1;position:relative;z-index:2;background:' in source
+    assert '.zf-pg-option-edit-actions{display:flex;flex-wrap:wrap;' in source
 
 
 def test_unlock_all_only_removes_locks_and_keeps_selections():

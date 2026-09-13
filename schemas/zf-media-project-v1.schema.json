@@ -1,0 +1,537 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ZF Media Evidence Project V1",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "project_clock": {
+      "type": "object",
+      "properties": {
+        "fps": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 240
+        }
+      },
+      "required": [
+        "fps"
+      ],
+      "additionalProperties": false
+    },
+    "assets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "asset_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,96}$"
+          },
+          "kind": {
+            "enum": [
+              "picture",
+              "video",
+              "audio"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 180
+          },
+          "source_handle": {
+            "type": "string",
+            "pattern": "^originals/[a-f0-9]{32}\\.(png|jpg|jpeg|webp|bmp|mp4|mov|mkv|webm|avi|wav|mp3|m4a|flac|ogg)$"
+          },
+          "probe": {
+            "type": "object",
+            "properties": {
+              "size_bytes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 536870912
+              },
+              "duration_seconds": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 3600
+              },
+              "width": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 16384
+              },
+              "height": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 16384
+              },
+              "fps": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "frame_count": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 3600000
+              },
+              "frame_count_exact": {
+                "type": "boolean"
+              },
+              "vfr": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "has_audio": {
+                "type": "boolean"
+              },
+              "sample_rate": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 768000
+              },
+              "channels": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 64
+              },
+              "codec": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "size_bytes",
+              "duration_seconds",
+              "width",
+              "height",
+              "fps",
+              "frame_count",
+              "frame_count_exact",
+              "vfr",
+              "has_audio",
+              "sample_rate",
+              "channels",
+              "codec"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "asset_id",
+          "kind",
+          "name",
+          "source_handle",
+          "probe"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 128
+    },
+    "picture_track": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,96}$"
+          },
+          "asset_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,96}$"
+          },
+          "order": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 512
+          }
+        },
+        "required": [
+          "item_id",
+          "asset_id",
+          "order"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 512
+    },
+    "video_track": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "clip_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,96}$"
+          },
+          "asset_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,96}$"
+          },
+          "timeline_in_seconds": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 43200
+          },
+          "source_in_seconds": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 43200
+          },
+          "source_out_seconds": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 43200
+          },
+          "source_audio_enabled": {
+            "type": "boolean"
+          },
+          "audio_link_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "timeline_out_seconds": {
+            "type": "number",
+            "minimum": -43200,
+            "maximum": 86400
+          },
+          "duration_seconds": {
+            "type": "number",
+            "minimum": -43200,
+            "maximum": 43200
+          },
+          "source_in_frame": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "source_out_frame": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "source_frame_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "project_frame_count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "frame_estimated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "clip_id",
+          "asset_id",
+          "timeline_in_seconds",
+          "source_in_seconds",
+          "source_out_seconds",
+          "source_audio_enabled",
+          "audio_link_id"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 512
+    },
+    "audio_track": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "clip_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,96}$"
+          },
+          "asset_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,96}$"
+          },
+          "timeline_in_seconds": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 43200
+          },
+          "source_in_seconds": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 43200
+          },
+          "source_out_seconds": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 43200
+          },
+          "origin": {
+            "enum": [
+              "standalone",
+              "video_source"
+            ]
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "linked_video_clip_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_video_clip_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "timeline_out_seconds": {
+            "type": "number",
+            "minimum": -43200,
+            "maximum": 86400
+          },
+          "duration_seconds": {
+            "type": "number",
+            "minimum": -43200,
+            "maximum": 43200
+          },
+          "source_in_frame": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "source_out_frame": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "source_frame_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "project_frame_count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "frame_estimated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "clip_id",
+          "asset_id",
+          "timeline_in_seconds",
+          "source_in_seconds",
+          "source_out_seconds",
+          "origin",
+          "enabled",
+          "linked_video_clip_id",
+          "source_video_clip_id"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 512
+    },
+    "processing_window": {
+      "type": "object",
+      "properties": {
+        "start_seconds": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 43200
+        },
+        "end_seconds": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 43200
+        },
+        "fps": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 240
+        },
+        "start_frame": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "end_frame": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "frame_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "start_seconds",
+        "end_seconds",
+        "fps"
+      ],
+      "additionalProperties": false
+    },
+    "label_map": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "track": {
+            "enum": [
+              "picture",
+              "video",
+              "audio"
+            ]
+          },
+          "item_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,96}$"
+          },
+          "asset_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,96}$"
+          },
+          "label": {
+            "type": "string"
+          },
+          "ordinal": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "track",
+          "item_id",
+          "asset_id",
+          "label",
+          "ordinal"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 1536
+    },
+    "validation": {
+      "type": "object",
+      "properties": {
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "path",
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 8192
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "path",
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 4096
+        }
+      },
+      "required": [
+        "errors",
+        "warnings"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema_version",
+    "project_clock",
+    "assets",
+    "picture_track",
+    "video_track",
+    "audio_track",
+    "processing_window"
+  ],
+  "additionalProperties": false
+}

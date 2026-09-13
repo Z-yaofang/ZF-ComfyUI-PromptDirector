@@ -1,4 +1,5 @@
 import { app } from "/scripts/app.js";
+import { pinDOMWidgetFullWidth } from "./dom_widget_layout.mjs";
 
 const EXTENSION_NAME = "ZF.PromptDirector.MultiTextSelector";
 const NODE_NAME = "ZFPromptDirectorMultiTextSelector";
@@ -185,6 +186,7 @@ function attachMultiTextSelector(node) {
     getMaxHeight: () => 72 + Math.ceil(clampCount(countWidget.value) / 5) * 30,
   });
   domWidget.serialize = false;
+  pinDOMWidgetFullWidth(domWidget);
   node.__zfPromptDirectorMultiTextSelectorSync = syncInputs;
   syncInputs();
 }

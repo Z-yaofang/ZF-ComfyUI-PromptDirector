@@ -171,7 +171,7 @@ const nextOrder = (workflow) => Math.max(0, ...workflow.nodes.map((node) => Numb
 
 const portraitNode = (id, position, order) => ({
   id,
-  type: "ZFPortraitPromptGenerator",
+  type: "ZIPortraitPromptGenerator",
   pos: position,
   size: [470, 171],
   flags: {},
@@ -192,7 +192,7 @@ const portraitNode = (id, position, order) => ({
   properties: {
     aux_id: "Z-yaofang/ZF-ComfyUI-PromptDirector",
     ver: "local-portrait-batch-v1",
-    "Node name for S&R": "ZFPortraitPromptGenerator",
+    "Node name for S&R": "ZIPortraitPromptGenerator",
     widget_ue_connectable: {},
   },
   widgets_values: [defaultState, 0, "randomize", false, 1],
@@ -212,7 +212,7 @@ const saveWorkflow = (workflowPath, workflow) => fs.writeFileSync(workflowPath, 
 
 const wireDirectPrompt = (workflowPath) => {
   const workflow = loadWorkflow(workflowPath);
-  let node = workflow.nodes.find((item) => item.type === "ZFPortraitPromptGenerator");
+  let node = workflow.nodes.find((item) => item.type === "ZIPortraitPromptGenerator");
   if (!node) {
     node = portraitNode(nextNodeId(workflow), [1175, 1810], nextOrder(workflow));
     workflow.nodes.push(node);

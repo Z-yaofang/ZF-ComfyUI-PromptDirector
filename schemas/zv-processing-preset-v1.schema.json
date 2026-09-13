@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ZV Processing Preset Snapshot V1",
+  "type": "object",
+  "properties": {
+    "preset_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$"
+    },
+    "preset_version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647
+    },
+    "snapshot": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "strategy": {
+          "type": "string",
+          "enum": [
+            "single_window",
+            "auto_segment"
+          ]
+        },
+        "rules": {
+          "type": "object",
+          "properties": {
+            "target_fps": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 1,
+              "maximum": 240
+            },
+            "min_frames": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "maximum": 10368000
+            },
+            "max_frames": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "maximum": 10368000
+            },
+            "max_seconds": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 1e-09,
+              "maximum": 43200
+            },
+            "align_to_grid": {
+              "type": "boolean"
+            },
+            "segment_min_seconds": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 1e-09,
+              "maximum": 43200
+            },
+            "segment_max_seconds": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 1e-09,
+              "maximum": 43200
+            },
+            "overlap_frames": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10368000,
+              "description": "请求重叠帧数；实际采用值由 overlap_alignment 派生，不能把请求值直接作为分段重叠。"
+            },
+            "overlap_alignment": {
+              "type": "string",
+              "enum": [
+                "exact",
+                "h3_guide"
+              ],
+              "description": "重叠对齐策略：exact 原样采用请求帧数（普通自动分段默认）；h3_guide 向下对齐为 1 或 5+17k 帧，仅用于显式选择的 H3 Guide 规则。"
+            }
+          },
+          "required": [
+            "target_fps",
+            "min_frames",
+            "max_frames",
+            "max_seconds",
+            "align_to_grid",
+            "segment_min_seconds",
+            "segment_max_seconds",
+            "overlap_frames",
+            "overlap_alignment"
+          ],
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "overlap_alignment": {
+                    "const": "h3_guide"
+                  }
+                },
+                "required": [
+                  "overlap_alignment"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "overlap_frames": {
+                    "minimum": 1
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "description",
+        "strategy",
+        "rules"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "preset_id",
+    "preset_version",
+    "snapshot"
+  ],
+  "additionalProperties": false
+}

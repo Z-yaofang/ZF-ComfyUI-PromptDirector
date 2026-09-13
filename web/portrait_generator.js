@@ -1,7 +1,8 @@
 import { app } from "/scripts/app.js";
+import { pinDOMWidgetFullWidth } from "./dom_widget_layout.mjs";
 
-const EXTENSION_NAME = "ZF.PromptDirector.PortraitGenerator";
-const NODE_NAME = "ZFPortraitPromptGenerator";
+const EXTENSION_NAME = "ZI.PromptDirector.PortraitGenerator";
+const NODE_NAME = "ZIPortraitPromptGenerator";
 const CATALOG_URL = "/zf-prompt-director/portrait-catalog";
 
 const CORE_RANDOM_FIELDS = new Set([
@@ -83,8 +84,8 @@ function installStyles() {
     ".zf-pg-modal-body{display:grid;grid-template-columns:270px minmax(0,1fr);min-height:0}.zf-pg-section-nav{overflow:auto;border-right:1px solid #31414f;padding:12px;display:flex;flex-direction:column;gap:7px}.zf-pg-section-button{border:1px solid transparent;border-radius:9px;background:transparent;color:#bdcad4;padding:10px;text-align:left;cursor:pointer;display:flex;gap:8px;align-items:center}.zf-pg-section-button.active{border-color:#478eb7;background:#173147;color:#eef8ff}.zf-pg-section-button.disabled{opacity:.45;text-decoration:line-through}.zf-pg-section-name{flex:1}.zf-pg-section-meta{font-size:11px;color:#8da1b0}",
     ".zf-pg-main{display:grid;grid-template-rows:auto auto minmax(0,1fr);min-width:0;min-height:0}.zf-pg-section-tools{display:flex;align-items:center;gap:7px;padding:11px 14px 8px;border-bottom:1px solid #263743}.zf-pg-section-tools strong{margin-right:auto;font-size:15px}.zf-pg-tool-active{border-color:#c7924f;color:#ffd598}.zf-pg-tool-danger{border-color:#765660;color:#efc2ca}",
     ".zf-pg-field-tabs{display:flex;gap:7px;overflow:auto;padding:9px 14px;border-bottom:1px solid #263743}.zf-pg-field-tab{flex:0 0 auto;border:1px solid #3c5060;border-radius:999px;background:#17232d;color:#b8c7d2;padding:6px 10px;cursor:pointer}.zf-pg-field-tab.active{background:#1b506d;border-color:#58a8d3;color:white}.zf-pg-field-tab.locked{box-shadow:inset 0 0 0 1px #c79650}.zf-pg-tab-dot{color:#68c7f2;margin-right:5px}",
-    ".zf-pg-detail{min-height:0;display:grid;grid-template-rows:auto auto minmax(0,1fr);padding:12px 14px;gap:8px}.zf-pg-detail-head{display:flex;align-items:center;gap:7px}.zf-pg-detail-head h3{margin:0 auto 0 0;font-size:16px}.zf-pg-search{width:min(330px,35vw);border:1px solid #455867;border-radius:7px;background:#131f28;color:#e5edf3;padding:7px 9px}.zf-pg-notice{min-height:18px;color:#ffd18a;font-size:12px}.zf-pg-notice:empty{display:none}",
-    ".zf-pg-options{min-height:0;overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));align-content:start;gap:9px}.zf-pg-option{box-sizing:border-box;min-height:78px;border:1px solid #3b4d5c;border-radius:10px;background:#17232d;color:#dce6ed;padding:10px;text-align:left;cursor:pointer}.zf-pg-option:hover{border-color:#5fb2de;background:#1a2b37}.zf-pg-option.selected{border-color:#62c8fa;background:#17445d;box-shadow:inset 0 0 0 1px #62c8fa}.zf-pg-option.locked{border-color:#d5a252;box-shadow:inset 0 0 0 2px #9d7035}.zf-pg-option.locked.selected{border-color:#ffd074;box-shadow:inset 0 0 0 2px #d09a48}.zf-pg-option.modified{border-style:dashed}.zf-pg-option-value{font-weight:700;margin-bottom:5px}.zf-pg-option-badge{float:right;color:#ffc66d;font-size:11px;margin-left:7px}.zf-pg-option-desc{color:#98aab7;font-size:12px;white-space:pre-wrap}.zf-pg-option-editor{grid-column:1/-1;cursor:default}.zf-pg-option-editor textarea{box-sizing:border-box;width:100%;min-height:88px;resize:vertical;border:1px solid #5a7182;border-radius:7px;background:#0f1a22;color:#edf5fa;padding:8px}.zf-pg-option-edit-actions{display:flex;align-items:center;gap:8px;margin-top:8px}.zf-pg-option-edit-actions small{margin-left:auto;color:#8fa0ad}.zf-pg-no-option{grid-column:1/-1;color:#95a5b2;padding:20px 2px}",
+    ".zf-pg-detail{min-height:0;display:grid;grid-template-rows:auto auto minmax(0,1fr);padding:12px 14px;gap:8px}.zf-pg-detail-head{grid-row:1;display:flex;flex-wrap:wrap;align-items:center;gap:7px}.zf-pg-detail-head h3{margin:0 auto 0 0;font-size:16px}.zf-pg-search{width:min(330px,35vw);border:1px solid #455867;border-radius:7px;background:#131f28;color:#e5edf3;padding:7px 9px}.zf-pg-notice{grid-row:2;min-height:18px;color:#ffd18a;font-size:12px}.zf-pg-notice:empty{visibility:hidden}",
+    ".zf-pg-options{grid-row:3;grid-auto-rows:max-content;min-height:0;overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));align-content:start;gap:9px}.zf-pg-option{position:relative;min-width:0;box-sizing:border-box;min-height:78px;border:1px solid #3b4d5c;border-radius:10px;background:#17232d;color:#dce6ed;padding:10px 38px 10px 10px;text-align:left;cursor:pointer}.zf-pg-option:hover{border-color:#5fb2de;background:#1a2b37}.zf-pg-option.selected{border-color:#62c8fa;background:#17445d;box-shadow:inset 0 0 0 1px #62c8fa}.zf-pg-option.locked{border-color:#d5a252;box-shadow:inset 0 0 0 2px #9d7035}.zf-pg-option.locked.selected{border-color:#ffd074;box-shadow:inset 0 0 0 2px #d09a48}.zf-pg-option.modified{border-style:dashed}.zf-pg-option-value{font-weight:700;margin-bottom:5px}.zf-pg-option-badge{float:right;color:#ffc66d;font-size:11px;margin-left:7px}.zf-pg-option-desc{color:#98aab7;font-size:12px;white-space:pre-wrap}.zf-pg-option-exclude{position:absolute;top:7px;right:7px;width:23px;height:23px;min-height:23px;padding:0;border-radius:3px;line-height:20px;z-index:1}.zf-pg-option.excluded{background:#101b24;border-style:dashed;cursor:default}.zf-pg-option.excluded>.zf-pg-option-value,.zf-pg-option.excluded>.zf-pg-option-desc{opacity:.42}.zf-pg-option-editor{grid-column:1/-1;position:relative;z-index:2;background:#152b38;padding:10px;cursor:default}.zf-pg-option-editor textarea{display:block;box-sizing:border-box;width:100%;height:96px;min-height:64px;max-height:min(220px,22vh);resize:vertical;border:1px solid #5a7182;border-radius:7px;background:#0f1a22;color:#edf5fa;padding:8px}.zf-pg-option-edit-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px}.zf-pg-option-edit-actions small{margin-left:auto;color:#8fa0ad}.zf-pg-no-option{grid-column:1/-1;color:#95a5b2;padding:20px 2px}",
     ".zf-pg-modal-footer{display:flex;align-items:center;gap:8px;padding:11px 16px;border-top:1px solid #31414f}.zf-pg-advanced{position:relative}.zf-pg-advanced summary{list-style:none}.zf-pg-adult-box{position:absolute;left:0;bottom:38px;width:330px;padding:11px;border:1px solid #4b5e6c;border-radius:9px;background:#15212a;box-shadow:0 8px 28px #0008}.zf-pg-adult-row{display:flex;align-items:center;gap:8px}.zf-pg-adult-row small{display:block;color:#91a2af;margin-top:4px}.zf-pg-done{margin-left:auto;background:#1977a9;border-color:#55b8e7}.zf-pg-error{color:#ffb3aa;padding:8px}",
     "@media(max-width:880px){.zf-pg-modal-body{grid-template-columns:190px minmax(0,1fr)}.zf-pg-options{grid-template-columns:1fr}.zf-pg-search{width:180px}}",
   ].join("");
@@ -107,7 +108,7 @@ function hideWidget(widget, marker) {
 
 function defaultState() {
   return {
-    version: 6,
+    version: 7,
     adult_content: false,
     auto_random: false,
     selected: {},
@@ -119,6 +120,7 @@ function defaultState() {
     section_lock_items: {},
     section_enabled: {},
     option_overrides: {},
+    excluded_options: {},
   };
 }
 
@@ -215,8 +217,8 @@ function normalizeState(raw) {
   try { value = JSON.parse(String(raw || "")); } catch { value = {}; }
   if (!value || typeof value !== "object" || Array.isArray(value)) value = {};
   const previousVersion = Number(value.version || 0);
-  const next = { ...defaultState(), ...value, version: 6 };
-  for (const key of ["selected", "enabled", "overrides", "pinned", "locked", "section_locked", "section_lock_items", "section_enabled", "option_overrides"]) {
+  const next = { ...defaultState(), ...value, version: 7 };
+  for (const key of ["selected", "enabled", "overrides", "pinned", "locked", "section_locked", "section_lock_items", "section_enabled", "option_overrides", "excluded_options"]) {
     next[key] = value[key] && typeof value[key] === "object" && !Array.isArray(value[key]) ? value[key] : {};
   }
   next.__snapshotLegacySectionLocks = previousVersion < 5;
@@ -224,7 +226,10 @@ function normalizeState(raw) {
   migrateLegacyMovement(next);
   migrateLegacySections(next, previousVersion);
   next.auto_random = Boolean(next.auto_random);
-  next.version = 6;
+  next.version = 7;
+  for (const [fieldId, selected] of Object.entries(next.selected)) {
+    if (isExcluded({ id: fieldId }, next, selected) && !next.locked[fieldId] && !next.section_lock_items[fieldId]) delete next.selected[fieldId];
+  }
   return next;
 }
 
@@ -236,10 +241,18 @@ function optionKey(field, value) {
   return field.id + "::" + String(value || "");
 }
 
+function isExcluded(field, state, value) {
+  return state.excluded_options?.[optionKey(field, value)] === true;
+}
+
+function activeSelection(state, fieldId, selected = state.selected) {
+  return isExcluded({ id: fieldId }, state, selected[fieldId]) ? "" : selected[fieldId];
+}
+
 function displayValue(field, state) {
   const override = String(state.overrides[field.id] || "").trim();
   if (override) return override;
-  const option = optionFor(field, state.selected[field.id]);
+  const option = optionFor(field, activeSelection(state, field.id));
   const customized = String(state.option_overrides[optionKey(field, option?.value)] || "").trim();
   return customized || String(option?.value || "").trim();
 }
@@ -248,21 +261,25 @@ function shortLabel(label) {
   return String(label || "").replace(/[（(][^）)]*[）)]/g, "").trim();
 }
 
-function usableOptions(field, state) {
+function displayableOptions(field, state) {
   let values = (field.options || []).filter((item) => {
     if (!state.adult_content && (field.adult || item.adult)) return false;
     return String(item.value || "").trim() && String(item.value) !== "不启用";
   });
-  if (field.id === "clothItem" && state.selected.clothCat) {
-    const matched = values.filter((item) => item.group === state.selected.clothCat);
+  if (field.id === "clothItem" && activeSelection(state, "clothCat")) {
+    const matched = values.filter((item) => item.group === activeSelection(state, "clothCat"));
     if (matched.length) values = matched;
   }
-  if (field.id === "lingerieItem" && state.selected.lingerieCat) {
-    const category = String(state.selected.lingerieCat).split("·").at(-1);
+  if (field.id === "lingerieItem" && activeSelection(state, "lingerieCat")) {
+    const category = String(activeSelection(state, "lingerieCat")).split("·").at(-1);
     const matched = values.filter((item) => item.group === category);
     if (matched.length) values = matched;
   }
   return values;
+}
+
+function usableOptions(field, state) {
+  return displayableOptions(field, state).filter((item) => !isExcluded(field, state, item.value));
 }
 
 function makeButton(text, className) {
@@ -277,7 +294,26 @@ function attachPortraitGenerator(node) {
   const stateWidget = node.widgets?.find((widget) => widget.name === "state_json");
   const seedWidget = node.widgets?.find((widget) => widget.name === "seed");
   const adultWidget = node.widgets?.find((widget) => widget.name === "adult_content");
-  if (!stateWidget || !seedWidget || !adultWidget) return;
+  const quantityWidget = node.widgets?.find((widget) => widget.name === "quantity");
+  if (!stateWidget || !seedWidget || !adultWidget || !quantityWidget) return;
+  node.properties ||= {};
+  const currentQuantity = Math.max(1, Math.min(100, Math.round(Number(quantityWidget.value) || 1)));
+  const savedQuantity = Math.max(1, Math.min(100, Math.round(Number(node.properties.zf_portrait_quantity) || 1)));
+  quantityWidget.value = currentQuantity === 1 && savedQuantity !== 1 ? savedQuantity : currentQuantity;
+  node.properties.zf_portrait_quantity = quantityWidget.value;
+  if (!quantityWidget.__zfPortraitQuantityPersistence) {
+    const originalQuantityCallback = quantityWidget.callback;
+    quantityWidget.callback = function (value) {
+      originalQuantityCallback?.call(this, value);
+      const normalized = Math.max(1, Math.min(100, Math.round(Number(value) || 1)));
+      quantityWidget.value = normalized;
+      node.properties ||= {};
+      node.properties.zf_portrait_quantity = normalized;
+      node.graph?.setDirtyCanvas?.(true, true);
+      node.setDirtyCanvas?.(true, true);
+    };
+    quantityWidget.__zfPortraitQuantityPersistence = true;
+  }
   hideWidget(stateWidget, "zf-portrait-state");
   hideWidget(seedWidget, "zf-portrait-seed");
   hideWidget(adultWidget, "zf-portrait-adult");
@@ -327,13 +363,13 @@ function attachPortraitGenerator(node) {
       return fields.find((field) => field.id === activeFieldId) || fields[0];
     };
     const hasFieldValue = (fieldId, selected = state.selected) => Boolean(
-      String(selected[fieldId] || "").trim() || String(state.overrides[fieldId] || "").trim()
+      String(activeSelection(state, fieldId, selected) || "").trim() || String(state.overrides[fieldId] || "").trim()
     );
     const isFieldLocked = (fieldId) => Boolean(state.locked[fieldId] || state.section_lock_items[fieldId]);
     const fieldLockSource = (fieldId) => state.section_lock_items[fieldId] ? "section" : (state.locked[fieldId] ? "item" : "");
 
     const persist = () => {
-      state.version = 6;
+      state.version = 7;
       stateWidget.value = JSON.stringify(state);
       adultWidget.value = Boolean(state.adult_content);
       stateWidget.callback?.(stateWidget.value);
@@ -394,6 +430,11 @@ function attachPortraitGenerator(node) {
       return "";
     };
 
+    const setDerivedCategory = (fieldId, value, selected = state.selected) => {
+      if (value && !isExcluded({ id: fieldId }, state, value)) selected[fieldId] = value;
+      else delete selected[fieldId];
+    };
+
     const lingerieCategoryForGroup = (group) => {
       const categoryField = fieldMap.get("lingerieCat")?.field;
       return usableOptions(categoryField || {}, state).find((option) => (
@@ -403,7 +444,7 @@ function attachPortraitGenerator(node) {
 
     const prepareClothingSelection = (field, item) => {
       if (!CLOTHING_MANAGED_FIELD_IDS.has(field.id)) return true;
-      const currentState = String(state.selected.nsfwState || "");
+      const currentState = String(activeSelection(state, "nsfwState") || "");
       if ((STANDARD_CLOTHING_FIELD_IDS.has(field.id) || LINGERIE_FIELD_IDS.has(field.id))
           && NO_CLOTHING_STATES.has(currentState)) {
         if (isFieldLocked("nsfwState")) {
@@ -440,7 +481,7 @@ function attachPortraitGenerator(node) {
           modalNotice = "主件类别已锁定；当前款式不属于该类别。";
           return false;
         }
-        if (!isFieldLocked("clothCat")) state.selected.clothCat = item.group;
+        if (!isFieldLocked("clothCat")) setDerivedCategory("clothCat", item.group);
       }
       if (field.id === "lingerieCat") {
         const lockedItem = optionFor(fieldMap.get("lingerieItem")?.field || {}, state.selected.lingerieItem);
@@ -457,7 +498,7 @@ function attachPortraitGenerator(node) {
           modalNotice = "服装类别已锁定；当前款式不属于该类别。";
           return false;
         }
-        if (!isFieldLocked("lingerieCat") && categoryValue) state.selected.lingerieCat = categoryValue;
+        if (!isFieldLocked("lingerieCat")) setDerivedCategory("lingerieCat", categoryValue);
       }
       if (CLOTHING_DEGREE_FIELD_IDS.has(field.id)) {
         const lockedPeer = [...CLOTHING_DEGREE_FIELD_IDS].find((fieldId) => (
@@ -488,13 +529,13 @@ function attachPortraitGenerator(node) {
       for (const [fieldId, value] of Object.entries(preset)) {
         const target = fieldMap.get(fieldId);
         if (!target || isFieldLocked(fieldId) || (target.field.adult && !state.adult_content)) continue;
-        if (optionFor(target.field, value)) state.selected[fieldId] = value;
+        if (usableOptions(target.field, state).some((option) => String(option.value) === String(value))) state.selected[fieldId] = value;
       }
     };
 
     const chooseRandom = (field, selected) => {
       const candidates = usableOptions(field, { ...state, selected });
-      if (!candidates.length) return null;
+      if (!candidates.length) { delete selected[field.id]; return null; }
       const picked = candidates[Math.floor(Math.random() * candidates.length)];
       selected[field.id] = picked.value;
       delete state.overrides[field.id];
@@ -535,7 +576,7 @@ function attachPortraitGenerator(node) {
       } else if (!state.adult_content) {
         clearUnlockedFields(new Set(["nsfwState"]), next);
       }
-      const noClothing = NO_CLOTHING_STATES.has(String(next.nsfwState || ""));
+      const noClothing = NO_CLOTHING_STATES.has(String(activeSelection(state, "nsfwState", next) || ""));
 
       if (noClothing) {
         clearUnlockedFields(STANDARD_CLOTHING_FIELD_IDS, next);
@@ -553,9 +594,9 @@ function attachPortraitGenerator(node) {
 
         if (family === "lingerie") {
           clearUnlockedFields(STANDARD_CLOTHING_FIELD_IDS, next);
-          const lockedItem = optionFor(fieldMap.get("lingerieItem")?.field || {}, next.lingerieItem);
+          const lockedItem = optionFor(fieldMap.get("lingerieItem")?.field || {}, activeSelection(state, "lingerieItem", next));
           if (isFieldLocked("lingerieItem") && lockedItem?.group && !isFieldLocked("lingerieCat")) {
-            next.lingerieCat = lingerieCategoryForGroup(lockedItem.group);
+            setDerivedCategory("lingerieCat", lingerieCategoryForGroup(lockedItem.group), next);
           } else if (!isFieldLocked("lingerieCat")) randomField("lingerieCat");
           if (!isFieldLocked("lingerieItem")) randomField("lingerieItem");
           randomField("lingerieColor1", 0.42);
@@ -564,8 +605,8 @@ function attachPortraitGenerator(node) {
         } else {
           clearUnlockedFields(LINGERIE_FIELD_IDS, next);
           if (!isFieldLocked("stylePreset")) clearUnlockedFields(new Set(["stylePreset"]), next);
-          const lockedItem = optionFor(fieldMap.get("clothItem")?.field || {}, next.clothItem);
-          if (isFieldLocked("clothItem") && lockedItem?.group && !isFieldLocked("clothCat")) next.clothCat = lockedItem.group;
+          const lockedItem = optionFor(fieldMap.get("clothItem")?.field || {}, activeSelection(state, "clothItem", next));
+          if (isFieldLocked("clothItem") && lockedItem?.group && !isFieldLocked("clothCat")) setDerivedCategory("clothCat", lockedItem.group, next);
           else if (!isFieldLocked("clothCat")) randomField("clothCat");
           if (!isFieldLocked("clothItem")) randomField("clothItem");
           randomField("outerwear", 0.42);
@@ -981,7 +1022,7 @@ function attachPortraitGenerator(node) {
         renderModal();
       });
       const disabled = state.section_enabled[section.id] === false;
-      const sectionEnable = makeButton(disabled ? "本段已停用" : "本段不启用", disabled ? "zf-pg-tool-danger" : "");
+      const sectionEnable = makeButton(disabled ? "本段启用" : "本段排除", disabled ? "zf-pg-tool-danger" : "");
       sectionEnable.addEventListener("click", () => {
         state.section_enabled[section.id] = disabled;
         persist();
@@ -1052,8 +1093,8 @@ function attachPortraitGenerator(node) {
       const fieldClear = makeButton(canUndoClear ? "撤销清除" : (hasFieldValue(field?.id) ? "清除本项" : "本项未选择"));
       fieldClear.disabled = !canUndoClear && !hasFieldValue(field?.id);
       fieldClear.addEventListener("click", () => {
-        if (canUndoClear) {
-          if (lastCleared.selected != null) state.selected[field.id] = lastCleared.selected;
+        if (lastCleared?.fieldId === field.id && !hasFieldValue(field.id)) {
+          if (lastCleared.selected != null && !isExcluded(field, state, lastCleared.selected)) state.selected[field.id] = lastCleared.selected;
           if (lastCleared.override != null) state.overrides[field.id] = lastCleared.override;
           const restored = displayValue(field, state) || shortLabel(field.label);
           lastCleared = null;
@@ -1083,7 +1124,11 @@ function attachPortraitGenerator(node) {
       search.className = "zf-pg-search";
       search.placeholder = "搜索当前项目的内容…";
       search.value = searchTerm;
-      detailHead.append(fieldTitle, fieldLock, fieldClear, search);
+      const restoreOptions = makeButton("＋ 一键添加");
+      restoreOptions.title = "恢复当前分类与分组的全部排除项，不受搜索词限制；不会选中素材";
+      const updateRestoreButton = () => { restoreOptions.disabled = !displayableOptions(field, state).some((item) => isExcluded(field, state, item.value)); };
+      updateRestoreButton();
+      detailHead.append(fieldTitle, fieldLock, fieldClear, restoreOptions, search);
       detail.appendChild(detailHead);
 
       const notice = document.createElement("div");
@@ -1096,7 +1141,7 @@ function attachPortraitGenerator(node) {
       const renderOptions = () => {
         options.replaceChildren();
         const keyword = searchTerm.trim().toLowerCase();
-        const matches = usableOptions(field, state).filter((item) => {
+        const matches = displayableOptions(field, state).filter((item) => {
           if (!keyword) return true;
           return [
             item.value,
@@ -1109,6 +1154,7 @@ function attachPortraitGenerator(node) {
           const key = optionKey(field, item.value);
           const customized = String(state.option_overrides[key] || "").trim();
           const card = document.createElement("div");
+          card.dataset.optionKey = key;
           card.setAttribute("role", "button");
           card.tabIndex = 0;
           const selectedOption = String(state.selected[field.id]) === String(item.value);
@@ -1137,9 +1183,49 @@ function attachPortraitGenerator(node) {
           description.textContent = customized
             || (item.text && item.text !== item.value ? item.text : (item.group || "选择此项"));
           card.title = "单击选中；双击修改这个资产选项";
-          card.append(value, description);
+          const exclude = makeButton("－", "zf-pg-option-exclude");
+          exclude.setAttribute("aria-disabled", "false");
+          const paintExclusion = () => {
+            const excluded = isExcluded(field, state, item.value);
+            card.classList.toggle("excluded", excluded);
+            card.setAttribute("aria-disabled", String(excluded));
+            card.tabIndex = excluded ? -1 : 0;
+            if (excluded) card.classList.remove("selected");
+            exclude.textContent = excluded ? "＋" : "－";
+            exclude.title = (excluded ? "恢复素材：" : "排除素材：") + item.value;
+            exclude.setAttribute("aria-label", exclude.title);
+          };
+          exclude.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            if (event.detail > 1) return;
+            const excluded = isExcluded(field, state, item.value);
+            const current = String(state.selected[field.id]) === String(item.value);
+            if (!excluded && current && isFieldLocked(field.id)) {
+              modalNotice = "当前素材由本项或本段锁定保护；请先解锁后再排除。";
+              notice.textContent = modalNotice;
+              return;
+            }
+            if (excluded) delete state.excluded_options[key];
+            else {
+              state.excluded_options[key] = true;
+              if (current) delete state.selected[field.id];
+              if (lastCleared?.fieldId === field.id && String(lastCleared.selected) === String(item.value)) lastCleared = null;
+            }
+            fieldClear.textContent = hasFieldValue(field.id) ? "清除本项" : "本项未选择";
+            fieldClear.disabled = !hasFieldValue(field.id);
+            modalNotice = excluded ? "已恢复此素材；当前选择保持不变。" : "已排除此素材；不会参与选择或随机，资产修改仍保留。";
+            notice.textContent = modalNotice;
+            persist();
+            paintExclusion();
+            updateRestoreButton();
+          });
+          exclude.addEventListener("dblclick", (event) => { event.preventDefault(); event.stopPropagation(); });
+          exclude.addEventListener("pointerdown", (event) => event.stopPropagation());
+          card.append(value, description, exclude);
+          paintExclusion();
           card.addEventListener("click", () => {
-            if (card.classList.contains("zf-pg-option-editor")) return;
+            if (isExcluded(field, state, item.value) || card.classList.contains("zf-pg-option-editor")) return;
             if (isFieldLocked(field.id)) {
               modalNotice = "本项已锁定；先解锁才能更换选择。";
               notice.textContent = modalNotice;
@@ -1187,7 +1273,7 @@ function attachPortraitGenerator(node) {
           card.addEventListener("dblclick", (event) => {
             event.preventDefault();
             event.stopPropagation();
-            if (card.classList.contains("zf-pg-option-editor")) return;
+            if (isExcluded(field, state, item.value) || card.classList.contains("zf-pg-option-editor")) return;
             if (isFieldLocked(field.id)) {
               modalNotice = "本项已锁定；先解锁才能修改素材内容。";
               notice.textContent = modalNotice;
@@ -1224,9 +1310,13 @@ function attachPortraitGenerator(node) {
             editor.addEventListener("dblclick", (clickEvent) => clickEvent.stopPropagation());
             actions.append(confirm, cancel, hint);
             card.replaceChildren(editTitle, editor, actions);
+            const editorCard = card;
+            options.prepend(editorCard);
+            options.scrollTop = 0;
             setTimeout(() => {
-              editor.focus();
+              editor.focus({ preventScroll: true });
               editor.select();
+              options.scrollTop = 0;
             }, 0);
           });
           options.appendChild(card);
@@ -1238,6 +1328,18 @@ function attachPortraitGenerator(node) {
           options.appendChild(note);
         }
       };
+      restoreOptions.addEventListener("click", () => {
+        const preservedTop = options.scrollTop;
+        const excluded = displayableOptions(field, state).filter((item) => isExcluded(field, state, item.value));
+        for (const item of excluded) delete state.excluded_options[optionKey(field, item.value)];
+        modalNotice = `已恢复当前页 ${excluded.length} 项素材；当前选择保持不变。`;
+        notice.textContent = modalNotice;
+        persist();
+        renderOptions();
+        updateRestoreButton();
+        options.scrollTop = preservedTop;
+        requestAnimationFrame(() => { options.scrollTop = preservedTop; });
+      });
       search.addEventListener("input", () => {
         searchTerm = search.value;
         renderOptions();
@@ -1251,7 +1353,7 @@ function attachPortraitGenerator(node) {
       const footer = document.createElement("div");
       footer.className = "zf-pg-modal-footer";
       const repair = makeButton("节点修复");
-      repair.title = "恢复所有资产卡片的内置原文，保留选择、首页固定、锁定和分段设置";
+      repair.title = "恢复所有资产卡片的内置原文，保留选择、首页固定、锁定、分段设置和素材排除；一键添加只恢复当前页排除";
       repair.addEventListener("click", () => {
         state.overrides = {};
         state.option_overrides = {};
@@ -1316,6 +1418,7 @@ function attachPortraitGenerator(node) {
       }
     };
 
+    persist();
     renderHome();
   }).catch((error) => {
     root.innerHTML = '<div class="zf-pg-error"></div>';
@@ -1334,6 +1437,7 @@ function attachPortraitGenerator(node) {
     getMaxHeight: () => 470,
   });
   domWidget.serialize = false;
+  pinDOMWidgetFullWidth(domWidget);
 }
 
 installStyles();

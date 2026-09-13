@@ -19,7 +19,7 @@ vm.createContext(context);
 vm.runInContext(source.slice(start, end), context, { timeout: 5000 });
 
 const cleanLabel = (value) => String(value || "")
-  .replace(/（≥18·可手动输入）/g, "（可手动输入）")
+  .replace(/（(?:≥18·)?可手动输入）/g, "")
   .replace(/（SFW\s*·\s*/g, "（")
   .replace(/SFW强化·/g, "")
   .replace(/NSFW强化·/g, "")

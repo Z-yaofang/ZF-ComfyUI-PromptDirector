@@ -1,4 +1,5 @@
 import { app } from "/scripts/app.js";
+import { pinDOMWidgetFullWidth } from "./dom_widget_layout.mjs";
 
 const EXTENSION_NAME = "ZF.PromptDirector";
 const RECOMMENDATION_STORAGE_KEY = "zf-prompt-director:recommended-pairing";
@@ -539,6 +540,7 @@ function attachDirectorUI(node) {
     getMaxHeight: () => getDirectorHeight(),
   });
   domWidget.serialize = false;
+  pinDOMWidgetFullWidth(domWidget);
   renderPreset();
 
   loadCatalog()

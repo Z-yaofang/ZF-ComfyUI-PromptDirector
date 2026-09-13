@@ -32,6 +32,50 @@ def _load_nodes_module():
 MODULE = _load_nodes_module()
 
 
+def test_video_nodes_register_only_new_zv_ids_and_socket():
+    for node_id in ("ZVUniversalMediaEvidenceDesk", "ZVProcessingWindowOutlet", "ZVH3FocusCompiler", "ZVH3InterviewForm"):
+        cls = getattr(MODULE, node_id)
+        assert MODULE.NODE_CLASS_MAPPINGS[node_id] is cls
+        assert cls.__name__ == node_id
+        assert list(MODULE.NODE_CLASS_MAPPINGS.values()).count(cls) == 1
+    for old_id in ("ZFUniversalMediaEvidenceDesk", "ZFH3FocusCompiler"):
+        assert old_id not in MODULE.NODE_CLASS_MAPPINGS
+        assert old_id not in MODULE.NODE_DISPLAY_NAME_MAPPINGS
+        assert not hasattr(MODULE, old_id)
+    assert MODULE.ZVUniversalMediaEvidenceDesk.RETURN_TYPES == ("ZV_MEDIA_PROJECT", "STRING", "ZV_ORIGINAL_SOURCES")
+    assert MODULE.ZVUniversalMediaEvidenceDesk.RETURN_NAMES == ("media_project", "project_json", "原素材来源")
+
+
+def test_video_nodes_use_zv_display_names_and_categories():
+    expected = {
+        "ZVUniversalMediaEvidenceDesk": ("ZV 通用素材取证台", "ZV/视频创作/素材取证"),
+        "ZVProcessingWindowOutlet": ("ZV 处理窗口参数出口", "ZV/视频创作/素材取证"),
+        "ZVH3FocusCompiler": ("ZV H3 结构化计划编译器（高级）", "ZV/视频创作/H3"),
+        "ZVH3InterviewForm": ("ZV H3 基础采访表", "ZV/视频创作/H3"),
+    }
+    for node_id, (display_name, category) in expected.items():
+        assert MODULE.NODE_DISPLAY_NAME_MAPPINGS[node_id] == display_name
+        assert MODULE.NODE_CLASS_MAPPINGS[node_id].CATEGORY == category
+
+
+def test_portrait_registers_only_zi_id_with_unchanged_output_contract():
+    cls = MODULE.ZIPortraitPromptGenerator
+    assert MODULE.NODE_CLASS_MAPPINGS["ZIPortraitPromptGenerator"] is cls
+    assert list(MODULE.NODE_CLASS_MAPPINGS.values()).count(cls) == 1
+    assert cls.__name__ == "ZIPortraitPromptGenerator"
+    assert cls.CATEGORY == "ZI/图片创作/人像提示词"
+    assert MODULE.NODE_DISPLAY_NAME_MAPPINGS["ZIPortraitPromptGenerator"] == "ZI 人像提示词生成器"
+    assert "ZFPortraitPromptGenerator" not in MODULE.NODE_CLASS_MAPPINGS
+    assert "ZFPortraitPromptGenerator" not in MODULE.NODE_DISPLAY_NAME_MAPPINGS
+    assert not hasattr(MODULE, "ZFPortraitPromptGenerator")
+    assert cls.RETURN_TYPES == ("STRING", "STRING", "STRING")
+    assert cls.RETURN_NAMES == ("portrait_prompt", "selection_json", "status")
+    source = (ROOT / "web" / "portrait_generator.js").read_text(encoding="utf-8")
+    assert 'const NODE_NAME = "ZIPortraitPromptGenerator"' in source
+    assert 'const EXTENSION_NAME = "ZI.PromptDirector.PortraitGenerator"' in source
+    assert "ZFPortraitPromptGenerator" not in source
+
+
 def _build(**overrides):
     values = {
         "enabled": True,

@@ -1,0 +1,21 @@
+{
+  "version": "h3-local-rules-v2-01",
+  "sources": {
+    "official": "https://github.com/MiniMax-AI/MiniMax-H3/blob/main/README.zh-CN.md#系统概览",
+    "prompt": "https://github.com/MiniMax-AI/MiniMax-H3/blob/main/skills/h3-prompt-writing/references/ref-en.txt",
+    "comfy": "https://github.com/Comfy-Org/ComfyUI/blob/master/comfy_extras/nodes_minimax_h3.py",
+    "t8": "https://github.com/T8mars/comfyui-minimax-h3-audio-T8/blob/main/h3_t8/conditioning.py"
+  },
+  "output": {"min_seconds": 4, "max_seconds": 15, "fps": 24},
+  "reference": {"min_seconds": 2, "max_seconds": 15, "class_total_seconds": 15, "mixed_sources": 12},
+  "banks": {"first_frame": 1, "last_frame": 1, "ref_images": 9, "ref_videos": 3, "ref_video_audios": 3, "drive_audio": 1, "ref_audios": 3},
+  "local_length": {"min": 5, "max": 3600, "step": 17, "remainder": 5, "rounding": "up"},
+  "notes": [
+    "官方输出 4–15 秒、24 fps；参考 AV 每段 2–15 秒、每类总长 ≤15 秒。",
+    "Ref2VA：参考图 ≤9、视频 ≤3、独立参考音频 ≤3、混合源 ≤12；同源视频原声不重复计文件。",
+    "Comfy/T8 将 paired ref_video_audios 与 ref_audios 分开接收；分别检查配对原声和独立音频总长。合计超过 3 个 Audio 标签或 15 秒是本地兼容路径，官方文档未明确承诺此组合。",
+    "首尾帧与 refs 混接、drive_audio 是 T8 本地扩展；Hybrid 依赖本机布局兼容检查与正确模型，不代表官方标准模式。仅独立音频也标为本地扩展。",
+    "素材台窗口使用 24 fps 秒数网格；T8 输出 length 向上对齐 17n+5，参考视频向下对齐。目标 15 秒可对应本地 362 帧；网格容差不扩展官方时长。",
+    "H3 参考段是素材台已选择的 source_in/source_out，可在目标 GEN 窗口外。T8 仍先截到目标 model length 再向下对齐；合法 2 秒参考出口 48 帧可变成模型可见 39 帧，不以内部帧数重复拒绝合法输入。"
+  ]
+}

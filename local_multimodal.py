@@ -184,7 +184,7 @@ def _local_generation_parameters(
 
 class ZFPromptDirectorLocalLLM:
     DESCRIPTION = (
-        "导演台专用的本地 llama.cpp 多模态写作节点。支持文本、最多九图和三路视频抽帧，"
+        "导演台专用的本地 llama.cpp 多模态写作节点。支持文本、最多十一图和三路视频抽帧，"
         "不会发送网络请求；导演台任务列表会由 ComfyUI 自动逐条执行。"
     )
     RETURN_TYPES = ("STRING", "STRING")
@@ -287,6 +287,11 @@ class ZFPromptDirectorLocalLLM:
                         "tooltip": "每路视频按时间均匀抽样后送入本地模型的最大帧数。",
                     },
                 ),
+                # Append-only sockets: keep every pre-existing optional input at
+                # its saved LiteGraph index while extending Stage① to the H3
+                # maximum of first frame + last frame + nine reference images.
+                "image10": ("IMAGE",),
+                "image11": ("IMAGE",),
             },
             "hidden": {"unique_id": "UNIQUE_ID"},
         }
@@ -329,6 +334,8 @@ class ZFPromptDirectorLocalLLM:
         video_frames3=None,
         video_max_frames=8,
         unique_id=None,
+        image10=None,
+        image11=None,
     ):
         try:
             connected_images = [
@@ -343,6 +350,8 @@ class ZFPromptDirectorLocalLLM:
                     image7,
                     image8,
                     image9,
+                    image10,
+                    image11,
                 )
                 if image is not None
             ]

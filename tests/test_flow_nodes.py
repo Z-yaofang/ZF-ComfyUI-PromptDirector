@@ -62,5 +62,11 @@ def test_new_nodes_have_prompt_director_specific_registration_ids():
     assert '"ZFPromptDirectorAnyFilter": ZFPromptDirectorAnyFilter' in nodes_source
     assert '"ZFPromptDirectorMultiTextSelector": ZFPromptDirectorMultiTextSelector' in nodes_source
     assert 'const NODE_NAME = "ZFPromptDirectorMultiTextSelector"' in frontend_source
+    zfi_source = (root / "web" / "zfi_reroute.js").read_text(encoding="utf-8")
+    assert '"ZFIRerouteBank": ZFIRerouteBank' not in nodes_source
+    assert 'const NODE_TYPE = "ZFI"' in zfi_source
+    assert "registerCustomNodes()" in zfi_source
+    assert "this.isVirtualNode = true" in zfi_source
+    assert "onExecute" not in zfi_source
     assert "ZFAnyFilter\"" not in frontend_source
     assert "ZFMultiTextSwitch\"" not in frontend_source
