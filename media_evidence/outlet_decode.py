@@ -4,7 +4,7 @@ import copy
 import math
 import time
 
-from .contract import seconds_to_frame
+from .contract import seconds_to_frame, source_message
 from .outlet import MAX_OUTPUT_BYTES, MAX_OUTPUT_GIB, MAX_OUTPUT_SECONDS, MAX_VIDEO_FRAMES, SAMPLE_RATE, OutletError
 from .storage import FORMATS, MediaError
 
@@ -71,8 +71,9 @@ def _source(store, entry, kind):
     try:
         facts = store.record(entry["source_handle"])
         source = store.resolve(entry["source_handle"])
-    except MediaError:
-        raise OutletError("素材来源已失效、被修改或不可访问，请重新导入。") from None
+    except MediaError as error:
+        detail = source_message(error.message, "素材来源已失效、被修改或不可访问，请重新导入")
+        raise OutletError("素材来源校验失败：" + detail) from None
     if kind == "audio":
         valid = facts["kind"] in {"audio", "video"} and facts["probe"]["has_audio"]
     else:
@@ -85,8 +86,9 @@ def _source(store, entry, kind):
 def _verify_unchanged(store, entry):
     try:
         store.record(entry["source_handle"])
-    except MediaError:
-        raise OutletError("素材在解码时已被修改或移除，请重新导入。") from None
+    except MediaError as error:
+        detail = source_message(error.message, "素材在解码时已被修改或移除，请重新导入")
+        raise OutletError("素材解码后校验失败：" + detail) from None
 
 
 def _manifest_entry(entry):

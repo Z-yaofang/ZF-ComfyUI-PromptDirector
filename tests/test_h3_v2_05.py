@@ -102,11 +102,10 @@ def test_only_registered_video_accepted(neutral,kind):
     assert files(store)==before
 
 @pytest.mark.parametrize('when',['before','decode','register'])
-@pytest.mark.parametrize('how',['mtime','size','missing'])
+@pytest.mark.parametrize('how',['size','missing'])
 def test_source_stat_change_rejected_before_and_after_decode_and_register(neutral,monkeypatch,when,how):
     store,assets=neutral;source=assets['video'][0];path=store.resolve(source['source_handle']);info=path.stat();before=files(store);original=path.read_bytes()
     def change():
-        if how=='mtime':os.utime(path,ns=(info.st_atime_ns,info.st_mtime_ns+1000000))
         if how=='size':path.write_bytes(original+b'changed')
         if how=='missing':path.unlink()
     worker=store.worker;finish=store.finish_import
@@ -125,9 +124,31 @@ def test_source_stat_change_rejected_before_and_after_decode_and_register(neutra
         with pytest.raises(M['STORE'].MediaError) as error:store.capture_frame(**request_for(source))
         assert error.value.code=='source_unavailable'
     finally:
-        if how!='mtime':path.write_bytes(original)
+        path.write_bytes(original)
         os.utime(path,ns=(info.st_atime_ns,info.st_mtime_ns))
     assert files(store)==before
+
+
+@pytest.mark.parametrize('when',['before','decode','register'])
+def test_source_mtime_normalization_keeps_capture_available(neutral,monkeypatch,when):
+    store,assets=neutral;source=assets['video'][0];path=store.resolve(source['source_handle']);info=path.stat();worker=store.worker;finish=store.finish_import
+    def change():os.utime(path,ns=(info.st_atime_ns,info.st_mtime_ns+1000000))
+    if when=='before':change()
+    if when=='decode':
+        def altered(*args,**kwargs):
+            result=worker(*args,**kwargs)
+            if args[0]=='screenshot':change()
+            return result
+        monkeypatch.setattr(store,'worker',altered)
+    if when=='register':
+        def altered(*args,**kwargs):
+            result=finish(*args,**kwargs);change();return result
+        monkeypatch.setattr(store,'finish_import',altered)
+    try:
+        captured=store.capture_frame(**request_for(source))
+        assert captured['kind']=='picture' and store.record(source['source_handle'])==source
+    finally:
+        os.utime(path,ns=(info.st_atime_ns,info.st_mtime_ns))
 
 def test_shared_upload_capture_lock_and_worker_job_limit(neutral,monkeypatch):
     store,assets=neutral;request=request_for(assets['video'][0]);before=files(store)
@@ -283,10 +304,10 @@ def test_actual_persistent_unlink_reports_incomplete_cleanup_and_releases_lock(n
 
 @pytest.mark.parametrize('blocked',['partial','record'])
 def test_cleanup_failure_does_not_block_sibling_cleanup_or_create_dangling_record(neutral,monkeypatch,blocked):
-    store,assets=neutral;source=assets['video'][0];source_path=store.resolve(source['source_handle']);info=source_path.stat();before=files(store);unlink=Path.unlink;worker=store.worker
+    store,assets=neutral;source=assets['video'][0];source_path=store.resolve(source['source_handle']);info=source_path.stat();source_bytes=source_path.read_bytes();before=files(store);unlink=Path.unlink;worker=store.worker
     def after_register_probe(*args,**kwargs):
         value=worker(*args,**kwargs)
-        if args[0]=='probe' and args[1].suffix=='.png':os.utime(source_path,ns=(info.st_atime_ns,info.st_mtime_ns+1000000))
+        if args[0]=='probe' and args[1].suffix=='.png':source_path.write_bytes(source_bytes+b'changed')
         return value
     monkeypatch.setattr(store,'worker',after_register_probe)
     def locked(path,*args,**kwargs):
@@ -301,6 +322,7 @@ def test_cleanup_failure_does_not_block_sibling_cleanup_or_create_dangling_recor
         if blocked=='partial':assert len(created)==1 and next(iter(created)).endswith('.partial.png')
         else:assert len(created)==2 and error.value.asset_committed
     finally:
+        source_path.write_bytes(source_bytes)
         os.utime(source_path,ns=(info.st_atime_ns,info.st_mtime_ns))
         for name in set(files(store))-set(before):unlink(store.root/name)
 

@@ -5,6 +5,7 @@ import subprocess
 import tempfile
 
 from .outlet import OutletError
+from .contract import source_message
 from .storage import FORMATS, MediaError
 from .original_worker import MAX_BYTES
 from .original_sources import selected_source
@@ -58,8 +59,9 @@ def export_original(store, source_handle, kind, *, asset_id=None):
                 store.jobs.release()
         if store.record(source_handle)!=facts or store.resolve(source_handle)!=source:
             raise OutletError("原素材在执行时改变，请重新导入")
-    except MediaError:
-        raise OutletError("原素材来源未登记、丢失、改变或路径无效，请重新导入") from None
+    except MediaError as error:
+        detail = source_message(error.message, "原素材来源未登记、丢失、改变或路径无效，请重新导入")
+        raise OutletError("原素材校验失败：" + detail) from None
     except (OSError,KeyError,ValueError) as error:
         if isinstance(error,OutletError):
             raise

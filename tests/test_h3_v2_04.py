@@ -130,14 +130,13 @@ def test_unknown_or_invalid_connected_dimensions_are_explicit_http_errors(neutra
     assert '尚未核实' in result['errors'][0]['message']
 
 
-@pytest.mark.parametrize('case', ['mtime', 'size', 'missing'])
+@pytest.mark.parametrize('case', ['size', 'missing'])
 def test_registry_stat_change_remains_rejected_without_reprobe(neutral, case):
     import os
     store, assets = neutral; project = M['project'](assets, pictures=1)
     prompt = graph(); _, result = detect(project, prompt)
     path = store.resolve(assets['picture'][0]['source_handle']); info = path.stat(); original = path.read_bytes()
     try:
-        if case == 'mtime': os.utime(path, ns=(info.st_atime_ns, info.st_mtime_ns + 1000000))
         if case == 'size': path.write_bytes(original + b'changed')
         if case == 'missing': path.unlink()
         forged = copy.deepcopy(project); forged['validation'] = {'errors': [], 'warnings': []}
@@ -150,7 +149,21 @@ def test_registry_stat_change_remains_rejected_without_reprobe(neutral, case):
         with pytest.raises(M['OUT'].ReferencePlanError):
             M['OUT'].ZVH3ReferenceOutlet().export_references(built[8])
     finally:
-        if case != 'mtime': path.write_bytes(original)
+        path.write_bytes(original)
+        os.utime(path, ns=(info.st_atime_ns, info.st_mtime_ns))
+
+
+def test_registry_mtime_change_with_same_content_keeps_plan_ready(neutral):
+    import os
+    store, assets = neutral; project = M['project'](assets, pictures=1)
+    prompt = graph(); path = store.resolve(assets['picture'][0]['source_handle']); info = path.stat()
+    try:
+        os.utime(path, ns=(info.st_atime_ns, info.st_mtime_ns + 1000000))
+        status, detected = detect(project, prompt)
+        assert status == 200 and detected['validation']['ready']
+        built = execute(project, detected['state'], prompt)
+        assert built[7] and built[8]['ready']
+    finally:
         os.utime(path, ns=(info.st_atime_ns, info.st_mtime_ns))
 
 

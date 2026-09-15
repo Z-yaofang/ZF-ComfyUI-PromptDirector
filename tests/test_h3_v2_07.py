@@ -121,7 +121,10 @@ def test_actual_selected_file_mutations_rechecked(neutral,tmp_path,change):
     if change=='missing':path.unlink()
     if change=='mtime':os.utime(path,ns=(path.stat().st_atime_ns,path.stat().st_mtime_ns+1000000))
     if change=='size':path.write_bytes(path.read_bytes()+b'changed')
-    with pytest.raises(O.OutletError,match='改变|丢失'):connected(asset,catalog)
+    if change=='mtime':
+        assert tuple(connected(asset,catalog)[0].shape)==(1,11,17,3)
+    else:
+        with pytest.raises(O.OutletError,match='改变|丢失|不可见'):connected(asset,catalog)
 
 def test_catalog_does_not_hydrate_unused_records(neutral,monkeypatch):
     store,project,_=neutral;asset=project['assets'][1];original=store.record;seen=[]

@@ -199,7 +199,7 @@ def test_actual_source_or_record_change_no_proxy_fallback(neutral,change,tmp_pat
             data['asset']['probe'].update(width=999,height=888)
         if change=='source_handle_record':data['asset']['source_handle']='originals/'+'0'*32+'.png'
         record.write_text(json.dumps(data))
-    if change=='forged_probe':
+    if change in {'forged_probe','mtime'}:
         out=N.export_original(store,handle,'picture');assert tuple(out[0].shape)==(1,11,17,3)
     else:
         with pytest.raises(O.OutletError):N.export_original(store,handle,'picture')

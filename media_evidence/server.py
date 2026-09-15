@@ -1,6 +1,7 @@
 """Local-only media endpoints, with stable public errors and bounded payloads."""
 import asyncio
 import functools
+import hashlib
 from urllib.parse import urlsplit
 from aiohttp import web
 from .contract import ProjectError, parse_project
@@ -81,6 +82,7 @@ def register_media_routes(routes, get_store, get_preset_library):
                 raise MediaError("file_required", "Upload one file in the file field")
             path, handle, name = store.allocate(field.filename)
             count = 0
+            digest = hashlib.sha256()
             with path.open("xb") as output:
                 owned = True
                 while True:
@@ -91,9 +93,10 @@ def register_media_routes(routes, get_store, get_preset_library):
                     if count > min(MAX_UPLOAD, available):
                         raise MediaError("upload_limit", "Upload exceeds the file or storage limit")
                     output.write(chunk)
+                    digest.update(chunk)
             if count == 0 or await reader.next() is not None:
                 raise MediaError("file_required", "Upload exactly one nonempty file per request")
-            asset = await asyncio.to_thread(store.finish_import, path, handle, name)
+            asset = await asyncio.to_thread(store.finish_import, path, handle, name, source_sha256=digest.hexdigest())
             complete = True
             return web.json_response({"ok": True, "asset": asset})
         except MediaError as error:

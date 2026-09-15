@@ -1,6 +1,6 @@
 """Stable track-item bindings and media windows, without file IO or decoders."""
 
-from .contract import ProjectError, normalize_project, seconds_to_frame
+from .contract import SOURCE_MESSAGES, ProjectError, normalize_project, seconds_to_frame
 
 SAMPLE_RATE = 44100
 MAX_OUTPUT_SECONDS = 600
@@ -34,7 +34,13 @@ def require_valid_project(project):
         "missing_audio_link": "已启用视频原声，但缺少绑定音频",
         "no_source_audio": "已启用视频原声，但源文件没有音频",
     }
-    reasons = list(dict.fromkeys(messages.get(error["code"], "工程字段、来源或裁剪关系无效") for error in errors))
+    source_messages = frozenset(SOURCE_MESSAGES.values())
+    reasons = list(dict.fromkeys(
+        error.get("message")
+        if error["code"] == "source_unavailable" and error.get("message") in source_messages
+        else messages.get(error["code"], "工程字段、来源或裁剪关系无效")
+        for error in errors
+    ))
     raise OutletError("素材出口无法执行：" + "；".join(reasons))
 
 

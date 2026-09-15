@@ -7,6 +7,23 @@ from pathlib import Path
 import re
 from .presets import builtin, compatibility, normalize_snapshot, rule_errors
 
+SOURCE_MESSAGES = {
+    "registry_missing": "素材登记文件不可见；云端存储可能未同步，请重新导入",
+    "registry_unreadable": "素材登记文件暂时无法读取，请稍后重试；若持续失败请重新导入",
+    "registry_invalid": "素材登记文件无效或损坏，请重新导入",
+    "source_missing": "素材原文件不可见；云端上传存储可能未同步，请重新导入",
+    "source_unreadable": "素材原文件暂时无法读取，请稍后重试；若持续失败请重新导入",
+    "source_size_changed": "素材原文件大小已改变，请重新导入",
+    "source_content_changed": "素材原文件内容已改变，请重新导入",
+    "source_metadata_changed": "旧素材登记缺少内容摘要且文件时间已改变，请重新导入",
+    "source_unstable": "素材原文件在校验时仍在变化，请稍后重试或重新导入",
+}
+
+
+def source_message(message, fallback):
+    """Return only server-authored source diagnostics; never echo arbitrary text."""
+    return message if message in SOURCE_MESSAGES.values() else fallback
+
 
 SCHEMA = json.loads((Path(__file__).resolve().parents[1] / "schemas" / "zv-media-project-v2.schema.json").read_text(encoding="utf-8"))
 DERIVED_CLIP = {"timeline_out_seconds", "duration_seconds", "source_in_frame", "source_out_frame", "source_frame_count", "project_frame_count", "frame_estimated"}

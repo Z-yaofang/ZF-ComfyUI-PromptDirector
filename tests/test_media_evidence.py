@@ -1,9 +1,13 @@
 import copy
+from concurrent.futures import ThreadPoolExecutor
+import hashlib
 import importlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import sys
+import threading
 
 import pytest
 
@@ -15,6 +19,7 @@ SPEC.loader.exec_module(CORE)
 C = importlib.import_module(SPEC.name + ".contract")
 S = importlib.import_module(SPEC.name + ".storage")
 P = importlib.import_module(SPEC.name + ".presets")
+O = importlib.import_module(SPEC.name + ".outlet")
 
 
 def asset(kind="video", identifier="source"):
@@ -157,6 +162,176 @@ def test_missing_file_and_forged_probe_flagged(tmp_path):
     assert store.canonical(p)["assets"][0]["probe"]["fps"] == 25
     source.write_bytes(b"changed length")  # Different size avoids same-tick Windows mtime resolution.
     assert "source_unavailable" in {e["code"] for e in store.canonical(p)["validation"]["errors"]}
+
+
+def registered_source(store, content=b"fixture", *, with_hash=True):
+    handle = "originals/" + "b"*32 + ".png"
+    source = store.resolve(handle); source.write_bytes(content)
+    trusted = asset("picture", "registered"); trusted["source_handle"] = handle
+    info = source.stat()
+    record = {"asset": trusted, "size": info.st_size, "mtime_ns": info.st_mtime_ns}
+    if with_hash:
+        record["source_sha256"] = hashlib.sha256(content).hexdigest()
+    registry = store.root / "cache" / (source.stem + ".json")
+    registry.write_text(json.dumps(record), encoding="utf-8")
+    return source, handle, trusted, registry
+
+
+def test_finish_import_records_verified_source_sha256(tmp_path, monkeypatch):
+    store = S.MediaStore(tmp_path)
+    path, handle, name = store.allocate("still.png"); content = b"stable-picture-bytes"; path.write_bytes(content)
+    probe = copy.deepcopy(asset("picture")["probe"])
+    monkeypatch.setattr(store, "worker", lambda *_args, **_kwargs: {"kind": "picture", "probe": probe})
+    imported = store.finish_import(path, handle, name, source_sha256=hashlib.sha256(content).hexdigest())
+    record = json.loads((store.root / "cache" / (path.stem + ".json")).read_text(encoding="utf-8"))
+    assert record["source_sha256"] == hashlib.sha256(content).hexdigest()
+    assert store.record(handle) == imported
+    path.write_bytes(b"changed-picture-byte")
+    os.utime(path, ns=(path.stat().st_atime_ns, record["mtime_ns"] + 1000000))
+    with pytest.raises(S.MediaError) as error:
+        store.record(handle)
+    assert error.value.code == "source_unavailable" and error.value.reason == "source_content_changed"
+
+
+@pytest.mark.parametrize("case,reason", [
+    ("registry_missing", "registry_missing"),
+    ("registry_invalid", "registry_invalid"),
+    ("source_missing", "source_missing"),
+    ("source_size_changed", "source_size_changed"),
+    ("source_content_changed", "source_content_changed"),
+    ("legacy_mtime", "source_metadata_changed"),
+])
+def test_source_unavailable_reason_is_precise_and_path_free(tmp_path, case, reason):
+    store = S.MediaStore(tmp_path); source, handle, _trusted, registry = registered_source(store, with_hash=case != "legacy_mtime")
+    if case == "registry_missing": registry.unlink()
+    if case == "registry_invalid": registry.write_text("{broken", encoding="utf-8")
+    if case == "source_missing": source.unlink()
+    if case == "source_size_changed": source.write_bytes(b"longer fixture")
+    if case == "source_content_changed":
+        source.write_bytes(b"changed")
+        os.utime(source, ns=(source.stat().st_atime_ns, source.stat().st_mtime_ns + 1000000))
+    if case == "legacy_mtime": os.utime(source, ns=(source.stat().st_atime_ns, source.stat().st_mtime_ns + 1000000))
+    with pytest.raises(S.MediaError) as error:
+        store.record(handle)
+    assert error.value.code == "source_unavailable" and error.value.reason == reason
+    assert str(tmp_path) not in error.value.message
+
+
+def test_canonical_outlet_keeps_safe_registry_diagnostic(tmp_path):
+    store = S.MediaStore(tmp_path); _source, _handle, trusted, registry = registered_source(store)
+    registry.unlink(); value = C.empty_project(); value["assets"] = [trusted]
+    canonical = store.canonical(value)
+    assert canonical["validation"]["errors"][-1]["code"] == "source_unavailable"
+    with pytest.raises(O.OutletError) as error:
+        O.require_valid_project(canonical)
+    assert "素材登记文件不可见" in str(error.value)
+    assert str(tmp_path) not in str(error.value)
+
+
+def test_mtime_only_change_repeats_across_store_instances_without_registry_write(tmp_path, monkeypatch):
+    store = S.MediaStore(tmp_path); source, handle, trusted, registry = registered_source(store)
+    before = registry.read_bytes(); info = source.stat(); stable = S._stable_sha256; calls = 0; calls_lock = threading.Lock()
+    def counted(path):
+        nonlocal calls
+        with calls_lock: calls += 1
+        return stable(path)
+    monkeypatch.setattr(S, "_stable_sha256", counted)
+    os.utime(source, ns=(info.st_atime_ns, info.st_mtime_ns + 1000000))
+    stores = [S.MediaStore(tmp_path) for _ in range(4)]
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(lambda index: stores[index % len(stores)].record(handle), range(24)))
+    assert results == [trusted] * 24
+    assert calls == 4
+    changed = source.stat(); os.utime(source, ns=(changed.st_atime_ns, changed.st_mtime_ns + 1000000))
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        assert list(pool.map(lambda index: stores[index % len(stores)].record(handle), range(24))) == [trusted] * 24
+    assert calls == 8
+    assert registry.read_bytes() == before
+
+
+def test_hash_validation_interruption_leaves_next_retry_available(tmp_path, monkeypatch):
+    store = S.MediaStore(tmp_path); source, handle, trusted, _registry = registered_source(store)
+    info = source.stat(); os.utime(source, ns=(info.st_atime_ns, info.st_mtime_ns + 1000000))
+    stable = S._stable_sha256; calls = 0
+    def interrupted(path):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise S._source_error("source_unstable")
+        return stable(path)
+    monkeypatch.setattr(S, "_stable_sha256", interrupted)
+    with pytest.raises(S.MediaError) as error:
+        store.record(handle)
+    assert error.value.reason == "source_unstable"
+    assert handle not in store.verified_sources
+    assert store.record(handle) == trusted
+
+
+def test_second_stat_invalidates_first_observation_before_hash(tmp_path, monkeypatch):
+    store = S.MediaStore(tmp_path); source, handle, _trusted, _registry = registered_source(store)
+    info = source.stat(); os.utime(source, ns=(info.st_atime_ns, info.st_mtime_ns + 1000000))
+    original_stat = Path.stat; observed = threading.Event(); count = 0; count_lock = threading.Lock()
+    def watched(path, *args, **kwargs):
+        nonlocal count
+        result = original_stat(path, *args, **kwargs)
+        if path == source:
+            with count_lock:
+                count += 1
+                if count == 1: observed.set()
+        return result
+    monkeypatch.setattr(Path, "stat", watched)
+    store.integrity_lock.acquire()
+    try:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(store.record, handle)
+            assert observed.wait(2)
+            source.write_bytes(b"changed")
+            os.utime(source, ns=(source.stat().st_atime_ns, info.st_mtime_ns + 2000000))
+            store.integrity_lock.release()
+            with pytest.raises(S.MediaError) as error:
+                future.result()
+    finally:
+        if store.integrity_lock.locked(): store.integrity_lock.release()
+    assert count >= 2 and error.value.reason == "source_content_changed"
+    assert handle not in store.verified_sources
+
+
+def test_real_file_change_during_hash_is_unstable(tmp_path, monkeypatch):
+    source = tmp_path / "changing.bin"; source.write_bytes(b"a" * (2 * 1024 * 1024))
+    real_sha256 = hashlib.sha256; hashing = threading.Event(); changed = threading.Event()
+    class BlockingHash:
+        def __init__(self): self.inner = real_sha256()
+        def update(self, chunk):
+            self.inner.update(chunk); hashing.set(); assert changed.wait(2)
+        def hexdigest(self): return self.inner.hexdigest()
+    monkeypatch.setattr(S.hashlib, "sha256", BlockingHash)
+    def mutate():
+        assert hashing.wait(2)
+        with source.open("r+b") as output:
+            output.seek(0); output.write(b"b")
+        changed.set()
+    thread = threading.Thread(target=mutate); thread.start()
+    try:
+        with pytest.raises(S.MediaError) as error:
+            S._stable_sha256(source)
+    finally:
+        changed.set(); thread.join(2)
+    assert not thread.is_alive() and error.value.reason == "source_unstable"
+
+
+def test_verified_source_cache_is_bounded_lru(tmp_path):
+    store = S.MediaStore(tmp_path); first_handle = None
+    for index in range(S.MAX_VERIFIED_SOURCES + 1):
+        handle = f"originals/{index:032x}.png"; first_handle = first_handle or handle
+        source = store.resolve(handle); content = f"media-{index}".encode(); source.write_bytes(content); info = source.stat()
+        trusted = asset("picture", f"asset-{index}"); trusted["source_handle"] = handle
+        record = {"asset": trusted, "size": info.st_size, "mtime_ns": info.st_mtime_ns,
+                  "source_sha256": hashlib.sha256(content).hexdigest()}
+        (store.root / "cache" / (source.stem + ".json")).write_text(json.dumps(record), encoding="utf-8")
+        os.utime(source, ns=(info.st_atime_ns, info.st_mtime_ns + 1000000))
+        assert store.record(handle) == trusted
+    assert len(store.verified_sources) == S.MAX_VERIFIED_SOURCES
+    assert first_handle not in store.verified_sources
 
 
 def test_vfr_is_explicit_estimate():
