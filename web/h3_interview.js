@@ -1,5 +1,8 @@
 import { app } from "/scripts/app.js";
-import { api } from "/scripts/api.js";
+const api = globalThis.comfyAPI?.api?.api ?? {
+  apiURL: path => path,
+  fetchApi: (path, options) => fetch(path, options),
+};
 import { pinDOMWidgetFullWidth } from "./dom_widget_layout.mjs";
 import { mountPresets } from "./h3_interview_presets.mjs";
 import { sampleClipPeaks } from "./media_evidence_core.mjs";
@@ -686,7 +689,7 @@ function attachInterview(node) {
     validationResult = result.validation;
     if (result.mechanical_changed) detectionResult = {errors: ["预设物理接口变化，请检测并对齐素材"]};
     syncForm(); persistDraft(); renderMedia(); updateStatus();
-  });
+  }, api);
 
   const fieldsHost = $(".zv-h3i-fields-host");
   const pendingView = el("details", "zv-h3-pending"); pendingView.hidden = true; fieldsHost.append(pendingView);

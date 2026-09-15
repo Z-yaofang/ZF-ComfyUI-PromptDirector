@@ -1,5 +1,8 @@
 import { app } from "/scripts/app.js";
-import { api } from "/scripts/api.js";
+const api = globalThis.comfyAPI?.api?.api ?? {
+    apiURL: path => path,
+    fetchApi: (path, options) => fetch(path, options),
+};
 import * as edit from "./media_evidence_core.mjs";
 import * as presets from "./media_evidence_presets.mjs";
 import * as outlets from "./media_evidence_outlets.mjs?v=h3-v2-07";

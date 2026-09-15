@@ -1,9 +1,7 @@
-import { api } from "/scripts/api.js";
-
 const ROOT = "/zf-prompt-director/h3-interview/presets";
 const element = (tag, text = "") => { const node = document.createElement(tag); node.textContent = text; return node; };
 
-export function mountPresets(host, readCurrent, applyCurrent) {
+export function mountPresets(host, readCurrent, applyCurrent, api) {
   const box = element("section"); box.className = "zv-h3-presets";
   const title = element("strong", "我的采访预设");
   const name = element("input"); name.name = "preset-name"; name.placeholder = "为当前填表命名"; name.maxLength = 120;

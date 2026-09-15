@@ -31,7 +31,9 @@ const check = (condition, message) => { assert(condition, message); assertions++
 const deep = (actual, expected) => { assert.deepEqual(actual, expected); assertions++; };
 const html = `<!doctype html><meta charset="utf-8"><title>H3 V2 UI smoke — neutral fixtures</title><style>
 body{margin:20px;background:#0d131c;color:#fff;font-family:system-ui}#outside{position:fixed;right:18px;top:18px;z-index:3}#mount{width:1260px;height:1000px}
-</style><button id="outside">画布空白</button><div id="mount"></div><script type="module">
+</style><button id="outside">画布空白</button><div id="mount"></div><script>
+window.comfyAPI={api:{api:{apiURL:path=>path,fetchApi:(path,options)=>fetch(path,options)}}};
+</script><script type="module">
 import { app } from "/scripts/app.js"; import * as h3 from "/interview.js"; window.h3=h3;
 window.fixture=${JSON.stringify(fixture)}; window.deskEvents=new EventTarget();
 window.install=function(state=h3.emptyState(), project=fixture, savedGraph=null, canvasSpec=null){
@@ -106,7 +108,7 @@ await page.route("**/*", async route => {
       }
       return route.fulfill({ contentType,headers, body: bytes });
     }
-    const content = path === "/" ? html : path === "/interview.js" ? source : path === "/h3_interview.css" ? css : path === "/dom_widget_layout.mjs" ? helper : path === "/h3_interview_presets.mjs" ? presetModule : path === "/scripts/app.js" ? "export const app={extensions:[],registerExtension(entry){this.extensions.push(entry)}};" : path === "/scripts/api.js" ? "export const api={apiURL:path=>path,fetchApi:(path,options)=>fetch(path,options)};" : null;
+    const content = path === "/" ? html : path === "/interview.js" ? source : path === "/h3_interview.css" ? css : path === "/dom_widget_layout.mjs" ? helper : path === "/h3_interview_presets.mjs" ? presetModule : path === "/scripts/app.js" ? "export const app={extensions:[],registerExtension(entry){this.extensions.push(entry)}};" : null;
     if(path === "/media_evidence_core.mjs")return route.fulfill({contentType:"application/javascript",body:mediaCore});
     if(path === "/media_evidence_presets.mjs")return route.fulfill({contentType:"application/javascript",body:mediaPresets});
     if(path === "/media_processing_presets.json")return route.fulfill({contentType:"application/json",body:mediaDefinitions});
