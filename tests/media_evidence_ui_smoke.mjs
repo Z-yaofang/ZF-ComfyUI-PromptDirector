@@ -65,8 +65,49 @@ try {
         checks++;
     }
     await page.unroute(normalizeRoute);
+    const recoveryBefore=await state(),recoveryShape=value=>({assets:value.assets.map(a=>[a.asset_id,a.source_handle]),pictures:value.picture_track.map(a=>a.item_id),videos:value.video_track.map(a=>a.clip_id),audios:value.audio_track.map(a=>a.clip_id)});
+    let normalizeCalls=0,releaseHeld,markHeld;
+    const heldStarted=new Promise(resolve=>markHeld=resolve),heldGate=new Promise(resolve=>releaseHeld=resolve);
+    await page.route(normalizeRoute,async route=>{
+        const response=await route.fetch(),data=await response.json();normalizeCalls++;
+        if(normalizeCalls===1){const index=data.project.assets.findIndex(a=>a.kind==='video');data.project.validation.errors.push({path:`/assets/${index}`,code:'source_unavailable',message:'素材登记文件不可见；云端存储可能未同步，请重新导入'});}
+        if(normalizeCalls===3){markHeld();await heldGate;}
+        await route.fulfill({response,json:data});
+    });
+    await page.getByRole('button',{name:'复测素材',exact:true}).click();
+    await page.waitForFunction(()=>document.querySelector('.zf-med-status').textContent.includes('云端存储可能未同步'));
+    await page.evaluate(()=>{const player=document.querySelector('.zf-med-screen video');for(const type of ['loadedmetadata','loadeddata','canplay','seeked','waiting','canplay'])player?.dispatchEvent(new Event(type));});
+    await page.waitForTimeout(250);assert.equal(normalizeCalls,1);
+    await page.getByRole('button',{name:'复测素材',exact:true}).click();
+    await page.waitForFunction(()=>!deskNode.zfMediaDesk.getProject().validation.errors.some(error=>error.code==='source_unavailable'));
+    assert.equal(normalizeCalls,2);assert.deepEqual(recoveryShape(await state()),recoveryShape(recoveryBefore));checks++;
+
+    await page.getByRole('button',{name:'复测素材',exact:true}).click();
+    await heldStarted;
+    await page.evaluate(()=>{const button=document.querySelector('[data-action="revalidate"]');button.click();button.click();});
+    await page.waitForTimeout(100);assert.equal(normalizeCalls,3);
+    await page.evaluate(()=>{const project=deskNode.zfMediaDesk.getProject();project.assets[0].name='stale-guard-name';deskNode.widgets[0].value=JSON.stringify(project);deskNode.zfMediaDesk.restore();});
+    await page.waitForFunction(()=>deskNode.zfMediaDesk.getProject().assets[0].name==='stale-guard-name');
+    for(let index=0;index<80&&normalizeCalls<4;index++)await page.waitForTimeout(25);
+    assert.equal(normalizeCalls,4);releaseHeld();
+    await page.waitForFunction(()=>!document.querySelector('[data-action="revalidate"]').disabled);
+    assert.equal((await state()).assets[0].name,'stale-guard-name');checks++;
+    await page.evaluate(project=>{deskNode.widgets[0].value=JSON.stringify(project);deskNode.zfMediaDesk.restore();},recoveryBefore);await synced();
+    await page.unroute(normalizeRoute);
+    const failedProxy='**/zf-media-evidence/preview?*variant=proxy';let failedProxyRequests=0;
+    await page.route(failedProxy,route=>{failedProxyRequests++;return route.fulfill({status:503,contentType:'application/json',body:'{"ok":false}'});});
+    await clickAsset('generated-picture');await clickAsset('generated-video');
+    await page.waitForFunction(()=>document.querySelector('.zf-med-status').textContent.includes('预览解码失败'));
+    await page.evaluate(()=>{const player=document.querySelector('.zf-med-screen video');for(const type of ['error','waiting','stalled','canplay'])player?.dispatchEvent(new Event(type));});await page.waitForTimeout(250);
+    assert.equal(failedProxyRequests,1);assert(!(await state()).validation.errors.some(error=>error.code==='source_unavailable'));checks++;
+    await page.unroute(failedProxy);await clickAsset('generated-picture');await clickAsset('generated-video');
     await page.waitForFunction(()=>document.querySelector('.zf-med-screen video')?.readyState>=2);
-    await page.getByRole('button',{name:'播放时间线',exact:true}).click();await page.waitForFunction(()=>document.querySelector('.zf-med-screen video')?.currentTime>.15);await page.getByRole('button',{name:'暂停时间线',exact:true}).click();checks++;
+    await clickClip(vid);await page.waitForFunction(()=>document.querySelector('.zf-med-screen video')?.readyState>=2);
+    await page.getByRole('button',{name:'播放时间线',exact:true}).click();await page.waitForFunction(()=>document.querySelector('.zf-med-screen video')?.currentTime>.15);
+    await page.evaluate(()=>{const video=document.querySelector('.zf-med-screen video');Object.defineProperty(video,'readyState',{configurable:true,get:()=>0});video.dispatchEvent(new Event('waiting'));});const frozen=await page.evaluate(()=>deskNode.properties.zf_media_desk_view.playhead);
+    await page.waitForTimeout(180);assert(Math.abs(await page.evaluate(()=>deskNode.properties.zf_media_desk_view.playhead)-frozen)<.02);assert((await page.getByRole('button',{name:/加载中/}).textContent()).includes('加载中'));
+    await page.evaluate(()=>{const video=document.querySelector('.zf-med-screen video');delete video.readyState;video.dispatchEvent(new Event('canplay'));});await page.waitForFunction(()=>document.querySelector('[data-action=play]').textContent==='暂停时间线');await page.waitForFunction(value=>deskNode.properties.zf_media_desk_view.playhead>value+.08,frozen);
+    await page.evaluate(()=>{const button=document.querySelector('[data-action=play]');if(button.textContent!=='播放时间线')button.click();});await page.waitForFunction(()=>document.querySelector('[data-action=play]').textContent==='播放时间线');checks++;
     const farRuler=await page.locator('.zf-med-ruler').boundingBox();await page.mouse.click(farRuler.x+350,farRuler.y+32);
     await page.waitForSelector('.zf-med-black');assert.equal(await page.locator('.zf-med-screen video').count(),0);
     await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
