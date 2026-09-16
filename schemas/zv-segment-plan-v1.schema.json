@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ZV Long Video Segment Plan V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "plan_id", "revision", "mode", "fps", "range_start_frame", "target_frame_count", "requested_overlap_frames", "effective_overlap_frames", "overlap_alignment", "source_fingerprint", "snapshot_fingerprint", "upstream_fingerprint", "stale", "media_project", "source_tracks", "segments", "validation"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "plan_id": {"type": "string", "pattern": "^segment-plan-[0-9a-f]{16}$"},
+    "revision": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "mode": {"enum": ["source_auto", "source_manual", "generation_count", "generation_manual"]},
+    "fps": {"type": "integer", "minimum": 1, "maximum": 240},
+    "range_start_frame": {"type": "integer", "minimum": 0},
+    "target_frame_count": {"type": "integer", "minimum": 0},
+    "requested_overlap_frames": {"type": "integer", "minimum": 0},
+    "effective_overlap_frames": {"type": "integer", "minimum": 0},
+    "overlap_alignment": {"enum": ["exact", "h3_guide"]},
+    "source_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "snapshot_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "upstream_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "stale": {"type": "boolean"},
+    "media_project": {"type": "object"},
+    "source_tracks": {"$ref": "#/$defs/source_tracks"},
+    "segments": {"type": "array", "maxItems": 4096, "items": {"$ref": "#/$defs/segment"}},
+    "validation": {"$ref": "#/$defs/validation"}
+  },
+  "$defs": {
+    "picture": {
+      "type": "object", "additionalProperties": false,
+      "required": ["item_id", "asset_id", "order"],
+      "properties": {"item_id": {"type": "string"}, "asset_id": {"type": "string"}, "order": {"type": "integer", "minimum": 1}}
+    },
+    "track": {
+      "type": "object", "additionalProperties": true,
+      "required": ["clip_id", "asset_id", "timeline_in_frame", "timeline_out_frame", "source_in_frame", "source_out_frame", "source_in_seconds", "source_out_seconds"],
+      "properties": {
+        "clip_id": {"type": "string"}, "asset_id": {"type": "string"},
+        "timeline_in_frame": {"type": "integer", "minimum": 0}, "timeline_out_frame": {"type": "integer", "minimum": 0},
+        "source_in_frame": {"type": "integer", "minimum": 0}, "source_out_frame": {"type": "integer", "minimum": 0},
+        "source_in_seconds": {"type": "number", "minimum": 0}, "source_out_seconds": {"type": "number", "minimum": 0}
+      }
+    },
+    "source_tracks": {
+      "type": "object", "additionalProperties": false, "required": ["pictures", "video", "audio"],
+      "properties": {
+        "pictures": {"type": "array", "items": {"$ref": "#/$defs/picture"}},
+        "video": {"type": "array", "items": {"$ref": "#/$defs/track"}},
+        "audio": {"type": "array", "items": {"$ref": "#/$defs/track"}}
+      }
+    },
+    "slice": {
+      "type": "object", "additionalProperties": false,
+      "required": ["clip_id", "asset_id", "timeline_in_frame", "timeline_out_frame", "segment_in_frame", "segment_out_frame", "source_in_frame", "source_out_frame", "source_in_seconds", "source_out_seconds"],
+      "properties": {
+        "clip_id": {"type": "string"}, "asset_id": {"type": "string"},
+        "timeline_in_frame": {"type": "integer", "minimum": 0}, "timeline_out_frame": {"type": "integer", "minimum": 0},
+        "segment_in_frame": {"type": "integer", "minimum": 0}, "segment_out_frame": {"type": "integer", "minimum": 0},
+        "source_in_frame": {"type": "integer", "minimum": 0}, "source_out_frame": {"type": "integer", "minimum": 0},
+        "source_in_seconds": {"type": "number", "minimum": 0}, "source_out_seconds": {"type": "number", "minimum": 0}
+      }
+    },
+    "source_slices": {
+      "type": "object", "additionalProperties": false, "required": ["pictures", "video", "audio"],
+      "properties": {
+        "pictures": {"type": "array", "items": {"$ref": "#/$defs/picture"}},
+        "video": {"type": "array", "items": {"$ref": "#/$defs/slice"}},
+        "audio": {"type": "array", "items": {"$ref": "#/$defs/slice"}}
+      }
+    },
+    "model_padding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["adapter", "requested_frames", "model_length", "predicted_final_frames", "actual_final_frames"],
+      "properties": {
+        "adapter": {"enum": ["none", "h3"]},
+        "requested_frames": {"type": "integer", "minimum": 0}, "model_length": {"type": ["integer", "null"], "minimum": 5},
+        "predicted_final_frames": {"type": ["integer", "null"], "minimum": 5}, "actual_final_frames": {"type": ["integer", "null"], "minimum": 0}
+      }
+    },
+    "segment": {
+      "type": "object", "additionalProperties": false,
+      "required": ["segment_id", "order", "start_frame", "end_frame", "frame_count", "overlap_frames", "seam", "output_start_frame", "output_end_frame", "output_frame_count", "tail_padding_frames", "model_padding", "source_slices"],
+      "properties": {
+        "segment_id": {"type": "string", "pattern": "^[A-Za-z0-9_.-]{1,96}$"}, "order": {"type": "integer", "minimum": 1},
+        "start_frame": {"type": "integer", "minimum": 0}, "end_frame": {"type": "integer", "minimum": 0}, "frame_count": {"type": "integer", "minimum": 0},
+        "overlap_frames": {"type": "integer", "minimum": 0}, "seam": {"enum": ["first", "guide", "hard_cut"]},
+        "output_start_frame": {"type": "integer", "minimum": 0}, "output_end_frame": {"type": "integer", "minimum": 0}, "output_frame_count": {"type": "integer", "minimum": 0},
+        "tail_padding_frames": {"type": "integer", "minimum": 0}, "model_padding": {"$ref": "#/$defs/model_padding"}, "source_slices": {"$ref": "#/$defs/source_slices"}
+      }
+    },
+    "issue": {
+      "type": "object", "additionalProperties": false, "required": ["path", "code", "message"],
+      "properties": {"path": {"type": "string"}, "code": {"type": "string"}, "message": {"type": "string"}}
+    },
+    "validation": {
+      "type": "object", "additionalProperties": false, "required": ["ready", "errors", "warnings"],
+      "properties": {"ready": {"type": "boolean"}, "errors": {"type": "array", "items": {"$ref": "#/$defs/issue"}}, "warnings": {"type": "array", "items": {"$ref": "#/$defs/issue"}}}
+    }
+  }
+}

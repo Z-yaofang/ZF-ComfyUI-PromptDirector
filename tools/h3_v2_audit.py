@@ -24,7 +24,7 @@ COMFY = PLUGIN.parents[1]
 EXPRESSION = "max(5, round(a)) + (5 - (max(5, round(a)) % 17)) % 17"
 ROOT_FILES = ("__init__.py","nodes.py","server.py","flow_nodes.py","local_multimodal.py","music_nodes.py","portrait_nodes.py")
 DATA_FILES = ("purposes.json","visual_methods.json","default_combinations.json","writing_grammar.json","purpose_visual_recommendations.json","portrait_generator_v12.json")
-SCHEMA_FILES = ("h3-focus-plan.schema.json","zv-media-project-v2.schema.json","zv-processing-preset-v1.schema.json")
+SCHEMA_FILES = ("h3-focus-plan.schema.json","zv-media-project-v2.schema.json","zv-processing-preset-v1.schema.json","zv-segment-plan-v1.schema.json")
 OUTPUT_NAMES = ("H3_V2_03_RUNTIME_MANIFEST.json", "H3_V2_03_WORKFLOW_AUDIT.json", "H3_V2_03_PREPARATION_WORKFLOW.json", "H3_V2_03_SHARE_CHECK.json", "H3_V2_03_COPY_REGISTRATION.json")
 
 
@@ -77,7 +77,7 @@ def preflight(workflow, output_dir, copy_to=None):
 def runtime_files(root=PLUGIN):
     files=[root/name for name in ROOT_FILES]+[root/"data"/name for name in DATA_FILES]
     files.extend(root/"schemas"/name for name in SCHEMA_FILES)
-    for folder in ("h3_focus","media_evidence"):
+    for folder in ("h3_focus","media_evidence","long_video"):
         files.extend(path for path in (root/folder).iterdir() if path.suffix in (".py",".json"))
     files.extend(path for path in (root/"web").iterdir() if path.suffix in (".js",".mjs",".css",".json") and path.name!="zfi_reroute.js")
     catalog=json.loads((root/"data/visual_methods.json").read_text(encoding="utf-8"))
@@ -120,7 +120,13 @@ def copied_registration(destination, comfy=COMFY):
     try:
         spec=importlib.util.spec_from_file_location(name,destination/"__init__.py",submodule_search_locations=[str(destination)])
         plugin=importlib.util.module_from_spec(spec);sys.modules[name]=plugin;spec.loader.exec_module(plugin)
-        required=("ZVUniversalMediaEvidenceDesk","ZVProcessingWindowOutlet","ZVH3InterviewForm","ZVH3ReferenceOutlet","ZFPromptDirectorLocalLLM","ZVOriginalPictureOutlet","ZVOriginalVideoOutlet","ZVOriginalAudioOutlet")
+        required=(
+            "ZVUniversalMediaEvidenceDesk","ZVProcessingWindowOutlet","ZVH3InterviewForm","ZVH3ReferenceOutlet",
+            "ZFPromptDirectorLocalLLM","ZVOriginalPictureOutlet","ZVOriginalVideoOutlet","ZVOriginalAudioOutlet",
+            "ZVLongVideoSegmentDesk","ZVSegmentInterview","ZVSegmentVideoMaskSource","ZVMaskedSegmentBundle",
+            "ZVSegmentMaskSlice","ZVLongVideoExecutionSetup","ZVLongVideoExecutionEntry",
+            "ZVLongVideoSegmentRecorder","ZVLongVideoExecutionEnd",
+        )
         for key in required:
             cls=plugin.NODE_CLASS_MAPPINGS[key]
             assert cls.__module__.startswith(name+".")
@@ -130,6 +136,8 @@ def copied_registration(destination, comfy=COMFY):
         routes=[{"method":route.method,"path":route.path} for route in server.PromptServer.instance.routes]
         assert any(route["path"]=="/zf-prompt-director/h3-interview/plan" for route in routes)
         assert any(route["path"].endswith("/presets/{preset_id}/apply") for route in routes)
+        assert any(route["path"]=="/zf-prompt-director/long-video/plan" for route in routes)
+        assert any(route["path"]=="/zf-prompt-director/long-video/interview" for route in routes)
         value={"scope":"copied actual plugin __init__ + real classes + aiohttp route registration; server and core graph boot adapters; no Comfy GPU boot","core_execution_blocker_sha256":sha(graph_path),"registered_classes":sorted(plugin.NODE_CLASS_MAPPINGS),"routes":routes,"web_directory":plugin.WEB_DIRECTORY,"passed":True,"full_comfy_service_started":False}
         return value,plugin.NODE_CLASS_MAPPINGS
     finally:
@@ -217,7 +225,7 @@ def audit_workflow(path):
 
 
 def skeleton(mappings):
-    schemas=[schema(COMFY/"comfy_extras/nodes_resolution.py","ResolutionSelector"),schema(COMFY/"comfy_extras/nodes_math.py","ComfyMathExpression"),schema(COMFY/"custom_nodes/comfyui-minimax-h3-audio-T8/nodes.py","MiniMaxH3AudioConditioningT8")]
+    schemas=[schema(COMFY/"comfy_extras/nodes_resolution.py","ResolutionSelector"),schema(COMFY/"comfy_extras/nodes_math.py","ComfyMathExpression"),schema(COMFY/"custom_nodes/comfyui-minimax-h3-audio-T8/h3_t8/nodes.py","MiniMaxH3AudioConditioningT8")]
     t8=schemas[2];assert t8["outputs"]==["CONDITIONING","LATENT","AUDIO","STRING","STRING","STRING"]
     nodes=[];links=[]
     def add(node_id,node_type,title,inputs,outputs,widgets):

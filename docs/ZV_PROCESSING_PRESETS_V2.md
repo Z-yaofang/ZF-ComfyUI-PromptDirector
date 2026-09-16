@@ -27,11 +27,7 @@ snapshot 包含 `name`、`description`、`strategy`（`single_window` / `auto_se
 2. `builtin.minimax-h3.single` / MiniMax H3 · 单段生成：24 fps，48–360 帧，最长 15 秒，起止对齐目标帧网格。
 3. `builtin.minimax-h3.segmented` v2 / MiniMax H3 · 长参考动作迁移（自动分段）：总任务范围不另设模型时长上限；每段 24 fps、48–360 帧、2–15 秒。参考初始请求重叠为 48 帧，采用 `h3_guide` 得到实际 39 帧，步长为 321 帧。48 是可调整的参考默认值，不是 H3 固定能力；应依据稳定动作区域选择，最终以导演台显示的实际 `GUIDE N帧` 为准。兼容性计算范围是否能由合法分段覆盖，并显示预计段数；尚未执行分段，也不表示 H3 单次可生成无限时长。
 
-H3 长参考重叠语义依据本地 TimelineDirector：
-
-- [长参考节点默认请求 48 帧](E:/AI_Models/ComfyUI-TE/ComfyUI/custom_nodes/ComfyUI-MiniMaxH3-TimelineDirector/minimax_h3_finite_segments.py:378)，[先派生实际重叠，再计算步长和段数](E:/AI_Models/ComfyUI-TE/ComfyUI/custom_nodes/ComfyUI-MiniMaxH3-TimelineDirector/minimax_h3_finite_segments.py:166)。
-- [H3 Guide 合法帧数算法](E:/AI_Models/ComfyUI-TE/ComfyUI/custom_nodes/ComfyUI-MiniMaxH3-TimelineDirector/experimental_latent_guide.py:35)以及[长参考文档中的请求值与实际推进规则](E:/AI_Models/ComfyUI-TE/ComfyUI/custom_nodes/ComfyUI-MiniMaxH3-TimelineDirector/docs/LONG_REFERENCE_AUTO_SEGMENT_CN.md:35)。
-- [长视频指南](E:/AI_Models/ComfyUI-TE/ComfyUI/custom_nodes/ComfyUI-MiniMaxH3-TimelineDirector/docs/AGENT_LONG_VIDEO_GUIDE_CN.md:87)要求按稳定、可辨识的动作区选择重叠，不机械固定，并以实际 GUIDE 帧数为最终依据。
+H3 长参考重叠语义由本仓库的预设规则与长视频计划器共同实现：预设保存请求值和 `h3_guide` 策略，`long_video/plan.py` 派生合法重叠、步长、段数及短尾回摆。操作时应按稳定、可辨识的动作区选择重叠，并以分段台显示的实际 Guide 帧数为准；参见[长视频测试版指南](LONG_VIDEO_V1_GUIDE.md)。
 
 ## 工程校验与兼容性
 

@@ -14,6 +14,17 @@ from .music_nodes import ZFMusic3PromptDirector, ZFMusic3ResponseParser
 from .portrait_nodes import ZIPortraitPromptGenerator
 from .h3_focus.node import ZVH3FocusCompiler, ZVH3InterviewForm
 from .h3_focus.outlet_node import ZVH3ReferenceOutlet
+from .long_video.plan_node import ZVLongVideoSegmentDesk
+from .long_video.interview import ZVSegmentInterview
+from .long_video.masks import (
+    ZVH3MaskedFrameCompose,
+    ZVH3MaskedLatentRestore,
+    ZVH3MaskedSegmentLatent,
+    ZVMaskedSegmentBundle,
+    ZVSegmentMaskSlice,
+    ZVSegmentVideoMaskSource,
+)
+from .long_video.execution_nodes import ZVLongVideoExecutionEnd, ZVLongVideoExecutionEntry, ZVLongVideoExecutionSetup, ZVLongVideoSegmentRecorder
 from .media_evidence.node import ZVUniversalMediaEvidenceDesk
 from .media_evidence.outlet_nodes import ZVPictureOutlet, ZVVideoOutlet, ZVAudioOutlet, ZVTimelineAudioOutlet, ZVProcessingWindowOutlet
 from .media_evidence.original_nodes import ZVOriginalPictureOutlet, ZVOriginalVideoOutlet, ZVOriginalAudioOutlet
@@ -1613,6 +1624,18 @@ NODE_CLASS_MAPPINGS = {
     "ZVH3FocusCompiler": ZVH3FocusCompiler,
     "ZVH3InterviewForm": ZVH3InterviewForm,
     "ZVH3ReferenceOutlet": ZVH3ReferenceOutlet,
+    "ZVLongVideoSegmentDesk": ZVLongVideoSegmentDesk,
+    "ZVSegmentInterview": ZVSegmentInterview,
+    "ZVSegmentVideoMaskSource": ZVSegmentVideoMaskSource,
+    "ZVMaskedSegmentBundle": ZVMaskedSegmentBundle,
+    "ZVSegmentMaskSlice": ZVSegmentMaskSlice,
+    "ZVH3MaskedSegmentLatent": ZVH3MaskedSegmentLatent,
+    "ZVH3MaskedLatentRestore": ZVH3MaskedLatentRestore,
+    "ZVH3MaskedFrameCompose": ZVH3MaskedFrameCompose,
+    "ZVLongVideoExecutionSetup": ZVLongVideoExecutionSetup,
+    "ZVLongVideoExecutionEntry": ZVLongVideoExecutionEntry,
+    "ZVLongVideoSegmentRecorder": ZVLongVideoSegmentRecorder,
+    "ZVLongVideoExecutionEnd": ZVLongVideoExecutionEnd,
     "ZFPromptDirectorAnyFilter": ZFPromptDirectorAnyFilter,
     "ZFPromptDirectorMultiTextSelector": ZFPromptDirectorMultiTextSelector,
     "ZFPromptDirectorLocalLLM": ZFPromptDirectorLocalLLM,
@@ -1648,6 +1671,18 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ZVH3FocusCompiler": "ZV H3 结构化计划编译器（高级）",
     "ZVH3InterviewForm": "ZV H3 基础采访表",
     "ZVH3ReferenceOutlet": "ZV H3 素材对齐出口（官方容量）",
+    "ZVLongVideoSegmentDesk": "ZV 长视频分段台",
+    "ZVSegmentInterview": "ZV 分段采访表",
+    "ZVSegmentVideoMaskSource": "ZV 遮罩源视频",
+    "ZVMaskedSegmentBundle": "ZV 外接 MASK 分段绑定",
+    "ZVSegmentMaskSlice": "ZV 当前分段 MASK",
+    "ZVH3MaskedSegmentLatent": "ZV H3 蒙版分段 Latent",
+    "ZVH3MaskedLatentRestore": "ZV H3 HIGH 蒙版恢复",
+    "ZVH3MaskedFrameCompose": "ZV H3 蒙版像素回贴",
+    "ZVLongVideoExecutionSetup": "ZV 长视频执行准备",
+    "ZVLongVideoExecutionEntry": "ZV 当前分段执行入口",
+    "ZVLongVideoSegmentRecorder": "ZV 分段结果落盘",
+    "ZVLongVideoExecutionEnd": "ZV 长视频精确拼接",
     "ZFPromptDirectorAnyFilter": "ZF任意过滤器",
     "ZFPromptDirectorMultiTextSelector": "ZF文本动态多路点选",
     "ZFPromptDirectorLocalLLM": "ZF本地多模态指令",

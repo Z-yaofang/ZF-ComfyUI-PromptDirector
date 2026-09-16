@@ -138,7 +138,11 @@ def test_consecutive_copied_registrations_have_fresh_routes_and_clean_only_owned
         assert proof['backend_fixed_hub_wiring_errors'] == []
     assert names[0] != names[1]
     assert results[0]['registered_classes'] == results[1]['registered_classes']
-    assert results[0]['routes'] == results[1]['routes'] and len(results[0]['routes']) == 21
+    assert results[0]['routes'] == results[1]['routes'] and len(results[0]['routes']) == 23
+    assert {row['path'] for row in results[0]['routes']} >= {
+        '/zf-prompt-director/long-video/plan',
+        '/zf-prompt-director/long-video/interview',
+    }
 
 
 def test_consecutive_real_main_calls_register_consistent_outputs(audit, tmp_path):
