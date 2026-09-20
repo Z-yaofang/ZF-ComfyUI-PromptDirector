@@ -69,6 +69,8 @@ The diagram above shows the current local-model connection for the director work
 
 The H3/media implementation is included in this repository. The media desk now has a separate **Original sources** output in addition to its two existing project outputs. **发送原素材** creates a connected image, video or audio outlet for the complete pool asset, without timeline trimming, H3 alignment or interview validation. Video uses native `VIDEO`; its source-path output can also feed a compatible path-based loader. See [source binding](docs/H3_V2_07_SOURCE_BINDING.md) and [cloud test preparation](docs/CLOUD_TESTING.md). Restart ComfyUI and refresh the frontend after updating. Cloud GPU validation is still pending.
 
+The repository also includes test/beta [H3 long-video workflows](docs/LONG_VIDEO_GUIDE.md) with ordinary and C1 MASK examples. They depend on the current MiniMax H3 Audio T8 LOW/HIGH dual-clock graph and have not yet been validated on RunningHub.
+
 The ZV media desk also accepts optional `width` / `height` inputs. Connect the actual generation canvas once and every downstream video outlet inherits it, resizing while decoding instead of materializing a source-resolution batch first. For general workflows, select a track item and use its single explicit action, such as **发送图片6 / 发送视频1 / 发送音频1**. This creates a direct outlet bound to that item's stable ID; an existing outlet is reused and its output can fan out to any number of downstream nodes. Sending changes only the graph and does not queue generation or decode media.
 
 

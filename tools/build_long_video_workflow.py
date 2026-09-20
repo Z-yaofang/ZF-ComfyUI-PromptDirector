@@ -194,26 +194,28 @@ def _rewrite_notes(nodes, *, mask_mode=False):
             "2. 到分段台点击获取三轨。自动源分段会按素材时长计算段数；也可切换手工源分段逐段调整。\n\n"
             "3. 检查每段范围、重叠与稳定 segment_id。H3 每次调用仍遵守单次参考和生成窗口限制；整条长视频不受单次 15 秒上限约束。\n\n"
             "4. 到分段采访表填写全局要求和逐段要求，点击检测并对齐全部分段。修改素材、范围、用途或文字后必须重新对齐。\n\n"
-            "5. 确认执行计划 ready 后运行。有限循环每次只生成一段，上一段尾部 guide 从磁盘送入下一段。\n\n"
+            "5. 确认执行计划 ready 后运行。有限循环每次只生成一段；只有 guide 接缝才从磁盘读取上一段的实际尾帧和同步音频。hard_cut 不读取上一段尾部。\n\n"
             "6. 执行终点按全局帧钟裁掉重叠和模型补帧，再输出完整 native VIDEO。",
         ),
         (
             "② 运行前检查｜分段与循环",
             "• source_auto 的“段数”由素材时长、单段帧数和重叠自动计算，界面中的生成段数只用于 generation_count。\n\n"
             "• H3 Guide 重叠必须是 1 帧或 5+17k 帧；推荐保留“H3 衔接帧对齐”。\n\n"
+            "• 工作流依赖当前 T8 的 LOW/HIGH 双时钟链：两路 MiniMaxH3AudioConditioningT8 和两路 MiniMaxH3AddGuide。Guide 是独立的首尾音视频引导，不占普通参考图/视频/音频端口。\n\n"
+            "• 分段 LLM 只收到上一段衔接范围的结构化素材事实，不会看到上一段实际尾帧或音频；独立反推阶段负责解释连续性，实际 Guide 由执行节点和 AddGuide 接线处理。\n\n"
             "• Start Loop 已固定 cache_iterations=false，End Loop 已固定 accumulate=false，避免缓存旧段或累积全分辨率张量。\n\n"
             "• Recorder 的 final_audio 是 drive/reuse 内容优先口；独立参考音频不走此口。没有复用音频时回退 generated_audio。两支在选定后统一重采样为 44100 Hz/2 ch，再按全局帧时钟裁切；缺失音频补同钟静音，超过 2 声道会明确拒绝。\n\n"
             "• 若末段真实参考过短，自动分段会向前回摆边界；仍不足 48 帧时会明确阻断。",
         ),
         (
             "③ 验证边界｜先看再跑",
-            "普通分段链已通过隔离 H3 GPU 双段实跑：124+76=200 帧，39 帧 Guide，44.1 kHz 双声道音频连续。\n\n"
+            "普通分段机械链已通过历史隔离 H3 GPU 双段实跑：124+76=200 帧，39 帧 Guide，44.1 kHz 双声道音频连续。当前工作流仍是测试版，尚未在 RunningHub 验证；外部 T8 节点是否实际消费 Guide 必须以目标环境的运行结果为准。\n\n"
             + (
                 "本 C1 支路已完成隔离 GPU 全黑、全白和半幅双段验收。冻结源 IMAGE、实际 MASK 与原声按当前分段接入 H3 nested AV latent；LOW→HIGH 边界恢复同一 1x 源 latent 与目标网格 MASK，解码后按像素回贴黑区源画面，Recorder 只接回贴后的画面与逻辑 final_audio。\n\n"
                 if mask_mode else
                 "下方蒙版支路只演示冻结源时钟、标准 MASK 绑定与逐段取片协议；它没有接入当前普通生成路径。需要实际 H3 蒙版 latent 时请使用独立 C1 蒙版工作流。\n\n"
             )
-            + "以上是历史机械链验收；当前采访原稿 → 素材理解 → 中文意图 → H3 提示词链仍需真实模型复测。ImageToMask 只是全帧同几何接口示例，不能代替 SAM3、SeC 或手绘遮罩。",
+            + "以上是历史机械链验收；当前采访原稿 → 素材理解 → 中文意图 → H3 提示词链仍需真实模型复测。ImageToMask 只是全帧同几何接口示例，不能代替 SAM3、SeC 或手绘遮罩。SAM3、SeC 是外部依赖，未随插件或示例打包；当前 C1 只支持整次运行共享同一 raw MASK、同一来源/采样指纹和 LOW/HIGH 同画布 1x。",
         ),
     ]
     for node, (title, text) in zip(notes, content):
@@ -548,6 +550,10 @@ def build(workflow, *, mask_mode=False):
     extra["workflow_title"] = "H3焦点访谈 长视频蒙版" if mask_mode else "H3焦点访谈 长视频分段"
     extra["zv_long_video"] = {
         "version": 1,
+        "status": "test/beta; not verified on RunningHub",
+        "dependencies": "current MiniMax H3 Audio T8 LOW/HIGH dual-clock workflow with MiniMaxH3AddGuide on both branches",
+        "guide_contract": "guide seams load the prior segment's actual tail; hard_cut seams do not; guide is separate from ordinary reference ports",
+        "llm_continuity": "structured continuity metadata only; prior frames/audio are applied by execution nodes and external AddGuide nodes",
         "verification": (
             "isolated H3 GPU C1 black/white/half-mask acceptance at 256x416, including a two-segment 200-frame run"
             if mask_mode else

@@ -242,6 +242,20 @@ def test_canonical_outlet_keeps_safe_registry_diagnostic(tmp_path):
     assert str(tmp_path) not in str(error.value)
 
 
+def test_canonical_recovers_after_registry_becomes_visible_without_changing_identity_or_order(tmp_path):
+    store = S.MediaStore(tmp_path); _source, _handle, trusted, registry = registered_source(store)
+    registry_bytes = registry.read_bytes(); value = C.empty_project(); value["assets"] = [trusted]
+    value["picture_track"] = [{"item_id": "picture-a", "asset_id": trusted["asset_id"], "order": 1}, {"item_id": "picture-b", "asset_id": trusted["asset_id"], "order": 2}]
+    registry.unlink()
+    unavailable = store.canonical(value)
+    assert unavailable["validation"]["errors"][-1]["message"] == C.SOURCE_MESSAGES["registry_missing"]
+    registry.write_bytes(registry_bytes)
+    recovered = store.canonical(unavailable)
+    assert not recovered["validation"]["errors"]
+    assert [row["item_id"] for row in recovered["picture_track"]] == ["picture-a", "picture-b"]
+    assert recovered["assets"][0]["asset_id"] == trusted["asset_id"]
+
+
 def test_mtime_only_change_repeats_across_store_instances_without_registry_write(tmp_path, monkeypatch):
     store = S.MediaStore(tmp_path); source, handle, trusted, registry = registered_source(store)
     before = registry.read_bytes(); info = source.stat(); stable = S._stable_sha256; calls = 0; calls_lock = threading.Lock()

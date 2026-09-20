@@ -1037,11 +1037,19 @@ function attachInterview(node) {
     sourceRoot?.addEventListener?.("zf-media-project-change", refreshProject);
   }
 
-  function refreshProject() {
+  function refreshProject(event) {
     if (disposed) return;
+    const sourceRevalidated = event?.detail?.reason === "source-revalidated";
     const external = safeState(widget.value);
     if (!persistTimer && JSON.stringify(external) !== JSON.stringify(state)) { state = external; draft = clone(state); syncForm(); }
+    const previousProject = project, previousMessage = projectMessage;
     const context = readProject(node); project = context.project; projectMessage = context.message; rows = inventory(project);
+    const projectChanged = !same(previousProject, project) || previousMessage !== projectMessage;
+    if (projectChanged || sourceRevalidated) {
+      clearTimeout(validationTimer); ++validationToken; validationResult = null;
+      detectionNotice = "";
+      if (detectionResult?.errors?.length) detectionResult = null;
+    }
     let invalidated = false;
     if (draft.reference_detection) {
       const known = new Set(rows.map(row => row.id));
@@ -1059,6 +1067,15 @@ function attachInterview(node) {
           invalidated = invalidateReferenceDetection("素材/顺序/原声/尺寸/窗口已改变，请重新检测并对齐素材");
         }
       }
+    }
+    if (projectChanged && draft.alignment && !draft.reference_detection) { draft.alignment = null; invalidated = true; }
+    if (sourceRevalidated) {
+      const hadAlignment = !!draft.reference_detection || !!draft.alignment;
+      draft.reference_detection = null;
+      draft.alignment = null;
+      detectionNotice = "";
+      detectionResult = { snapshot: null, errors: ["素材已复测，请重新点击“检测并对齐素材”"], warnings: [], details: {} };
+      invalidated = invalidated || hadAlignment;
     }
     if (invalidated) persistDraft();
     bindProjectSource(); renderMedia(); updateStatus();

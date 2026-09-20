@@ -38,7 +38,7 @@ export function attachMediaDesk(node) {
     if (widget.inputEl) widget.inputEl.style.display = "none";
     const root = el("div", "zf-med"); root.tabIndex = 0;
     root.innerHTML = `<div class="zf-med-head"><div class="zf-med-brand"><strong>ZV 通用素材取证台</strong><small>原文件 · 机械事实 · 三轨裁剪计划</small></div><div class="zf-med-presets"><div><select class="zf-med-preset-select" aria-label="当前处理预设"></select><button class="zf-med-preset-add">＋ 添加预设</button></div><div class="zf-med-preset-tools"><button class="zf-med-preset-copy">复制当前</button><button class="zf-med-preset-edit">编辑预设</button><button class="zf-med-preset-delete">删除预设</button></div></div><button data-action="export">导出项目 JSON</button></div>
-    <div class="zf-med-top"><section class="zf-med-panel"><div class="zf-med-title">统一素材池 <button data-action="import">＋ 导入素材</button></div><div class="zf-med-pool"></div></section>
+    <div class="zf-med-top"><section class="zf-med-panel"><div class="zf-med-title">统一素材池 <button data-action="import">＋ 导入素材</button><button data-action="revalidate">复测素材</button></div><div class="zf-med-pool"></div></section>
     <section class="zf-med-panel zf-med-monitor"><div class="zf-med-title"><span class="zf-med-monitor-mode">素材预览</span><span class="zf-med-preview-name">未选择素材</span></div><div class="zf-med-screen"></div><div class="zf-med-controls"><button data-action="play">播放素材</button><span class="zf-med-spacer"></span><span class="zf-med-time">0.000 / 0.000 秒</span><input class="zf-med-seek" type="range" min="0" max="1" step="0.001" value="0" aria-label="源素材播放位置"></div><div class="zf-med-readout">点击任意素材预览，拖到对应轨道开始编排</div></section>
     <section class="zf-med-panel zf-med-inspector-panel"><div class="zf-med-title">机械信息 / 数值裁剪</div><div class="zf-med-context"><button data-action="context" disabled>选择素材或片段</button></div><div class="zf-med-inspect-actions" role="group" aria-label="素材出口操作"></div><div class="zf-med-inspect"></div></section></div>
     <div class="zf-med-tools"><label><input class="zf-med-snap" type="checkbox" checked>吸附</label><button data-action="redo">重做</button><button data-action="undo">撤销</button><button data-action="split" title="在播放头位置分割当前选中片段；绑定原声随视频同时分割">分割</button><button data-action="screenshot" disabled title="截取黄色播放头所在的原视频画面，只加入素材池">截图</button><span class="zf-med-playhead-time"></span><span class="zf-med-spacer"></span><label>缩放 <input class="zf-med-zoom" type="range" min="2" max="140" value="35" aria-label="时间线缩放"></label><span class="zf-med-window-info"></span></div>
@@ -55,17 +55,17 @@ export function attachMediaDesk(node) {
     projectPanel.innerHTML='<div class="zf-med-project-title"><strong>处理窗口</strong><small class="zf-med-preset-summary"></small></div><div class="zf-med-project-fields"><span class="zf-med-window-total"></span><span class="zf-med-window-frames"></span><span class="zf-med-window-state"></span></div><div class="zf-med-compatibility"></div>';
     root.append(projectPanel);
     const pool = $(".zf-med-pool"), screen = $(".zf-med-screen"), inspector = $(".zf-med-inspect"), grid = $(".zf-med-grid"), scroller = $(".zf-med-scroll");
-    let project = edit.freshProject(), history = new edit.History(), revision = 0, disposed = false, importing = false, media = null, sound = null, previewToken = 0, waveform = null, previewAsset = null, previewMode = null;
+    let project = edit.freshProject(), history = new edit.History(), revision = 0, projectGeneration = 0, disposed = false, importing = false, media = null, sound = null, previewToken = 0, waveform = null, previewAsset = null, previewMode = null;
     let view = {zoom:35, playhead:0, selected:null, asset:null, snap:true, scroll:0, ...(node.properties?.zf_media_desk_view || {})};
-    let pending = false, draggingAssetId = null, internalDragController = null, previewSeekTime = 0;
+    let pending = false, rechecking = false, recheckToken = 0, draggingAssetId = null, internalDragController = null, previewSeekTime = 0;
     let capturing = false, captureEpoch = 0, captureSourceId = null;
-    let timelinePlaying = false, clockHead = 0, clockStart = 0, animationId = 0, timelineVideo = null, playbackError = "";
+    let timelinePlaying = false, timelineBuffering = false, clockHead = 0, clockStart = 0, animationId = 0, timelineVideo = null, playbackError = "";
     const timelineAudio = new Map();
     let presetLibrary={builtins:presets.builtins,users:[]},libraryRevision=0,presetChoices=new Map();
     const visualCache = new Map(), visualAbort = new AbortController();
     const viewSave = () => {node.properties ||= {}; node.properties.zf_media_desk_view = {...view};};
     const autoFitVideoWindow = (value, kind) => node.properties?.zv_auto_fit_video_window && kind === "video" ? edit.fitProcessingWindowToVideoTrack(value) : value;
-    const persist = () => {widget.value = JSON.stringify(project); viewSave(); node.setDirtyCanvas?.(true, true); root.dispatchEvent(new CustomEvent("zf-media-project-change"));};
+    const persist = (detail=null) => {widget.value = JSON.stringify(project); viewSave(); node.setDirtyCanvas?.(true, true); root.dispatchEvent(new CustomEvent("zf-media-project-change",{detail}));};
     const status = (text = "", error = false, warning = false) => {$(".zf-med-status").textContent = text; $(".zf-med-status").classList.remove("valid");$(".zf-med-status").classList.toggle("error", error);$(".zf-med-status").classList.toggle("warning",warning);};
     const label = id => pending ? "编号同步中…" : project.label_map?.find(row => row.item_id === id)?.label || "待编号";
     const selected = () => edit.locate(project, view.selected);
@@ -176,26 +176,40 @@ export function attachMediaDesk(node) {
         commit(next);
     }
     function validationStatus() {
-        if(playbackError) {status(playbackError,true);return;}
         const errors = project.validation?.errors || [], warnings = project.validation?.warnings || [];
-        const messages={source_unavailable:"素材原文件丢失或已改变，请重新导入",missing_asset:"片段引用的素材不存在",source_window:"裁剪入出点必须处于原始素材范围内，且出点大于入点",timeline_limit:"工程时间线不得超过 12 小时",audio_link:"视频与原声绑定关系无效",missing_audio_link:"视频原声开关已打开，但缺少绑定的音频片段",no_source_audio:"该视频没有原声音轨",track_kind:"素材类型与所在轨道不符",duplicate_id:"素材或片段 ID 重复",estimated_frames:"源帧位置为估算值，请按源秒数裁剪",audio_followed:"绑定原声已跟随视频范围"};
+        const messages={missing_asset:"片段引用的素材不存在",source_window:"裁剪入出点必须处于原始素材范围内，且出点大于入点",timeline_limit:"工程时间线不得超过 12 小时",audio_link:"视频与原声绑定关系无效",missing_audio_link:"视频原声开关已打开，但缺少绑定的音频片段",no_source_audio:"该视频没有原声音轨",track_kind:"素材类型与所在轨道不符",duplicate_id:"素材或片段 ID 重复",estimated_frames:"源帧位置为估算值，请按源秒数裁剪",audio_followed:"绑定原声已跟随视频范围"};
         const c=presets.compatibility(project.processing_window,project.processing_preset);
         const w=project.processing_window;
         if(w.end_seconds<=w.start_seconds||w.start_seconds<0||w.end_seconds>43200||w.fps<1||w.fps>240)status("处理窗口范围或参考帧率无效；原值未改写",true);
-        else if (errors.length) status(errors.map(e => messages[e.code]||e.message).join("\n"), true);
+        else if (errors.length) status(errors.map(e => e.code==="source_unavailable"?(e.message||"素材原文件不可用，请稍后重试或重新导入"):(messages[e.code]||e.message)).join("\n"), true);
         else if(!c.compatible)status(c.issues.map(e=>e.message).join("；")+"；工程本身有效",false,true);
         else {status("工程有效且符合当前预设。"+(warnings.length?warnings.map(e=>messages[e.code]||e.message).filter((x,i,a)=>a.indexOf(x)===i).join("；"):"裁剪计划不会改写原素材。"));$(".zf-med-status").classList.add("valid");}
     }
+    const recheckButton=$("[data-action=revalidate]");
+    async function revalidateProject() {
+        if(rechecking||pending){status("工程正在校验，请等待当前请求完成。",false,true);return;}
+        const token=++recheckToken,version=++revision,generation=projectGeneration,snapshot=JSON.stringify(project);
+        rechecking=true;recheckButton.disabled=true;root.setAttribute("aria-busy","true");status("正在复测全部素材来源…",false,true);
+        try {
+            const data=await request("/normalize",{method:"POST",headers:{"Content-Type":"application/json"},body:snapshot});
+            if(disposed||token!==recheckToken||version!==revision||generation!==projectGeneration||snapshot!==JSON.stringify(project))return;
+            project=data.project;
+            const sourceValid=!(project.validation?.errors||[]).some(error=>error.code==="source_unavailable");
+            persist({reason:sourceValid?"source-revalidated":"source-rechecked"});syncTimeline();renderPool();renderTimeline();renderInspector();renderPresetPicker();validationStatus();
+            if(sourceValid&&!(project.validation?.errors||[]).length){status("素材复测通过；已同步最新工程，请在 H3 采访页重新点击“检测并对齐素材”。");$(".zf-med-status").classList.add("valid");}
+        } catch(error) {if(!disposed&&token===recheckToken&&version===revision)status(`素材复测失败：${error.message}`,true);}
+        finally {if(token===recheckToken){rechecking=false;recheckButton.disabled=pending;if(!pending)root.setAttribute("aria-busy","false");}}
+    }
     async function normalize() {
         const version = ++revision;
-        pending = true;root.setAttribute("aria-busy","true"); persist(); renderTimeline();
+        pending = true;recheckButton.disabled=true;root.setAttribute("aria-busy","true"); persist(); renderTimeline();
         try {
             const data = await request("/normalize", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(project)});
             if (disposed || version !== revision) return;
-            project = data.project; pending = false;root.setAttribute("aria-busy","false"); persist();
+            project = data.project; pending = false;recheckButton.disabled=rechecking;if(!rechecking)root.setAttribute("aria-busy","false"); persist();
             syncTimeline();
             if(!draggingAssetId){renderPool(); renderTimeline(); renderInspector();renderPresetPicker(); validationStatus();}
-        } catch (error) {if (!disposed && version === revision) {pending = false;root.setAttribute("aria-busy","false"); status(error.message, true);}}
+        } catch (error) {if (!disposed && version === revision) {pending = false;recheckButton.disabled=rechecking;if(!rechecking)root.setAttribute("aria-busy","false"); status(error.message, true);}}
     }
     function commit(next, before = project) {
         history.record(before); project = next; persist(); renderPool(); renderTimeline(); renderInspector();renderPresetPicker(); normalize();
@@ -207,7 +221,7 @@ export function attachMediaDesk(node) {
     function restore() {
         captureEpoch++;
         const restoredView=node.properties?.zf_media_desk_view;
-        ++revision;pending=false;root.setAttribute("aria-busy","false");stopTimeline();clearPreview();
+        ++revision;projectGeneration++;pending=false;recheckButton.disabled=rechecking;root.setAttribute("aria-busy",String(rechecking));stopTimeline();clearPreview();
         try {
             const loaded = presets.migrateProject(JSON.parse(widget.value));
             if (!loaded.assets || !loaded.video_track || !loaded.audio_track || !loaded.picture_track || !loaded.processing_window) throw new Error("缺少项目字段");
@@ -334,7 +348,7 @@ export function attachMediaDesk(node) {
         }
     }
     function selectAsset(asset) {view.asset = asset.asset_id; view.selected = null; viewSave(); renderPool(); renderTimeline(); renderInspector(); showPreview(asset);}
-    function stopPreview() {previewToken++; const players=[media,sound];media=null;sound=null;waveform=null;for(const player of players)if(player){player.pause();player.removeAttribute("src");player.load();}}
+    function stopPreview() {delete screen.dataset.mediaState;previewToken++; const players=[media,sound];media=null;sound=null;waveform=null;for(const player of players)if(player){player.pause();player.removeAttribute("src");player.load();}}
     function readout() {
         if(view.monitor_mode==="timeline")return;
         const asset = previewAsset;
@@ -357,15 +371,20 @@ export function attachMediaDesk(node) {
         stopTimeline();view.monitor_mode="source";viewSave();playbackError="";
         $(".zf-med-monitor-mode").textContent="素材预览";$(".zf-med-seek").setAttribute("aria-label","源素材播放位置");
         stopPreview(); previewAsset=asset; previewMode=asset.kind; const token=previewToken;
+        const current=()=>token===previewToken&&previewAsset?.asset_id===asset.asset_id&&previewAsset?.source_handle===asset.source_handle;
+        const loading=()=>{if(current()){screen.dataset.mediaState="loading";status("预览正在加载或缓冲；工程来源状态不变。",false,true);}};
+        const loaded=()=>{if(current()){delete screen.dataset.mediaState;validationStatus();}};
+        const failed=message=>{if(current()){screen.dataset.mediaState="error";status(message,true);}};
         previewSeekTime=sourceTime??0;
         screen.replaceChildren(); $(".zf-med-preview-name").textContent=asset.name;
         const seek=$(".zf-med-seek"); seek.max=asset.probe.duration_seconds||1; seek.disabled=previewMode==="picture";
         $("[data-action=play]").disabled=previewMode==="picture";
-        if (previewMode==="picture") {const img=el("img"); img.src=previewURL(asset,"original"); img.alt=asset.name;img.draggable=false; screen.append(img); readout(); return;}
+        if (previewMode==="picture") {const img=el("img");img.addEventListener("load",loaded);img.addEventListener("error",()=>failed("图片预览失败；工程来源状态未改写，可点击“复测素材”重新检查来源。"));img.src=previewURL(asset,"original"); img.alt=asset.name;img.draggable=false; screen.append(img); readout(); return;}
         const player=el(previewMode==="video"?"video":"audio"); media=player; player.preload="metadata";
-        player.src=previewURL(asset,previewMode==="video"?"proxy":"audio"); player.muted=previewMode==="video";
+        const playerURL=previewURL(asset,previewMode==="video"?"proxy":"audio");player.muted=previewMode==="video";
         readout();
-        player.addEventListener("error", () => {if(token===previewToken) status("预览解码失败或生成超时；原始素材仍保留。可重新点击素材重试。",true);});
+        player.addEventListener("error",()=>failed("预览解码失败或生成超时；工程来源状态未改写，可点击“复测素材”重新检查来源。"));
+        player.addEventListener("waiting",loading);player.addEventListener("stalled",loading);player.addEventListener("playing",loaded);
         player.addEventListener("timeupdate", () => {
             if(token!==previewToken) return;
             if(sound && Math.abs(sound.currentTime-player.currentTime)>.18) sound.currentTime=player.currentTime;
@@ -373,10 +392,12 @@ export function attachMediaDesk(node) {
         });
         player.addEventListener("pause",()=>{if(token===previewToken){sound?.pause();readout();}});
         player.addEventListener("ended",()=>{if(token===previewToken){sound?.pause();readout();}});
-        player.addEventListener("loadedmetadata",()=>{if(token!==previewToken)return;player.currentTime=previewSeekTime;readout();});
+        player.addEventListener("loadedmetadata",()=>{if(token!==previewToken)return;player.currentTime=previewSeekTime;readout();loaded();});
+        player.addEventListener("loadeddata",loaded);player.addEventListener("canplay",loaded);
+        player.src=playerURL;player.load();
         if(previewMode==="video") {
             screen.append(player);
-            if(asset.probe.has_audio) {sound=el("audio"); sound.preload="metadata"; sound.src=previewURL(asset,"audio"); sound.addEventListener("loadedmetadata",()=>{if(token===previewToken)sound.currentTime=media.currentTime;});sound.addEventListener("error",()=>{if(token===previewToken)status("原声预览生成失败，视频仍可静音预览。",true);});}
+            if(asset.probe.has_audio) {sound=el("audio"); sound.preload="metadata";sound.addEventListener("loadedmetadata",()=>{if(token===previewToken)sound.currentTime=media.currentTime;});sound.addEventListener("error",()=>{if(token===previewToken)status("原声预览生成失败，视频仍可静音预览。",true);});sound.src=previewURL(asset,"audio");}
         } else {
             const canvas=el("canvas"); canvas.width=960; canvas.height=150; screen.append(canvas,el("span","zf-med-empty","正在读取真实音频峰值…"));
             try {const data=await cachedVisual(asset,"peaks"); if(!data?.peaks?.length) throw new Error("波形读取失败"); if(token!==previewToken) return; screen.replaceChildren(canvas); waveform={canvas,peaks:data.peaks}; drawWave(canvas,data.peaks);}
@@ -391,9 +412,25 @@ export function attachMediaDesk(node) {
     function pauseTimelinePlayer(record) {
         record.playAttempt++;record.starting=false;record.player.pause();
     }
+    const activeTimelineRecords=()=>[timelineVideo,...timelineAudio.values()].filter(record=>record&&!record.released);
+    function timelineWaiting(record,message=`时间线正在加载：${record.asset.name}；工程时钟已暂停。`) {
+        if(record.released||disposed||view.monitor_mode!=="timeline")return;
+        if(timelinePlaying&&!timelineBuffering)view.playhead=Math.min(edit.timelineEnd(project),clockHead+(performance.now()-clockStart)/1000);
+        timelineBuffering=timelinePlaying;
+        if(timelineBuffering)for(const item of activeTimelineRecords())pauseTimelinePlayer(item);
+        screen.dataset.mediaState="loading";status(message,false,true);viewSave();paintPlayhead();syncTimeline(true);
+    }
+    function timelineReady(record) {
+        if(record.released||disposed)return;
+        if(timelineBuffering&&activeTimelineRecords().every(item=>item.player.readyState>=3&&!item.player.seeking)) {
+            timelineBuffering=false;clockHead=view.playhead;clockStart=performance.now();delete screen.dataset.mediaState;validationStatus();syncTimeline(true);
+        } else if(!timelineBuffering&&activeTimelineRecords().every(item=>item.player.readyState>=2)) {
+            delete screen.dataset.mediaState;validationStatus();
+        }
+    }
     function pauseTimeline() {
-        if(timelinePlaying)view.playhead=Math.min(edit.timelineEnd(project),clockHead+(performance.now()-clockStart)/1000);
-        timelinePlaying=false;cancelAnimationFrame(animationId);animationId=0;
+        if(timelinePlaying&&!timelineBuffering)view.playhead=Math.min(edit.timelineEnd(project),clockHead+(performance.now()-clockStart)/1000);
+        timelinePlaying=false;timelineBuffering=false;delete screen.dataset.mediaState;cancelAnimationFrame(animationId);animationId=0;
         for(const record of [timelineVideo,...timelineAudio.values()])if(record)pauseTimelinePlayer(record);
         viewSave();paintPlayhead();
     }
@@ -412,9 +449,10 @@ export function attachMediaDesk(node) {
         const player=el(video?"video":"audio"),record={...entry,player,released:false,starting:false,playAttempt:0};
         player.dataset.timelineClip=entry.clip.clip_id;player.preload="auto";player.muted=video;player.playsInline=true;
         if(video){player.style.visibility="hidden";screen.replaceChildren(player);}
-        player.addEventListener("loadedmetadata",()=>{if(!record.released)syncTimelinePlayer(record,true);});
-        const reveal=()=>{if(!record.released&&!player.seeking)player.style.visibility="";};
-        player.addEventListener("seeked",reveal);player.addEventListener("loadeddata",reveal);
+        player.addEventListener("loadedmetadata",()=>{if(!record.released){syncTimelinePlayer(record,true);timelineReady(record);}});
+        const reveal=()=>{if(!record.released&&!player.seeking){player.style.visibility="";timelineReady(record);}};
+        player.addEventListener("seeked",reveal);player.addEventListener("loadeddata",reveal);player.addEventListener("canplay",()=>timelineReady(record));
+        player.addEventListener("waiting",()=>timelineWaiting(record));player.addEventListener("stalled",()=>timelineWaiting(record));
         player.addEventListener("error",()=>timelineFailure(record,player.error));
         player.src=previewURL(entry.asset,video?"proxy":"audio");
         return record;
@@ -426,7 +464,7 @@ export function attachMediaDesk(node) {
             if(player.tagName==="VIDEO"&&Math.abs(player.currentTime-time)>.001)player.style.visibility="hidden";
             player.currentTime=time;
         }
-        if(!timelinePlaying){pauseTimelinePlayer(record);return;}
+        if(!timelinePlaying||timelineBuffering){pauseTimelinePlayer(record);return;}
         if(player.paused&&!record.starting) {
             const attempt=++record.playAttempt;record.starting=true;
             player.play().then(()=>{if(attempt===record.playAttempt)record.starting=false;if(record.released||!timelinePlaying)player.pause();})
@@ -435,7 +473,7 @@ export function attachMediaDesk(node) {
     }
     function syncTimeline(force=false) {
         if(disposed||view.monitor_mode!=="timeline")return;
-        if(timelinePlaying)view.playhead=Math.min(edit.timelineEnd(project),clockHead+(performance.now()-clockStart)/1000);
+        if(timelinePlaying&&!timelineBuffering)view.playhead=Math.min(edit.timelineEnd(project),clockHead+(performance.now()-clockStart)/1000);
         const active=edit.timelineAt(project,view.playhead),video=active.video;
         if(timelineVideo && (timelineVideo.clip.clip_id!==video?.clip.clip_id || timelineVideo.asset.source_handle!==video?.asset.source_handle)) {releaseTimelinePlayer(timelineVideo);timelineVideo=null;}
         if(video) {
@@ -457,16 +495,16 @@ export function attachMediaDesk(node) {
         $(".zf-med-preview-name").textContent=video?.asset.name||"无画面";
         $(".zf-med-time").textContent=`工程 ${seconds(view.playhead)} / ${seconds(edit.timelineEnd(project))} 秒`;
         const seek=$(".zf-med-seek");seek.setAttribute("aria-label","工程播放位置");seek.max=Math.max(edit.timelineEnd(project),view.playhead,.001);seek.value=view.playhead;seek.disabled=false;
-        const button=$("[data-action=play]");button.disabled=edit.timelineEnd(project)<=0;button.textContent=timelinePlaying?"暂停时间线":"播放时间线";
+        const button=$("[data-action=play]");button.disabled=edit.timelineEnd(project)<=0;button.textContent=timelinePlaying?(timelineBuffering?"加载中（点击取消）":"暂停时间线"):"播放时间线";
         const p=video?.asset.probe,sourceFrame=p?.fps?edit.frame(video.sourceTime,p.fps)+1:null;
-        $(".zf-med-readout").textContent=`${video?`${sourceFrame==null?"视频":`${sourceFrameLabel(p)} ${sourceFrame} / ${p.frame_count??"未知"} · 源 ${p.fps} fps${p.vfr===true?" · VFR":p.vfr==null?" · 帧率稳定性未确认":""}`} · 源 ${seconds(video.sourceTime)} s` : "黑场"} · ${timelinePlaying?"监听":"已定位"} ${active.audio.length} 路音频`;
+        $(".zf-med-readout").textContent=`${video?`${sourceFrame==null?"视频":`${sourceFrameLabel(p)} ${sourceFrame} / ${p.frame_count??"未知"} · 源 ${p.fps} fps${p.vfr===true?" · VFR":p.vfr==null?" · 帧率稳定性未确认":""}`} · 源 ${seconds(video.sourceTime)} s` : "黑场"} · ${timelineBuffering?"加载中，工程时钟暂停":timelinePlaying?"监听":"已定位"} ${active.audio.length} 路音频`;
         paintPlayhead();viewSave();
     }
     function playTimeline() {
-        if(timelinePlaying){pauseTimeline();syncTimeline(true);return;}
+        if(timelinePlaying){pauseTimeline();validationStatus();syncTimeline(true);return;}
         if(view.playhead>=edit.timelineEnd(project)){status("已到工程末尾，请先移动黄色播放头。");return;}
         if(playbackError)stopTimeline();
-        playbackError="";validationStatus();clockHead=view.playhead;clockStart=performance.now();timelinePlaying=true;
+        playbackError="";timelineBuffering=false;delete screen.dataset.mediaState;validationStatus();clockHead=view.playhead;clockStart=performance.now();timelinePlaying=true;
         // Call every active media play() in this click's user gesture, without awaiting another player.
         syncTimeline(true);
         const tick=()=>{if(!timelinePlaying||disposed)return;syncTimeline();if(view.playhead>=edit.timelineEnd(project)){pauseTimeline();syncTimeline();return;}animationId=requestAnimationFrame(tick);};
@@ -686,6 +724,7 @@ export function attachMediaDesk(node) {
     fileInput.onchange=()=>{importFiles([...fileInput.files]);fileInput.value="";};
     const actions={
         import:()=>fileInput.click(),
+        revalidate:()=>revalidateProject(),
         screenshot:()=>captureFrame(),
         "timeline-outlet":()=>createOutlets([outlets.timelineOutletItem()]),
         "delete-picture":()=>{if(selected()?.track==="picture")actions.delete();},
@@ -745,7 +784,7 @@ export function attachMediaDesk(node) {
     root.addEventListener("wheel",event=>event.stopPropagation(),{passive:true});
     const dom=node.addDOMWidget("media_evidence_desk","zf-media-evidence",root,{serialize:false,hideOnZoom:false,getMinHeight:()=>1000,getMaxHeight:()=>1200});dom.serialize=false;
     pinDOMWidgetFullWidth(dom);
-    const previousRemoved=node.onRemoved;node.onRemoved=function(){disposed=true;captureEpoch++;revision++;stopTimeline();stopPreview();root._dragAbort?.();root._playheadAbort?.();internalDragController?.abort();visualAbort.abort();for(const entry of visualCache.values())if(entry.url)URL.revokeObjectURL(entry.url);visualCache.clear();root.remove();previousRemoved?.apply(this,arguments);};
+    const previousRemoved=node.onRemoved;node.onRemoved=function(){disposed=true;captureEpoch++;projectGeneration++;recheckToken++;revision++;stopTimeline();stopPreview();root._dragAbort?.();root._playheadAbort?.();internalDragController?.abort();visualAbort.abort();for(const entry of visualCache.values())if(entry.url)URL.revokeObjectURL(entry.url);visualCache.clear();root.remove();previousRemoved?.apply(this,arguments);};
     node.zfMediaDesk={restore,root,getProject:()=>edit.clone(project)};
     node.setSize?.([Math.max(node.size?.[0]||0,1180),Math.max(node.size?.[1]||0,1100)]);
     restore();

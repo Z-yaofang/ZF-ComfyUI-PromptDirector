@@ -99,8 +99,11 @@ try{
 
     const mode=()=>pane.locator("select").nth(0);
     await mode().selectOption("generation_count");
+    await page.waitForFunction(()=>desk.zvLong.getPlan()?.mode==="generation_count");
     await pane.getByLabel("每段帧数",{exact:true}).fill("124");await pane.getByLabel("每段帧数",{exact:true}).press("Tab");
+    await page.waitForFunction(()=>desk.zvLong.getSettings().segment_frames===124&&desk.zvLong.getPlan()?.segments[0]?.frame_count===124);
     await pane.getByLabel("重叠帧数",{exact:true}).fill("39");await pane.getByLabel("重叠帧数",{exact:true}).press("Tab");
+    await page.waitForFunction(()=>desk.zvLong.getSettings().overlap_frames===39&&desk.zvLong.getPlan()?.effective_overlap_frames===39);
     await pane.getByLabel("段数（仅按段数生成）",{exact:true}).fill("2");await pane.getByLabel("段数（仅按段数生成）",{exact:true}).press("Tab");
     await page.waitForFunction(()=>desk.zvLong.getPlan()?.mode==="generation_count"&&desk.zvLong.getPlan()?.target_frame_count===209&&desk.zvLong.getPlan()?.segments.length===2);
     const autoSegments=await page.evaluate(()=>desk.zvLong.getPlan().segments.map(({segment_id,start_frame,end_frame})=>({segment_id,start_frame,end_frame})));

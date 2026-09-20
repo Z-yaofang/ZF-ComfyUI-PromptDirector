@@ -201,7 +201,33 @@ def test_library_users_paths_corruption_and_readonly_transaction_failure(tmp_pat
         result = subprocess.run(["cmd", "/c", "mklink", "/J", str(linked), str(other)], capture_output=True)
         assert result.returncode == 0
     else: linked.symlink_to(other, target_is_directory=True)
-    with pytest.raises(P.PresetError, match="reparse"): DB.InterviewLibrary(linked).listing()
+    linked_library = DB.InterviewLibrary(linked)
+    assert linked_library.listing()["presets"] == []
+    assert linked_library.create("可信根", template())["name"] == "可信根"
+    assert (other / "zf_h3_interview" / "presets.sqlite3").is_file()
+    retarget = tmp_path / "retarget"; retarget.mkdir()
+    linked.rmdir() if sys.platform == "win32" else linked.unlink()
+    if sys.platform == "win32":
+        result = subprocess.run(["cmd", "/c", "mklink", "/J", str(linked), str(retarget)], capture_output=True)
+        assert result.returncode == 0
+    else: linked.symlink_to(retarget, target_is_directory=True)
+    with pytest.raises(P.PresetError, match="指向已改变"): linked_library.listing()
+    internal_root = tmp_path / "internal-root"; internal_root.mkdir()
+    internal_target = internal_root / "target"; internal_target.mkdir()
+    internal_directory = internal_root / "zf_h3_interview"
+    if sys.platform == "win32":
+        result = subprocess.run(["cmd", "/c", "mklink", "/J", str(internal_directory), str(internal_target)], capture_output=True)
+        assert result.returncode == 0
+    else: internal_directory.symlink_to(internal_target, target_is_directory=True)
+    with pytest.raises(P.PresetError, match="reparse"): DB.InterviewLibrary(internal_root).listing()
+    escape_root = tmp_path / "escape-root"; escape_root.mkdir()
+    escape_target = tmp_path / "escape-target"; escape_target.mkdir()
+    escape_directory = escape_root / "zf_h3_interview"
+    if sys.platform == "win32":
+        result = subprocess.run(["cmd", "/c", "mklink", "/J", str(escape_directory), str(escape_target)], capture_output=True)
+        assert result.returncode == 0
+    else: escape_directory.symlink_to(escape_target, target_is_directory=True)
+    with pytest.raises(P.PresetError, match="reparse"): DB.InterviewLibrary(escape_root).listing()
     original_connect = DB.sqlite3.connect
     def readonly(path, **kwargs): return original_connect(f"file:{Path(path).as_posix()}?mode=ro", uri=True, **kwargs)
     monkeypatch.setattr(DB.sqlite3, "connect", readonly)
@@ -212,6 +238,19 @@ def test_library_users_paths_corruption_and_readonly_transaction_failure(tmp_pat
     with pytest.raises(P.PresetError): library.listing()
     assert library.path.read_bytes() == b"corrupt DB"
     library.path.write_bytes(data)
+
+
+def test_library_rejects_dangling_sidecar_link_before_resolving_target(tmp_path):
+    library = DB.InterviewLibrary(tmp_path); library.listing()
+    target = tmp_path / "missing-sidecar-target"; target.mkdir()
+    sidecar = library.directory / "presets.sqlite3-wal"
+    if sys.platform == "win32":
+        result = subprocess.run(["cmd", "/c", "mklink", "/J", str(sidecar), str(target)], capture_output=True)
+        assert result.returncode == 0
+    else: sidecar.symlink_to(target, target_is_directory=True)
+    target.rmdir()
+    with pytest.raises(P.PresetError, match="reparse"):
+        library.listing()
 
 
 def test_import_failure_is_atomic_and_unknown_id_cannot_overwrite(tmp_path):
@@ -512,7 +551,7 @@ def test_more_than_old_128_entries_and_metadata_pagination_are_supported(tmp_pat
 def test_library_path_and_damaged_entries_are_refused_without_rebuild(tmp_path, case):
     library = DB.InterviewLibrary(tmp_path); item=library.create("原条目",template())
     if case == "directory_junction":
-        separate=tmp_path/'other';separate.mkdir()
+        separate=tmp_path.parent/(tmp_path.name+'-outside');separate.mkdir()
         junction=tmp_path/'junction'
         if sys.platform=='win32':
             result=subprocess.run(['cmd','/c','mklink','/J',str(junction),str(separate)],capture_output=True);assert result.returncode==0

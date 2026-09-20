@@ -30,20 +30,43 @@ class InterviewLibrary:
         self.root = Path(user_root).absolute()
         self.directory = self.root / "zf_h3_interview"
         self.path = self.directory / "presets.sqlite3"
+        self._trusted_root = None
 
     def safe(self):
-        # Inspect the original path, before resolve can hide a junction/symlink.
-        for target in [*reversed(self.path.parents), self.path, *(self.directory / ("presets.sqlite3" + suffix) for suffix in ("-journal", "-wal", "-shm"))]:
+        # The request user directory is the trust boundary and may itself be a
+        # platform-managed junction. Pin its resolved destination, then require
+        # every database path to remain below it on every transaction.
+        try:
+            current_root = self.root.resolve(strict=True)
+        except OSError:
+            raise PresetError("preset_path", "当前用户目录无效") from None
+        if not current_root.is_dir():
+            raise PresetError("preset_path", "当前用户目录无效")
+        if self._trusted_root is None:
+            self._trusted_root = current_root
+        elif current_root != self._trusted_root:
+            raise PresetError("preset_path", "当前用户目录指向已改变，已拒绝访问")
+        targets = [self.directory, self.path, *(self.directory / ("presets.sqlite3" + suffix) for suffix in ("-journal", "-wal", "-shm"))]
+        for target in targets:
             try:
-                stat = target.lstat()
+                link_stat = target.lstat()
             except FileNotFoundError:
                 continue
-            if target.is_symlink() or getattr(stat, "st_file_attributes", 0) & 0x400:
-                raise PresetError("preset_path", "预设路径包含链接/reparse point，已拒绝访问")
-            if target.is_file() and stat.st_nlink > 1:
+            except OSError:
+                raise PresetError("preset_path", "预设路径无法安全解析") from None
+            if target.is_symlink() or getattr(link_stat, "st_file_attributes", 0) & 0x400:
+                raise PresetError("preset_path", "用户目录下的预设路径包含链接/reparse point，已拒绝访问")
+            try:
+                resolved = target.resolve(strict=False)
+                if not resolved.is_relative_to(self._trusted_root):
+                    raise PresetError("preset_path", "预设路径越出当前用户目录，已拒绝访问")
+                stat = resolved.stat()
+            except FileNotFoundError:
+                continue
+            except OSError:
+                raise PresetError("preset_path", "预设路径无法安全解析") from None
+            if resolved.is_file() and stat.st_nlink > 1:
                 raise PresetError("preset_path", "预设库文件存在硬链接，已拒绝访问")
-        if not self.root.is_dir() or not self.path.resolve().is_relative_to(self.root.resolve()):
-            raise PresetError("preset_path", "当前用户目录无效")
 
     @contextmanager
     def transaction(self, write=False):

@@ -177,11 +177,26 @@ try {
   await picture.locator('.zv-h3-routing input[value="first_frame"]').uncheck(); await detect(); scenarios++;
 
   const overflow = await page.evaluate(() => structuredClone(fixture));
+  await picture.locator('.zv-h3i-role-options input[value="subject_identity"]').check();
+  await picture.locator('textarea[name="purpose-p1"]').fill("保留的角色与用途"); await page.waitForTimeout(200);
   for (let index=3;index<=10;index++) overflow.picture_track.push({ item_id:`p${index}`,asset_id:overflow.picture_track[0].asset_id,order:index });
   await projectChange(overflow); await detect();
-  check((await saved()).reference_detection === null);
+  check((await saved()).reference_detection === null && (await saved()).alignment === null);
   check((await page.locator(".zv-h3-detection-status").textContent()).includes("ref_images 最多 9"));
-  await projectChange(fixture); await detect(); scenarios++;
+  await projectChange(fixture);
+  check(!(await page.locator(".zv-h3-detection-status").textContent()).includes("ref_images 最多 9"));
+  state=await saved();check(state.media_roles.p1.includes("subject_identity")&&state.media_purposes.p1==="保留的角色与用途");
+  await detect(); scenarios++;
+
+  const revalidatedBefore=await saved(),numberingBefore=await page.locator(".zv-h3i-media-title b").allTextContents();
+  await page.evaluate(()=>deskEvents.dispatchEvent(new CustomEvent("zf-media-project-change",{detail:{reason:"source-revalidated"}})));
+  state=await saved();
+  check(state.reference_detection===null&&state.alignment===null);
+  deep(state.media_roles,revalidatedBefore.media_roles);deep(state.media_purposes,revalidatedBefore.media_purposes);deep(state.reference_texts,revalidatedBefore.reference_texts);
+  check(state.intent===revalidatedBefore.intent&&state.director_instruction===revalidatedBefore.director_instruction);
+  deep(await page.locator(".zv-h3i-media-title b").allTextContents(),numberingBefore);
+  check((await page.locator(".zv-h3-detection-status").textContent()).includes("素材已复测")&&(await page.locator(".zv-h3-detection-status").textContent()).includes("检测并对齐素材"));
+  await detect(); scenarios++;
 
   const vectorList = await rpc({ action: "vectors" });
   for (const vector of vectorList) {

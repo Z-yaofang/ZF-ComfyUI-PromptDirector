@@ -126,6 +126,14 @@ def test_builder_rewrites_real_h3_graph_with_dynamic_ids_and_named_ports():
     assert "source_auto" in note_text and "没有接入当前普通生成路径" in note_text and "SAM3、SeC" in note_text
     assert "final_audio" in note_text and "generated_audio" in note_text
     assert "44100 Hz/2 ch" in note_text and "缺失音频补同钟静音" in note_text
+    assert "LOW/HIGH 双时钟" in note_text and "Guide 是独立" in note_text
+    assert "hard_cut 不读取上一段尾部" in note_text and "结构化素材事实" in note_text
+    assert "不会看到上一段实际尾帧或音频" in note_text
+    assert "RunningHub" in note_text and "测试版" in note_text
+    metadata = result["extra"]["zv_long_video"]
+    assert metadata["status"] == "test/beta; not verified on RunningHub"
+    assert "hard_cut" in metadata["guide_contract"] and "ordinary reference ports" in metadata["guide_contract"]
+    assert "structured continuity metadata only" in metadata["llm_continuity"]
     assert all(node["widgets_values_named"]["text"] == node["widgets_values"][0]
                for node in result["nodes"] if node["type"] == "Note")
 
@@ -192,6 +200,7 @@ def test_mask_mode_activates_only_the_explicit_c1_adapter_path():
     assert result["extra"]["zv_long_video"]["mask_status"].startswith("C1 full-frame")
     note_text = "\n".join(node["widgets_values"][0] for node in result["nodes"] if node["type"] == "Note")
     assert "H3 nested AV latent" in note_text
+    assert "外部依赖" in note_text and "同一 raw MASK" in note_text and "同画布 1x" in note_text
     assert BUILDER.build_masked(source_workflow()) == result
 
 
