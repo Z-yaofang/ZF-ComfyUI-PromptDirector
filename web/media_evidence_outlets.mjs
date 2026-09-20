@@ -158,53 +158,6 @@ export function syncOutletTitles(desk, project) {
     }
 }
 
-function matchingPrewiredOutlets(desk, item) {
-    const graph = desk.graph;
-    return connectedOutlets(desk).filter(row => row.type === item.type && row.node.graph === graph &&
-        graph.getNodeById(row.node.id) === row.node && row.node.inputs[0].name === "media_project" &&
-        row.node.inputs[0].type === "ZV_MEDIA_PROJECT" && desk.outputs[0].links?.includes(row.node.inputs[0].link));
-}
-
-export function hasUniquePrewiredOutlet(desk, project, selectedId) {
-    if (!desk.graph?.getNodeById || desk.graph.getNodeById(desk.id) !== desk || desk.outputs?.[0]?.type !== "ZV_MEDIA_PROJECT" || !selectedId) return false;
-    const item = outletItems(project,selectedId)[0];
-    const candidates = matchingPrewiredOutlets(desk,item).filter(row => row.id === "");
-    return candidates.length === 1 && !candidates[0].node.inputs.some(input => input.name === item.key && input.link != null);
-}
-
-export function bindSelectedMediaOutlet(desk, project, selectedId, app) {
-    const graph = desk.graph;
-    if (!graph?.getNodeById || graph.getNodeById(desk.id) !== desk)
-        throw new Error("素材台尚未加入画布，请先加入画布再绑定。");
-    if (!(app.canvas?.graph === graph || graph.list_of_graphcanvas?.some(canvas => canvas.graph === graph)))
-        throw new Error("当前工程画布不可用，无法绑定预接出口。");
-    if (!graph.getLink || !graph.findNodesByType || desk.outputs?.[0]?.type !== "ZV_MEDIA_PROJECT")
-        throw new Error("画布连线或素材台工程端口不可用，无法绑定预接出口。");
-    if (typeof selectedId !== "string" || !selectedId)
-        throw new Error("请先选择一个已入轨的素材，再绑定预接出口。");
-    const item = outletItems(project,selectedId)[0];
-    const matching = matchingPrewiredOutlets(desk,item);
-    const candidates = matching.filter(row => row.id === "");
-    if (!candidates.length)
-        throw new Error(matching.length ? `当前素材台的${NAMES[item.track]}没有空绑定字段，已绑定的出口不会被覆盖。` :
-            `当前素材台没有同类型的预接${NAMES[item.track]}。请确认素材台工程输出 0 连接到该出口的工程输入 0；其他素材台或其他类型的出口不能绑定。`);
-    if (candidates.length !== 1)
-        throw new Error(`当前素材台有 ${candidates.length} 个同类型空出口，无法确定绑定目标。请仅保留一个待绑定的${NAMES[item.track]}工程连接后重试。`);
-    const target = candidates[0].node;
-    if (target.inputs.some(input => input.name === item.key && input.link != null))
-        throw new Error("预接出口的绑定字段已有外部输入连线，无法覆盖，请先断开该字段的连线。");
-    const widget = target.widgets.find(widget => widget.name === item.key);
-    graph.beforeChange?.();
-    try {
-        widget.value = item.id;
-        target.properties ||= {};
-        target.properties.zv_media_outlet = {binding_key:item.key, binding_id:item.id};
-        target.title = titleFor(item);
-        graph.setDirtyCanvas?.(true,true);
-        return {node_id:target.id, title:target.title};
-    } finally {graph.afterChange?.();}
-}
-
 export function createMediaOutlets(desk, project, items, app) {
     const graph = desk.graph;
     if (!graph || !graph.getNodeById || desk.id == null || desk.id === "" || String(desk.id) === "-1" || graph.getNodeById(desk.id) !== desk)

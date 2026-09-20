@@ -21,10 +21,10 @@ try {
     start=(await records()).length;
     await phase('prime');await page.goto(origin+'/?phase=prime');await ready();
     check(await page.evaluate(()=>typeof legacyOutlets.createOriginalOutlet==='function'&&!legacyOutlets.createOriginalOutlet.toString().includes('original_sources')));
-    for(const name of ['media_evidence_outlets.mjs','media_evidence_slots.mjs'])deep((await records()).filter(r=>r.phase==='prime'&&r.path===`/extensions/${name}?v=h3-v2-06-ui-01`).length,1);
+    for(const name of ['media_evidence_outlets.mjs'])deep((await records()).filter(r=>r.phase==='prime'&&r.path===`/extensions/${name}?v=h3-v2-06-ui-01`).length,1);
     await phase('mixed');await page.goto(origin+'/?phase=mixed');await ready();
     check(await page.evaluate(()=>!legacyOutlets.createOriginalOutlet.toString().includes('original_sources')));
-    for(const name of ['media_evidence_outlets.mjs','media_evidence_slots.mjs']) {
+    for(const name of ['media_evidence_outlets.mjs']) {
         deep((await records()).filter(r=>r.phase==='mixed'&&r.path===`/extensions/${name}?v=h3-v2-06-ui-01`).length,0);
         check(events.some(e=>e.event==='cache'&&events.some(q=>q.event==='request'&&q.id===e.id&&q.url.endsWith(`/${name}?v=h3-v2-06-ui-01`))));
     }
@@ -49,12 +49,12 @@ try {
     }
     const saved=await graph();await page.evaluate(data=>loadSaved(data),saved);await sync();deep(stable(await graph()),stable(saved));deep((await graph()).links,saved.links);
     await page.evaluate(data=>localStorage.setItem('graph06',JSON.stringify(data)),saved);await page.goto(origin+'/?phase=fixed-again');await ready();await sync();deep(stable(await graph()),stable(saved));deep((await graph()).links,saved.links);
-    for(const name of ['media_evidence_outlets.mjs','media_evidence_slots.mjs']) {
+    for(const name of ['media_evidence_outlets.mjs']) {
         deep((await records()).filter(r=>r.phase==='fixed'&&r.path===`/extensions/${name}?v=h3-v2-07`).length,1);
         deep((await records()).filter(r=>r.phase==='fixed'&&r.path===`/extensions/${name}?v=h3-v2-06-ui-01`).length,0);
     }
     check(await page.evaluate(async()=>outlets===await import('/extensions/media_evidence_outlets.mjs?v=h3-v2-07')));
     await page.screenshot({path:join(out,'CACHE_THREE_SOURCE_LINKS.png')});deep(errors,[]);
-    await writeFile(join(out,'CACHE_VERIFIED.json'),JSON.stringify({scope:'actual Chrome HTTP cache in same browser/context; full legacy UI01 helper+slots cached; new 07 desk/imports create real source edges; no routing/cache disable; aged fixture Last-Modified explicitly differs from current user service; installed native graph/tracker, neutral constructors/load adapter',checks,errors,events,server_records:await records(),graph:saved},null,2));
+    await writeFile(join(out,'CACHE_VERIFIED.json'),JSON.stringify({scope:'actual Chrome HTTP cache in same browser/context; full legacy UI01 helper cached; new 07 desk/imports create real source edges; no routing/cache disable; aged fixture Last-Modified explicitly differs from current user service; installed native graph/tracker, neutral constructors/load adapter',checks,errors,events,server_records:await records(),graph:saved},null,2));
     console.log(`H3_V2_07_CACHE_OK ${checks} checks; old-key HTTP delta1/0, new-key delta1 with three real source links/history/output bindings/reload; 0 page errors`);
 } finally {await browser.close();}

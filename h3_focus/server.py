@@ -62,7 +62,7 @@ def plan_interview(value, *, prepared_project=None):
     state = copy.deepcopy(value["state"])
     prompt = value.get("prompt")
     interview_id = str(value.get("interview_id", ""))
-    has_hub = prompt is not None and any(node.get("class_type") == "ZVH3ReferenceOutlet" and node.get("inputs", {}).get("reference_plan") in ([interview_id, 8], [value.get("interview_id"), 8]) for node in prompt.values())
+    has_hub = prompt is not None and any(node.get("class_type") == "ZVH3ReferenceOutlet" and node.get("inputs", {}).get("reference_plan") in ([interview_id, 6], [value.get("interview_id"), 6]) for node in prompt.values())
     wiring = None
     if value.get("align"):
         state["reference_detection"] = None
@@ -84,7 +84,7 @@ def plan_interview(value, *, prepared_project=None):
         annotate_conditioning(result, project, evidence)
         result["validation"]["errors"].extend(wiring["errors"])
         result["validation"]["ready"] = not result["validation"]["errors"]
-    return {key: result[key] for key in ("state", "validation", "alignment_context", "rules", "call_references")} | {
+    return {key: result[key] for key in ("state", "validation", "alignment_context", "rules", "call_references", "user_prompt", "material_context_json")} | {
         "wiring": wiring,
         "routing_errors": [row for row in result["validation"]["errors"] if row["code"] in {"media_limit", "bank_kind", "audio_duplicate", "soundtrack_pair", "stale_media", "detection_source_missing"}],
         "snapshot": planned_detection(result, conditioning_count=value.get("conditioning_count", 0)),

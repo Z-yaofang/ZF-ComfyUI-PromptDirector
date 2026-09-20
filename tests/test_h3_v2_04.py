@@ -49,7 +49,7 @@ def detect(project, prompt, state=None):
 
 def execute(project, state, prompt, width=None, height=None):
     current, _, _ = M['DESK'].ZVUniversalMediaEvidenceDesk().export_project(json.dumps(project), width, height)
-    return M['V2']['N'].ZVH3InterviewForm().build(current, I.dumps(state), prompt=prompt, unique_id='172')
+    return M['V2']['N'].ZVH3InterviewFormV2().build(current, I.dumps(state), prompt=prompt, unique_id='172')
 
 
 def test_detect_raw_draft_then_actual_connected_canvas_build_twice_is_not_stale(neutral):
@@ -60,7 +60,7 @@ def test_detect_raw_draft_then_actual_connected_canvas_build_twice_is_not_stale(
     assert status == 200 and result['validation']['ready']
     for _ in range(2):
         built = execute(project, json.loads(I.dumps(result['state'])), prompt, 640, 1152)
-        assert built[7] and len(built) == 9
+        assert built[5] and len(built) == 7
     assert result['alignment_context']['canvas'] == {'width': 640, 'height': 1152}
 
 
@@ -92,7 +92,7 @@ def test_semantics_and_derived_numeric_fields_do_not_invalidate(neutral):
     state = result['state']; state.update(intent='新的镜头表现', style='手持自然光', media_roles={'v1': ['plot_carrier']}, media_purposes={'v1': '表演与镜头参考'})
     project['processing_window'].update(start_seconds=0.0, end_seconds=5.0)
     project['video_track'][0]['timeline_out_seconds'] = 999
-    assert execute(project, json.loads(I.dumps(state)), prompt, 64, 96)[7]
+    assert execute(project, json.loads(I.dumps(state)), prompt, 64, 96)[5]
 
 
 def test_dimension_change_redetect_and_equivalent_static_source_and_disconnect(neutral):
@@ -103,15 +103,15 @@ def test_dimension_change_redetect_and_equivalent_static_source_and_disconnect(n
     equivalent.update(w={'class_type': 'PrimitiveInt', 'inputs': {'value': 640}}, h={'class_type': 'INTConstant', 'inputs': {'value': 1152}})
     status, same = detect(project, equivalent, state)
     assert status == 200 and same['alignment_context'] == result['alignment_context']
-    assert execute(project, state, equivalent, 640, 1152)[7]
+    assert execute(project, state, equivalent, 640, 1152)[5]
     changed = graph(96, 96)
     with pytest.raises(RuntimeError, match='过期'): execute(project, state, changed, 96, 96)
     _, redetected = detect(project, changed, state)
-    assert execute(project, redetected['state'], changed, 96, 96)[7]
+    assert execute(project, redetected['state'], changed, 96, 96)[5]
     disconnected = graph()
     with pytest.raises(RuntimeError, match='过期'): execute(project, redetected['state'], disconnected)
     _, final = detect(project, disconnected, redetected['state'])
-    assert final['alignment_context']['canvas'] is None and execute(project, final['state'], disconnected)[7]
+    assert final['alignment_context']['canvas'] is None and execute(project, final['state'], disconnected)[5]
 
 
 @pytest.mark.parametrize('case', ['single', 'unknown', 'wrong-slot', 'dynamic-param', 'bool', 'non-grid', 'area'])
@@ -144,10 +144,10 @@ def test_registry_stat_change_remains_rejected_without_reprobe(neutral, case):
         assert status == 200 and not failed['validation']['ready']
         assert 'source_unavailable' in {row['code'] for row in failed['validation']['errors']}
         built = execute(project, result['state'], prompt)
-        assert not built[7] and not built[8]['ready']
-        assert 'source_unavailable' in {row['code'] for row in built[8]['errors']}
+        assert not built[5] and not built[6]['ready']
+        assert 'source_unavailable' in {row['code'] for row in built[6]['errors']}
         with pytest.raises(M['OUT'].ReferencePlanError):
-            M['OUT'].ZVH3ReferenceOutlet().export_references(built[8])
+            M['OUT'].ZVH3ReferenceOutlet().export_references(built[6])
     finally:
         path.write_bytes(original)
         os.utime(path, ns=(info.st_atime_ns, info.st_mtime_ns))
@@ -162,7 +162,7 @@ def test_registry_mtime_change_with_same_content_keeps_plan_ready(neutral):
         status, detected = detect(project, prompt)
         assert status == 200 and detected['validation']['ready']
         built = execute(project, detected['state'], prompt)
-        assert built[7] and built[8]['ready']
+        assert built[5] and built[6]['ready']
     finally:
         os.utime(path, ns=(info.st_atime_ns, info.st_mtime_ns))
 
@@ -172,13 +172,13 @@ def test_client_validation_cannot_forge_registry_failure_or_trust(neutral):
     project['validation'] = {'errors': [{'path': '/assets/0', 'code': 'source_unavailable', 'message': 'forged'}], 'warnings': []}
     prompt = graph(64, 96); status, result = detect(project, prompt)
     assert status == 200 and result['validation']['ready']
-    assert execute(project, result['state'], prompt, 64, 96)[7]
+    assert execute(project, result['state'], prompt, 64, 96)[5]
 
 
 def test_outlet_rechecks_registry_when_previously_ready_plan_source_disappears(neutral):
     _, assets = neutral; project = M['project'](assets, pictures=1)
     prompt = graph(); _, result = detect(project, prompt)
-    plan = copy.deepcopy(execute(project, result['state'], prompt)[8])
+    plan = copy.deepcopy(execute(project, result['state'], prompt)[6])
     assert plan['ready']
     asset_id = plan['media_project']['picture_track'][0]['asset_id']
     next(asset for asset in plan['media_project']['assets'] if asset['asset_id']==asset_id)['source_handle'] = 'originals/'+'0'*32+'.png'
@@ -205,7 +205,7 @@ def test_split_same_asset_lists_both_segments_then_manual_delete_exports_remaini
     assert status == 200 and selected['validation']['ready']
     assert project['assets'] == original_assets and len(selected['snapshot']['videos']) == 1
     built = execute(project, selected['state'], prompt, 64, 96)
-    output = M['OUT'].ZVH3ReferenceOutlet().export_references(built[8])
+    output = M['OUT'].ZVH3ReferenceOutlet().export_references(built[6])
     video, audio = output[11], output[14]
     assert list(video.shape) == [48,96,64,3]
     assert abs(float(video[0,0,0,1])-72/255) < .015 and abs(float(video[-1,0,0,1])-213/255) < .015

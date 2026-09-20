@@ -28,5 +28,5 @@ git clone https://github.com/Z-yaofang/ZF-ComfyUI-PromptDirector.git
 
 ```sh
 python -m pytest -q --rootdir=tests --confcutdir=tests --import-mode=importlib tests --tb=short -rs
-node --test tests/media_evidence_core.test.mjs tests/media_evidence_original_outlets.test.mjs tests/media_evidence_presets.test.mjs tests/media_evidence_slots.test.mjs
+node --test tests/media_evidence_core.test.mjs tests/media_evidence_original_outlets.test.mjs tests/media_evidence_presets.test.mjs
 ```

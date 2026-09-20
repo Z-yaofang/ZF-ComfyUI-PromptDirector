@@ -8,7 +8,7 @@ export async function runStage04Cases({page,rpc,check,deep,saved,detect,projectC
   const install=async(state=input.state,project=input.project,spec=selector)=>page.evaluate(value=>window.install(value.state,value.project,null,value.spec),{state,project,spec});
   const build=async(name)=>{
     const result=await rpc({action:'04_build',state:await saved(),project:await page.evaluate(()=>structuredClone(fixture))});
-    check(result.ready&&result.tuple_count===9);records.push({name,...result});return result;
+    check(result.ready&&result.tuple_count===7);records.push({name,...result});return result;
   };
   const valid=async()=>check((await saved()).alignment!=null&&(await saved()).reference_detection!=null);
   const invalid=async()=>{await page.waitForFunction(()=>JSON.parse(interviewNode.widgets[0].value).alignment===null);check((await saved()).reference_detection===null);};

@@ -37,8 +37,6 @@
 .zv-h3-preset-actions { grid-column: 2; grid-row: 2 / 4; display: flex; flex-wrap: wrap; align-content: start; gap: 5px; }
 .zv-h3-preset-actions button { padding: 5px 9px; }
 .zv-h3-presets > small,.zv-h3-preset-status { grid-column: 2; color: #adbecf; }
-.zv-h3-teaching { color: #adbecf; margin-bottom: 10px; }
-.zv-h3-teaching select { width: 100%; margin-top: 6px; }
 .zv-h3-preset-status { max-height: 64px; overflow-y: auto; overflow-wrap: anywhere; }
 .zv-h3-pending { margin-bottom: 12px; color: #e6ca93; }
 
@@ -216,6 +214,8 @@
   border: 1px solid #314257;
   border-radius: 8px;
 }
+
+.zv-h3i-fields[hidden] { display: none; }
 
 .zv-h3i-fields h3,
 .zv-h3i-fields .wide {

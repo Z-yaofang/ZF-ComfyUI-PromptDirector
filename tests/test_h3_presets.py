@@ -239,13 +239,18 @@ def test_multiprocess_creates_do_not_lose_entries(tmp_path):
     assert len(DB.InterviewLibrary(tmp_path).listing()["presets"]) == 4
 
 
-def test_empty_v1_without_selection_is_fresh_but_valid_empty_snapshot_freezes_zero():
+def test_fresh_form_defaults_to_materials_and_explicit_exclusion_keeps_zero():
     project = fresh(1, 1, 1)
-    empty = {"schema_version": "zv-h3-interview-v1"}
+    empty = I.empty_interview()
     candidate = I.compile_interview(empty, project)
     assert len(candidate["call_references"]) == 3
     with pytest.raises(RuntimeError, match="检测"):
-        N.ZVH3InterviewForm().build(project, json.dumps(empty), prompt=H["H"]["fixed_hub_prompt"](), unique_id="172")
+        N.ZVH3InterviewFormV2().build(project, json.dumps(empty), prompt=H["H"]["fixed_hub_prompt"](), unique_id="172")
+    empty["bindings"] = {
+        row["item_id"]: {"item_id": row["item_id"], "participates": False, "banks": [R.DEFAULT_BANK[row["kind"]]]}
+        for row in I.media_inventory(project)
+    }
+    empty["alignment"] = I.compile_interview(empty, project)["alignment_context"]
     empty["reference_detection"] = H["H"]["detection"]()
     compiled = I.compile_interview(empty, project)
     assert compiled["call_references"] == [] and compiled["validation"]["effective_mode"] == "T2VA"

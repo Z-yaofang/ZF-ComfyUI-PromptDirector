@@ -70,7 +70,7 @@ def validate_conditioning_settings(prompt, interview_unique_id, *, effective_mod
 
 T8_CLASS = "MiniMaxH3AudioConditioningT8"
 STAGE_LLM_CLASS = "ZFPromptDirectorLocalLLM"
-INTERVIEW_CLASS = "ZVH3InterviewForm"
+INTERVIEW_CLASS = "ZVH3InterviewFormV2"
 HUB_CLASS = "ZVH3ReferenceOutlet"
 
 _REF_IMAGE_RE = re.compile(r"^ref_images\.ref_image_(\d+)$")
@@ -369,7 +369,7 @@ def _hub_ids(nodes, interview_id):
     for node_id, node in nodes.items():
         if node.get("class_type") != HUB_CLASS:
             continue
-        if _as_link(_inputs(nodes, node_id).get("reference_plan"), nodes) == (interview_id, 8):
+        if _as_link(_inputs(nodes, node_id).get("reference_plan"), nodes) == (interview_id, 6):
             result.append(node_id)
     return sorted(result, key=_node_sort_key)
 
@@ -574,7 +574,7 @@ def detect_reference_wiring(prompt, interview_unique_id):
         _add_error(
             errors,
             "interview_node_type",
-            "unique_id 指向的不是 ZVH3InterviewForm。",
+            "unique_id 指向的不是当前 H3 采访表。",
             node_id=interview_id,
             source_type=str(interview.get("class_type", "")),
         )

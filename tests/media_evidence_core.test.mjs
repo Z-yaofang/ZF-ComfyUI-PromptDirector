@@ -53,6 +53,15 @@ test('removed assets, invalid cuts and source EOF cannot leave an active picture
 });
 
 test('new video has reciprocal audio and immutable input',()=>{const p=e.freshProject(),out=e.addAsset(p,video,0,id);assert.equal(p.video_track.length,0);assert.equal(out.video_track[0].audio_link_id,out.audio_track[0].clip_id);assert.equal(out.audio_track[0].linked_video_clip_id,out.video_track[0].clip_id);});
+test('auto-fit video window covers every video clip without mutating input',()=>{
+    const original=e.freshProject();
+    let p=e.addAsset(original,{...video,probe:{...video.probe,duration_seconds:5.25}},0,id);
+    p=e.addAsset(p,{...video,asset_id:'second',probe:{...video.probe,duration_seconds:3}},8,id);
+    const out=e.fitProcessingWindowToVideoTrack(p);
+    assert.deepEqual(original.processing_window,{start_seconds:0,end_seconds:10,fps:24});
+    assert.deepEqual(p.processing_window,{start_seconds:0,end_seconds:10,fps:24});
+    assert.deepEqual(out.processing_window,{start_seconds:0,end_seconds:11,fps:24});
+});
 test('move bound audio moves entire group',()=>{const p=base(),out=e.move(p,p.audio_track[0].clip_id,7);assert.equal(out.video_track[0].timeline_in_seconds,7);assert.equal(out.audio_track[0].timeline_in_seconds,7);});
 test('trim edges honor original bounds and group follows',()=>{const p=base(),out=e.trim(p,p.video_track[0].clip_id,'left',3);assert.equal(out.video_track[0].source_in_seconds,3);assert.equal(out.audio_track[0].source_in_seconds,3);assert.equal(out.video_track[0].timeline_in_seconds,3);const end=e.trim(out,out.video_track[0].clip_id,'right',100);assert.equal(end.video_track[0].source_out_seconds,30);});
 test('numeric cuts preserve invalid values for Python validation',()=>{const p=base(),out=e.editCut(p,p.video_track[0].clip_id,{source_out_seconds:50});assert.equal(out.video_track[0].source_out_seconds,50);assert.equal(out.audio_track[0].source_out_seconds,50);});

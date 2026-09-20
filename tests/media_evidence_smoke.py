@@ -80,7 +80,7 @@ document.addEventListener('dragover',event=>{window.lastMediaDragTypes=[...event
 
     async def extension(request):
         name = request.match_info["name"]
-        if name not in {"media_evidence_desk.js", "media_evidence_core.mjs", "media_evidence_presets.mjs", "media_evidence_outlets.mjs", "media_evidence_slots.mjs", "media_processing_presets.json", "media_evidence_desk.css", "dom_widget_layout.mjs"}: raise web.HTTPNotFound()
+        if name not in {"media_evidence_desk.js", "media_evidence_core.mjs", "media_evidence_presets.mjs", "media_evidence_outlets.mjs", "media_processing_presets.json", "media_evidence_desk.css", "dom_widget_layout.mjs"}: raise web.HTTPNotFound()
         return web.FileResponse(ROOT / "web" / name)
 
     async def fixture_list(_request):

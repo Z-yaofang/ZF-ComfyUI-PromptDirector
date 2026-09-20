@@ -1,4 +1,4 @@
-"""H3-V2-01 mechanical boundaries and migration, with no GPU generation."""
+"""Current H3 interview mechanical boundaries, with no GPU generation."""
 
 import copy
 import hashlib
@@ -19,7 +19,7 @@ O = importlib.import_module(H["PACKAGE"] + ".h3_focus.outlet_node")
 OUT = importlib.import_module(H["PACKAGE"] + ".media_evidence.outlet")
 DEC = importlib.import_module(H["PACKAGE"] + ".media_evidence.outlet_decode")
 RUN = importlib.import_module(H["PACKAGE"] + ".media_evidence.runtime")
-WORKFLOW = Path(r"E:\AI_Models\ComfyUI-TE\ComfyUI\user\default\workflows\MiniMax H3 10Eros Beta4 三步测试-ZV素材出口V1 (2).json")
+WORKFLOW = ROOT / "tests/fixtures/h3_focus_interview_topology.json"
 contract_registry_for_synthetic_inputs = H["contract_registry_for_synthetic_inputs"]
 
 
@@ -75,9 +75,9 @@ def test_fresh_custom_and_changed_semantics_have_identical_plan(snapshot, roles)
     assert after["validation"]["ready"]
     assert signature(before) == signature(after)
     assert RP.planned_detection(before) == RP.planned_detection(after)
-    assert N.ZVH3InterviewForm().build(project, I.dumps(state))[8]["routes"] == RP.build_reference_plan(project, before)["routes"]
+    assert N.ZVH3InterviewFormV2().build(project, I.dumps(state))[6]["routes"] == RP.build_reference_plan(project, before)["routes"]
     if snapshot:
-        assert N.ZVH3InterviewForm().build(project, I.dumps(state), prompt=H["fixed_hub_prompt"](), unique_id="172")[8]["ready"]
+        assert N.ZVH3InterviewFormV2().build(project, I.dumps(state), prompt=H["fixed_hub_prompt"](), unique_id="172")[6]["ready"]
 
 
 def test_zero_media_pure_text_does_not_require_recipe_or_semantic_content():
@@ -85,7 +85,7 @@ def test_zero_media_pure_text_does_not_require_recipe_or_semantic_content():
     result = I.compile_interview(I.empty_interview(), project)
     assert result["validation"]["ready"] and result["validation"]["effective_mode"] == "T2VA"
     assert signature(result) == []
-    assert N.ZVH3InterviewForm().build(project, I.dumps(I.empty_interview()), prompt=H["fixed_hub_prompt"](), unique_id="172")[7]
+    assert N.ZVH3InterviewFormV2().build(project, I.dumps(I.empty_interview()), prompt=H["fixed_hub_prompt"](), unique_id="172")[5]
 
 
 @pytest.mark.parametrize("banks,mode", [(["first_frame"], "I2VA"), (["last_frame"], "L2VA"), (["first_frame", "last_frame"], "FL2VA"), (["first_frame", "ref_images"], "Hybrid")])
@@ -177,7 +177,7 @@ def test_mechanical_changes_expire_alignment_before_execution(mutation):
     project = C.normalize_project(project)
     assert "alignment_stale" in codes(I.compile_interview(state, project))
     with pytest.raises(RuntimeError, match="对齐已过期"):
-        N.ZVH3InterviewForm().build(project, I.dumps(state), prompt=H["fixed_hub_prompt"](), unique_id="172")
+        N.ZVH3InterviewFormV2().build(project, I.dumps(state), prompt=H["fixed_hub_prompt"](), unique_id="172")
 
 
 def test_renaming_asset_does_not_expire_mechanical_alignment():
@@ -193,72 +193,47 @@ def test_explicit_missing_number_blocks_execution_with_correct_range(label):
     assert "本次有效编号" in next(row["message"] for row in result["validation"]["errors"] if row["code"] == "missing_prompt_reference")
 
 
-@pytest.mark.parametrize("recipe", list(I.RECIPES))
-def test_old_recipe_and_mode_are_only_notes(recipe):
-    state = I.empty_interview(); state.update(recipe=recipe, mode="I2VA")
-    assert I.compile_interview(state, source())["validation"]["ready"]
+@pytest.mark.parametrize("payload", [
+    {"schema_version": "zv-h3-interview-v1"},
+    {"schema_version": "zv-h3-interview-v1", "media_roles": {"p1": ["first_frame"]}},
+])
+def test_retired_interview_schema_is_rejected_without_migration(payload):
+    with pytest.raises(I.InterviewError):
+        I.normalize_interview(payload)
 
 
-def test_v1_migration_keeps_text_double_routes_snapshot_and_is_idempotent():
-    old = I.empty_interview(); old = {key: value for key, value in old.items() if key not in {"bindings", "alignment", "migration", "media_purposes"}}
-    old.update(schema_version="zv-h3-interview-v1", recipe="i2va", intent="  首帧与主体参考\n保留空白  ", media_roles={"p1": ["first_frame", "style_reference"]})
-    project = source(1, 0, 0)
-    migrated = I.compile_interview(old, project)["state"]
-    assert migrated["intent"] == old["intent"] and migrated["recipe"] == old["recipe"]
-    assert migrated["bindings"]["p1"]["banks"] == ["first_frame", "ref_images"]
-    assert I.normalize_interview(migrated) == migrated
-    migrated["media_roles"] = {}; again = I.compile_interview(migrated, project)
-    assert again["validation"]["effective_mode"] == "Hybrid" and len(again["call_references"]) == 2
-    old["reference_detection"] = RP.planned_detection(again)
-    assert I.normalize_interview(old)["reference_detection"] == old["reference_detection"]
+def test_current_form_drops_retired_metadata_without_creating_routes():
+    state = I.empty_interview()
+    state.update(recipe="i2va", migration={"from": "zv-h3-interview-v1"}, intent="保留原文")
+    normalized = I.normalize_interview(state)
+    assert "recipe" not in normalized and "migration" not in normalized
+    assert normalized["intent"] == "保留原文"
+    assert normalized["bindings"] == {}
 
 
-def test_v1_snapshot_is_physical_authority_and_old_anchor_role_stays_semantic():
-    old = {"schema_version": "zv-h3-interview-v1", "media_roles": {"p1": ["first_frame", "style_reference"]}, "reference_detection": H["detection"](pictures=("p1",), stage1_pictures=("p1",))}
-    state = I.normalize_interview(old)
-    assert state["bindings"]["p1"]["banks"] == ["ref_images"]
-    assert state["reference_detection"]["pictures"][0]["source_kind"] == "ZVPictureOutlet"
-
-
-def test_v1_selection_freezes_old_unselected_items_then_new_v2_assets_default_on():
-    old = {"schema_version": "zv-h3-interview-v1", "media_roles": {"p1": ["first_frame"]}}
-    state = I.compile_interview(old, source(2, 0, 0))["state"]
-    assert state["bindings"]["p2"]["participates"] is False
-    assert [row["item_id"] for row in I.compile_interview(state, source(2, 0, 0))["call_references"]] == ["p1"]
-    assert [row["item_id"] for row in I.compile_interview(state, source(3, 0, 0))["call_references"]] == ["p1", "p3"]
-
-
-def test_v1_no_snapshot_preserves_first_legacy_speech_drive_once():
-    state = I.compile_interview({"schema_version": "zv-h3-interview-v1", "media_roles": {"a1": ["speech_lipsync"], "a2": ["audio_reuse"]}}, source(0, 0, 2))["state"]
-    assert state["bindings"]["a1"]["banks"] == ["drive_audio"]
-    assert state["bindings"]["a2"]["banks"] == ["ref_audios"]
-    state["media_roles"] = {"a2": ["speech_lipsync"]}
-    assert I.compile_interview(state, source(0, 0, 2))["validation"]["counts"]["drive_audio"] == 1
-
-
-def test_legacy_snapshot_without_context_is_blocked_before_execution():
+def test_snapshot_without_context_is_blocked_before_execution():
     project = source(1, 0, 0)
     state = I.empty_interview(); state["reference_detection"] = H["detection"](pictures=("p1",), stage1_pictures=("p1",))
     assert "alignment_missing" in codes(I.compile_interview(state, project))
     with pytest.raises(RuntimeError, match="机械对齐上下文"):
-        N.ZVH3InterviewForm().build(project, json.dumps(state), prompt=H["fixed_hub_prompt"](), unique_id="172")
+        N.ZVH3InterviewFormV2().build(project, json.dumps(state), prompt=H["fixed_hub_prompt"](), unique_id="172")
 
 
-def test_legacy_actual_snapshot_mode_drives_conditioning_audit():
+def test_actual_snapshot_mode_drives_conditioning_audit():
     project = source(1, 0, 0); state = I.empty_interview()
     state["bindings"]["p1"] = {"item_id": "p1", "participates": True, "banks": ["first_frame"]}
     state["reference_detection"] = H["detection"](pictures=("p1",), stage1_pictures=("p1",))
     state["alignment"] = I.compile_interview({**state, "reference_detection": None}, project)["alignment_context"]
     assert I.compile_interview(state, project)["validation"]["effective_mode"] == "Ref2VA"
-    prompt = {"172": {"class_type": "ZVH3InterviewForm", "inputs": {}}, "7": {"class_type": D.T8_CLASS, "inputs": {"prompt": ["172", 3], "task_type": "I2VA", "length": 124}}}
+    prompt = {"172": {"class_type": "ZVH3InterviewFormV2", "inputs": {}}, "7": {"class_type": D.T8_CLASS, "inputs": {"prompt": ["172", 3], "task_type": "I2VA", "length": 124}}}
     with pytest.raises(RuntimeError, match="实际素材模式为 Ref2VA"):
-        N.ZVH3InterviewForm().build(project, json.dumps(state), prompt=prompt, unique_id="172")
+        N.ZVH3InterviewFormV2().build(project, json.dumps(state), prompt=prompt, unique_id="172")
 
 
-def test_legacy_detect_rpc_uses_actual_refs_not_conflicting_binding_mode():
+def test_detect_rpc_uses_actual_refs_not_conflicting_binding_mode():
     project = source(1, 0, 0); state = I.empty_interview()
     state["bindings"]["p1"] = {"item_id": "p1", "participates": True, "banks": ["first_frame"]}
-    prompt = {"172": {"class_type": "ZVH3InterviewForm", "inputs": {"media_project": ["165", 0]}}, "165": {"class_type": "ZVUniversalMediaEvidenceDesk", "inputs": {}}, "176": {"class_type": "ZVPictureOutlet", "inputs": {"item_id": "p1"}}, "146": {"class_type": "ZFPromptDirectorLocalLLM", "inputs": {"prompt": ["172", 1], "image1": ["176", 0]}}, "7": {"class_type": D.T8_CLASS, "inputs": {"prompt": ["172", 3], "ref_images.ref_image_0": ["176", 0], "task_type": "Ref2VA", "length": 120}}}
+    prompt = {"172": {"class_type": "ZVH3InterviewFormV2", "inputs": {"media_project": ["165", 0]}}, "165": {"class_type": "ZVUniversalMediaEvidenceDesk", "inputs": {}}, "176": {"class_type": "ZVPictureOutlet", "inputs": {"item_id": "p1"}}, "146": {"class_type": "ZFPromptDirectorLocalLLM", "inputs": {"prompt": ["172", 1], "image1": ["176", 0]}}, "7": {"class_type": D.T8_CLASS, "inputs": {"prompt": ["172", 3], "ref_images.ref_image_0": ["176", 0], "task_type": "Ref2VA", "length": 120}}}
     result = S.plan_interview({"state": state, "media_project": project, "prompt": prompt, "interview_id": "172", "align": True})
     assert result["validation"]["ready"] and result["validation"]["effective_mode"] == "Ref2VA"
     assert result["validation"]["conditioning"]["model_length"] == 124
@@ -374,8 +349,8 @@ def test_actual_user_workflow_preserves_current_fields_and_full_links_read_only(
     old = json.loads(nodes[172]["widgets_values"][0]); original = copy.deepcopy(old)
     project = C.normalize_project(json.loads(nodes[165]["widgets_values"][0]))
     state = I.compile_interview(old, project)["state"]
-    assert all(state[key] == value for key, value in old.items() if key != "schema_version")
-    assert old == original and state["recipe"] == original["recipe"]
+    assert all(state[key] == value for key, value in old.items() if key not in {"schema_version", "recipe", "migration"})
+    assert old == original and "recipe" not in state and "migration" not in state
     assert I.normalize_interview(state) == state
     links = {row[0]: row for row in graph["links"]}
     assert [(links[input["link"]][1], links[input["link"]][2]) for input in nodes[165]["inputs"] if input["name"] in {"width", "height"}] == [(29, 0), (29, 1)]

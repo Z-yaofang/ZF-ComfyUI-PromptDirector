@@ -23,7 +23,7 @@ def model_frame_count(frames):
 def binding_for(state, row):
     return state.get("bindings", {}).get(row["item_id"], {
         "item_id": row["item_id"],
-        "participates": bool(row["enabled"] and not row["linked_video_clip_id"] and not (state.get("migration") or {}).get("freeze_pending")),
+        "participates": bool(row["enabled"] and not row["linked_video_clip_id"]),
         "banks": [DEFAULT_BANK[row["kind"]]],
     })
 
@@ -33,25 +33,6 @@ def align_bindings(state, inventory):
     state["bindings"] = {
         row["item_id"]: copy.deepcopy(binding_for(state, row)) for row in inventory
     }
-    return state
-
-
-def freeze_legacy_selection(state, inventory):
-    migration = state.get("migration") or {}
-    if not migration.get("freeze_pending"):
-        return state
-    for row in inventory:
-        binding = copy.deepcopy(binding_for(state, row))
-        if binding["banks"] == ["reference"]:
-            binding["banks"] = [DEFAULT_BANK[row["kind"]]]
-        state["bindings"][row["item_id"]] = binding
-    if migration.get("legacy_drive_pending"):
-        drive = next((row for row in inventory if row["kind"] == "audio" and not row["linked_video_clip_id"]
-                      and state["bindings"][row["item_id"]]["participates"]
-                      and any(role in {"speech_lipsync", "audio_reuse"} for role in state["media_roles"].get(row["item_id"], []))), None)
-        if drive is not None:
-            state["bindings"][drive["item_id"]]["banks"] = ["drive_audio"]
-    state["migration"] = {"from": "zv-h3-interview-v1"}
     return state
 
 
@@ -100,57 +81,9 @@ def alignment_context(state, project, inventory):
     }
 
 
-def migrate_v1(value):
-    """Freeze historical explicit selections; preserve all text and snapshot data."""
-    result = copy.deepcopy(value)
-    if value.get("schema_version") != "zv-h3-interview-v1":
-        return result
-    result["schema_version"] = "zv-h3-interview-v2"
-    bindings = {}
-    detection = value.get("reference_detection")
-    if isinstance(detection, dict):
-        for plural, default in (("pictures", "ref_images"), ("videos", "ref_videos"), ("audios", "ref_audios")):
-            for entry in detection.get(plural, []):
-                if not isinstance(entry, dict) or entry.get("origin") == "video_soundtrack":
-                    continue
-                item_id = entry.get("item_id")
-                if not isinstance(item_id, str):
-                    continue
-                origin = entry.get("origin")
-                bank = origin if origin in {"first_frame", "last_frame", "drive_audio"} else default
-                binding = bindings.setdefault(item_id, {"item_id": item_id, "participates": True, "banks": []})
-                if bank not in binding["banks"]:
-                    binding["banks"].append(bank)
-    roles_by_id = value.get("media_roles", {})
-    for item_id, roles in (roles_by_id.items() if isinstance(roles_by_id, dict) else []):
-        if not roles:
-            continue
-        roles = [roles] if isinstance(roles, str) else roles
-        if not isinstance(roles, list):
-            continue
-        anchors = [bank for bank in ("first_frame", "last_frame") if bank in roles]
-        if isinstance(detection, dict):
-            # A real snapshot is the physical authority. Keep old roles as
-            # semantics without adding interfaces the model did not receive.
-            continue
-        # Missing kind is resolved against the actual track during compilation.
-        bindings[item_id] = {"item_id": item_id, "participates": True, "banks": anchors or ["reference"]}
-        if anchors and any(role not in {"first_frame", "last_frame"} for role in roles):
-            bindings[item_id]["banks"].append("ref_images")
-    result["bindings"] = bindings
-    result["media_purposes"] = {}
-    result["alignment"] = None
-    result["migration"] = {"from": "zv-h3-interview-v1"}
-    if bindings or isinstance(detection, dict):
-        result["migration"]["freeze_pending"] = True
-        if detection is None:
-            result["migration"]["legacy_drive_pending"] = True
-    return result
-
-
 def reusable_template(state, inventory):
     """Future presets use typed slots, never actual media/project/detection data."""
-    fields = ("recipe", "mode", "director_focus", "intent", "style", "must_keep", "must_change", "ending", "forbidden", "performance", "camera", "dialogue", "visible_text", "soundscape", "music")
+    fields = ("mode", "director_focus", "intent", "style", "must_keep", "must_change", "ending", "forbidden", "performance", "camera", "dialogue", "visible_text", "soundscape", "music")
     slots = []
     counters = {kind: 0 for kind in BANKS_BY_KIND}
     for row in inventory:

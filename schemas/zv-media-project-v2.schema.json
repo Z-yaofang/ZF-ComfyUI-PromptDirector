@@ -3,27 +3,6 @@
   "title": "ZV Media Evidence Project V2",
   "type": "object",
   "properties": {
-    "outlet_slots": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["version", "items"],
-      "properties": {
-        "version": {"const": 1},
-        "items": {
-          "type": "array", "maxItems": 256,
-          "items": {
-            "type": "object", "additionalProperties": false,
-            "required": ["slot_id", "kind", "ordinal", "binding_id"],
-            "properties": {
-              "slot_id": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,96}$"},
-              "kind": {"type": "string", "enum": ["picture", "video", "audio"]},
-              "ordinal": {"type": "integer", "minimum": 1, "maximum": 1000000},
-              "binding_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9_-]{1,96}$"}
-            }
-          }
-        }
-      }
-    },
     "schema_version": {
       "const": 2
     },

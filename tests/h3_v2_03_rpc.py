@@ -54,14 +54,14 @@ def execute(request):
     if request["action"]=="matrix_cpu":
         current=store.canonical(request["project"]);state=request["state"]
         compiled=M["I"].compile_interview(state,current)
-        try:built=M["V2"]["N"].ZVH3InterviewForm().build(current,M["I"].dumps(state),prompt=last_value["prompt"],unique_id="172")
+        try:built=M["V2"]["N"].ZVH3InterviewFormV2().build(current,M["I"].dumps(state),prompt=last_value["prompt"],unique_id="172")
         except RuntimeError:
             if compiled["validation"]["ready"]:raise
             plan=M["V2"]["RP"].build_reference_plan(current,compiled)
             try:M["OUT"].ZVH3ReferenceOutlet().export_references(plan)
             except M["OUT"].ReferencePlanError:return {"ready":False,"decoded":False,"errors":[row["code"] for row in plan["errors"]]}
             raise AssertionError("Rejected plan decoded after node early rejection")
-        plan=built[8]
+        plan=built[6]
         if not plan["ready"]:
             try:M["OUT"].ZVH3ReferenceOutlet().export_references(plan)
             except M["OUT"].ReferencePlanError:return {"ready":False,"decoded":False,"errors":[row["code"] for row in plan["errors"]]}

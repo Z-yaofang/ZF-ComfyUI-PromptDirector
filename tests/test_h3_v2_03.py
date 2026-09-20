@@ -79,6 +79,7 @@ def test_explicit_runtime_copy_registration_and_real_shared_node_schemas(tmp_pat
     assert registration['passed'] and not registration['full_comfy_service_started']
     graph,proof=audit['skeleton'](mappings)
     assert proof['actual_plugin_input_output_and_T8_autogrow_checked'] and proof['backend_fixed_hub_wiring_errors']==[]
-    assert len(graph['nodes'])==9 and len(graph['links'])==74
+    assert len(graph['nodes'])==14 and len(graph['links'])==101
+    assert sum(node['type']=='ZVH3ReverseStage' for node in graph['nodes'])==3
     assert not list(destination.rglob('*.sqlite3')) and not (destination/'.git').exists()
     with pytest.raises(ValueError):audit['copy_runtime'](destination)

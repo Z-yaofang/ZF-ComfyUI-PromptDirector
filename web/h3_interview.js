@@ -7,7 +7,7 @@ import { pinDOMWidgetFullWidth } from "./dom_widget_layout.mjs";
 import { mountPresets } from "./h3_interview_presets.mjs";
 import { sampleClipPeaks } from "./media_evidence_core.mjs";
 
-const NAME = "ZVH3InterviewForm";
+const NAME = "ZVH3InterviewFormV2";
 const VERSION = "zv-h3-interview-v2";
 const PLAN_API = "/zf-prompt-director/h3-interview/plan";
 const PREVIEW_ROOT = "/zf-media-evidence";
@@ -39,18 +39,6 @@ const style = document.createElement("link");
 style.rel = "stylesheet";
 style.href = new URL("./h3_interview.css", import.meta.url).href;
 document.head.append(style);
-
-const RECIPES = [
-  ["custom", "用户编辑"],
-  ["performance_transfer", "图定人物 + 视频动作 + 音频台词"],
-  ["t2va", "纯文本生成"],
-  ["i2va", "首帧生视频"],
-  ["fl2va", "首尾帧生视频"],
-  ["l2va", "尾帧生视频"],
-  ["video_edit", "原视频编辑"],
-  ["video_continue", "视频续写"],
-];
-
 
 const ROLES = {
   picture: [
@@ -90,11 +78,10 @@ const FIELD_GROUPS = [
 
 const emptyState = () => ({
   schema_version: VERSION,
-  recipe: "custom",
   mode: "auto",
   director_focus: "balanced",
   media_roles: {},
-  media_purposes: {}, bindings: {}, alignment: null, migration: null, reference_texts: {}, preset_pending: [],
+  media_purposes: {}, bindings: {}, alignment: null, reference_texts: {}, preset_pending: [],
   reference_detection: null,
   intent: "", style: "", must_keep: "", must_change: "", ending: "", forbidden: "",
   performance: "", camera: "", dialogue: "", visible_text: "", soundscape: "", music: "",
@@ -134,38 +121,12 @@ function safeDetection(value) {
   };
 }
 
-function migrateV1(value) {
-  const state = clone(value);
-  if (state.schema_version !== "zv-h3-interview-v1") return state;
-  state.schema_version = VERSION;
-  const bindings = {};
-  for (const [plural, fallback] of [["pictures", "ref_images"], ["videos", "ref_videos"], ["audios", "ref_audios"]]) {
-    for (const entry of state.reference_detection?.[plural] || []) {
-      if (!entry || entry.origin === "video_soundtrack" || typeof entry.item_id !== "string") continue;
-      const bank = ["first_frame", "last_frame", "drive_audio"].includes(entry.origin) ? entry.origin : fallback;
-      const binding = bindings[entry.item_id] ||= { item_id: entry.item_id, participates: true, banks: [] };
-      if (!binding.banks.includes(bank)) binding.banks.push(bank);
-    }
-  }
-  for (const [id, assigned] of Object.entries(state.media_roles || {})) {
-    const roles = typeof assigned === "string" ? [assigned] : assigned;
-    if (!roles?.length || !Array.isArray(roles)) continue;
-    const anchors = ["first_frame", "last_frame"].filter(bank => roles.includes(bank));
-    if (state.reference_detection) continue;
-    const banks = anchors.length ? [...anchors] : ["reference"];
-    if (anchors.length && roles.some(role => !["first_frame", "last_frame"].includes(role))) banks.push("ref_images");
-    bindings[id] = { item_id: id, participates: true, banks };
-  }
-  const migration = { from: "zv-h3-interview-v1" };
-  if (Object.keys(bindings).length || state.reference_detection) { migration.freeze_pending = true; if (!state.reference_detection) migration.legacy_drive_pending = true; }
-  return { ...state, bindings, media_purposes: {}, alignment: null, migration };
-}
-
 function safeState(value) {
   try {
     const parsed = typeof value === "string" ? JSON.parse(value || "{}") : clone(value || {});
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error();
-    const state = { ...emptyState(), ...migrateV1(parsed) };
+    delete parsed.recipe; delete parsed.migration;
+    const state = { ...emptyState(), ...parsed };
     if (state.schema_version !== VERSION) throw new Error("采访版本不受支持");
     state.media_roles = state.media_roles && typeof state.media_roles === "object" && !Array.isArray(state.media_roles) ? state.media_roles : {};
     for (const [id, roles] of Object.entries(state.media_roles)) state.media_roles[id] = [...new Set(Array.isArray(roles) ? roles.filter(x => typeof x === "string") : typeof roles === "string" ? [roles] : [])];
@@ -350,8 +311,7 @@ const canonical = value => Array.isArray(value) ? value.map(canonical) : value &
 const same = (left, right) => JSON.stringify(canonical(left)) === JSON.stringify(canonical(right));
 const BANKS = { picture: [["ref_images", "参考图片"], ["first_frame", "首帧"], ["last_frame", "尾帧"]], video: [["ref_videos", "参考视频"]], audio: [["ref_audios", "独立参考音频"], ["drive_audio", "驱动音频"]] };
 function bindingFor(state, row) {
-  const binding = clone(state.bindings?.[row.id] || { item_id: row.id, participates: row.enabled && !row.linked && !state.migration?.freeze_pending, banks: [BANKS[row.kind][0][0]] });
-  if (state.migration && same(binding.banks, ["reference"])) binding.banks = [BANKS[row.kind][0][0]];
+  const binding = clone(state.bindings?.[row.id] || { item_id: row.id, participates: row.enabled && !row.linked, banks: [BANKS[row.kind][0][0]] });
   return binding;
 }
 function mechanicalContext(state, project, rows) {
@@ -399,7 +359,7 @@ function connectedReferenceHubs(interviewNode) {
   return graphNodes(interviewNode?.graph).filter(node => {
     if (nodeType(node) !== H3_REFERENCE_HUB) return false;
     const endpoint = inputSource(node, "reference_plan");
-    return endpoint && String(endpoint.node?.id) === String(interviewNode.id) && endpoint.slot === 8;
+    return endpoint && String(endpoint.node?.id) === String(interviewNode.id) && endpoint.slot === 6;
   });
 }
 
@@ -642,8 +602,6 @@ function inferMode(state, rows) {
   return "T2VA";
 }
 
-function applyRecipe(state, recipe) { state.recipe = recipe; }
-
 function attachInterview(node) {
   const widget = node.widgets?.find(item => item.name === "interview_json");
   if (!widget) return;
@@ -667,7 +625,7 @@ function attachInterview(node) {
   const peakCache = new Map();
   const root = el("div", "zv-h3i");
   root.tabIndex = 0;
-  root.innerHTML = `<div class="zv-h3i-head"><div class="zv-h3i-brand"><strong>ZV H3 基础采访表</strong><small>常驻大表 · 填写内容随工作流保存 · H3 单窗口约束</small></div><div class="zv-h3i-chips"></div></div><div class="zv-h3i-toolbar"></div><div class="zv-h3i-body"><main><div class="zv-h3i-fields-host"></div></main><aside><div class="zv-h3i-aside-head"><div><h3>本次素材与用途</h3><small>从素材台读取预览缓存；常用 6图·3视频·3独立音频，固定出口保留 9 图、3 视频、3 配对原声和 3 独立音频接口。</small></div><button data-action="clear-roles">清空用途</button></div><div class="zv-h3-detect-row"><button class="zv-h3-detect-button" data-action="detect">检测并对齐素材</button><div class="zv-h3-detection-status" data-state="idle">尚未检测本次素材计划</div></div><div class="zv-h3-shared-preview"><span>检测后点击素材缩略图，可在这里预览或试听</span></div><p>一个按钮同时读取当前素材、生成连续编号并交给固定 H3 出口。素材台编号只负责找素材；提示词只使用“本次 H3”编号。参考段使用素材台选定源入/出点，可在目标 GEN 窗口外；总长受 H3 规则约束。</p><div class="zv-h3i-media"></div></aside></div><div class="zv-h3i-foot"><span class="zv-h3i-editor-status"></span><span class="zv-h3-model-status"></span><span class="zv-h3-semantic-status"></span></div>`;
+  root.innerHTML = `<div class="zv-h3i-head"><div class="zv-h3i-brand"><strong>ZV H3 采访表</strong><small>只收集、对齐、整理 · 未填内容不输出 · 反推系统提示词由独立节点管理</small></div><div class="zv-h3i-chips"></div></div><div class="zv-h3i-toolbar"></div><div class="zv-h3i-body"><main><div class="zv-h3i-fields-host"></div></main><aside><div class="zv-h3i-aside-head"><div><h3>本次素材与用途</h3><small>从素材台读取预览缓存；常用 6图·3视频·3独立音频，固定出口保留 9 图、3 视频、3 配对原声和 3 独立音频接口。</small></div><button data-action="clear-roles">清空用途</button></div><div class="zv-h3-detect-row"><button class="zv-h3-detect-button" data-action="detect">检测并对齐素材</button><div class="zv-h3-detection-status" data-state="idle">尚未检测本次素材计划</div></div><div class="zv-h3-shared-preview"><span>检测后点击素材缩略图，可在这里预览或试听</span></div><p>一个按钮同时读取当前素材、生成连续编号并交给固定 H3 出口。素材台编号只负责找素材；提示词只使用“本次 H3”编号。参考段使用素材台选定源入/出点，可在目标 GEN 窗口外；总长受 H3 规则约束。</p><div class="zv-h3i-media"></div></aside></div><div class="zv-h3i-foot"><span class="zv-h3i-editor-status"></span><span class="zv-h3-model-status"></span><span class="zv-h3-semantic-status"></span></div>`;
   const $ = selector => root.querySelector(selector);
   const fieldInputs = new Map();
   let lastTextInput = null;
@@ -675,8 +633,6 @@ function attachInterview(node) {
   root.addEventListener("focusin", event => { if (event.target.tagName === "TEXTAREA") lastTextInput = event.target; });
 
   const toolbar = $(".zv-h3i-toolbar");
-  const recipeLabel = el("label"); recipeLabel.append(el("span", "", "旧配方（教学参考，不改路由）"));
-  const recipe = el("select"); RECIPES.forEach(([value, label]) => { const option = el("option", "", label); option.value = value; recipe.append(option); }); recipeLabel.append(recipe);
   const modeLabel = el("label"); modeLabel.append(el("span", "", "模式备注（真实接口自动判定）"));
   const mode = el("select"); [["auto", "自动判定"], ["T2VA", "T2VA"], ["I2VA", "I2VA"], ["FL2VA", "FL2VA"], ["L2VA", "L2VA"], ["Ref2VA", "Ref2VA"], ["Hybrid", "混合参考"]].forEach(([value, label]) => { const option = el("option", "", label); option.value = value; mode.append(option); }); modeLabel.append(mode);
   const focusLabel = el("label"); focusLabel.append(el("span", "", "导演侧重"));
@@ -692,8 +648,33 @@ function attachInterview(node) {
   }, api);
 
   const fieldsHost = $(".zv-h3i-fields-host");
+  $(".zv-h3i-brand strong").textContent = "ZV H3 采访表";
+  $(".zv-h3i-brand small").textContent = "只收集、对齐、整理 · 未填内容不输出 · 反推系统提示词由独立节点管理";
+  const promptReview = el("section", "zv-h3i-fields");
+  promptReview.append(el("h3", "", "表格整理结果 · 中文需求原稿"));
+  promptReview.append(el("p", "wide", "这里是表格实际输出的内容，不是模型反推。请核对需求和素材编号；反推第二步另有中文结果预览。核对记录不阻止运行。"));
+  const promptText = el("textarea", "wide"); promptText.readOnly = true; promptText.rows = 10;
+  promptText.setAttribute("aria-label", "表格输出的中文需求");
+  const reviewButton = el("button", "", "我已核对当前整理内容"); reviewButton.type = "button"; reviewButton.disabled = true;
+  const reviewStatus = el("small", "wide", "等待整理当前内容…");
+  let promptReviewKey = "";
+  reviewButton.addEventListener("click", () => {
+    if (!promptReviewKey || reviewButton.disabled) return;
+    node.properties ||= {};
+    node.properties.zv_h3_reviewed_prompt = promptReviewKey;
+    reviewStatus.textContent = "已核对当前原稿；内容或素材变化后需重新核对。此记录不会阻止运行。";
+    node.setDirtyCanvas?.(true, true);
+  });
+  promptReview.append(promptText, reviewButton, reviewStatus); fieldsHost.append(promptReview);
+  function showPromptReview(result) {
+    promptText.value = result.user_prompt || "";
+    promptReviewKey = JSON.stringify([promptText.value, result.material_context_json || ""]);
+    reviewButton.disabled = !promptText.value;
+    reviewStatus.textContent = node.properties?.zv_h3_reviewed_prompt === promptReviewKey
+      ? "已核对当前原稿；此记录不会阻止运行。"
+      : "原稿已整理，请核对。这里不会替你补写未填写的要求。";
+  }
   const pendingView = el("details", "zv-h3-pending"); pendingView.hidden = true; fieldsHost.append(pendingView);
-  const teaching = el("details", "zv-h3-teaching"); teaching.append(el("summary", "", "可选教学示例（不改物理路由）"), recipeLabel); fieldsHost.append(teaching);
   const rulesView = el("details", "zv-h3-rules"); rulesView.append(el("summary", "", "接口规则与来源")); fieldsHost.append(rulesView);
   for (const [title, fields] of FIELD_GROUPS) {
     const section = el("section", "zv-h3i-fields"); section.append(el("h3", "", title));
@@ -874,19 +855,25 @@ function attachInterview(node) {
   function scheduleValidation() {
     clearTimeout(validationTimer);
     const token = ++validationToken;
+    reviewButton.disabled = true; reviewStatus.textContent = "正在整理最新内容，旧预览暂不可确认…";
     validationTimer = setTimeout(async () => {
-      if (disposed || !project) return;
+      if (disposed || !project) {
+        if (!disposed) { promptText.value = ""; promptReviewKey = ""; reviewStatus.textContent = "请先连接素材台，读取当前工程信息。"; }
+        return;
+      }
       try {
         const result = await requestPlan(clone(draft));
         if (disposed || token !== validationToken) return;
         validationResult = result.validation;
         adoptReferenceTexts(result.state);
+        showPromptReview(result);
         rulesView.replaceChildren(el("summary", "", "接口规则与来源"));
         for (const note of result.rules.notes) rulesView.append(el("p", "", note));
         for (const [label, url] of Object.entries(result.rules.sources)) { const link = el("a", "", label); link.href = url; link.target = "_blank"; link.rel = "noopener"; rulesView.append(link, document.createTextNode(" · ")); }
         renderValidation();
       } catch (error) {
         if (disposed || token !== validationToken) return;
+        promptReviewKey = ""; reviewStatus.textContent = `整理失败：${error.message}；上次预览不能用于核对。`;
         validationResult = { errors: [{ message: error.message }], warnings: [] }; renderValidation();
       }
     }, 160);
@@ -921,7 +908,6 @@ function attachInterview(node) {
   }
 
   function syncForm() {
-    recipe.value = draft.recipe;
     mode.value = draft.mode;
     focus.value = draft.director_focus;
     for (const [name, input] of fieldInputs) input.value = draft[name] || "";
@@ -1029,7 +1015,7 @@ function attachInterview(node) {
   }
 
   function updateStatus() {
-    draft.recipe = recipe.value; draft.mode = mode.value; draft.director_focus = focus.value;
+    draft.mode = mode.value; draft.director_focus = focus.value;
     const derived = inferMode(draft, rows);
     const active = rows.filter(row => bindingFor(draft, row).participates && !row.linked);
     const output = $(".zv-h3i-editor-status");
@@ -1056,14 +1042,6 @@ function attachInterview(node) {
     const external = safeState(widget.value);
     if (!persistTimer && JSON.stringify(external) !== JSON.stringify(state)) { state = external; draft = clone(state); syncForm(); }
     const context = readProject(node); project = context.project; projectMessage = context.message; rows = inventory(project);
-    if (draft.migration?.freeze_pending && project) {
-      for (const row of rows) draft.bindings[row.id] = bindingFor(draft, row);
-      if (draft.migration.legacy_drive_pending) {
-        const drive = rows.find(row => row.kind === "audio" && !row.linked && draft.bindings[row.id].participates && draft.media_roles[row.id]?.some(role => ["speech_lipsync", "audio_reuse"].includes(role)));
-        if (drive) draft.bindings[drive.id].banks = ["drive_audio"];
-      }
-      draft.migration = { from: "zv-h3-interview-v1" };
-    }
     let invalidated = false;
     if (draft.reference_detection) {
       const known = new Set(rows.map(row => row.id));
@@ -1157,7 +1135,6 @@ function attachInterview(node) {
     persistDraft(); renderMedia(); updateStatus();
   }
 
-  recipe.addEventListener("change", () => { applyRecipe(draft, recipe.value); updateStatus(); persistDraft(); });
   mode.addEventListener("change", () => { updateStatus(); persistDraft(); });
   focus.addEventListener("change", () => { updateStatus(); persistDraft(); });
   $("[data-action=clear-roles]").onclick = () => {
@@ -1203,4 +1180,4 @@ app.registerExtension({
   loadedGraphNode(node) { if ([node.comfyClass, node.type, node.constructor?.comfyClass].includes(NAME)) setTimeout(() => attachInterview(node), 0); },
 });
 
-export { bindingFor, mechanicalContext, migrateV1, safeState, applyRecipe, attachInterview, detectReferenceGraph, emptyState, inferMode, inputSource, inventory, plannedReferenceSnapshot, readProject, scanConditioning, scanStage1, validateFixedHubWiring };
+export { bindingFor, mechanicalContext, safeState, attachInterview, detectReferenceGraph, emptyState, inferMode, inputSource, inventory, plannedReferenceSnapshot, readProject, scanConditioning, scanStage1, validateFixedHubWiring };

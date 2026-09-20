@@ -20,8 +20,8 @@
 | 显示名 | CATEGORY | 旧技术 ID → 正式技术 ID |
 | --- | --- | --- |
 | ZV 通用素材取证台 | `ZV/视频创作/素材取证` | `ZFUniversalMediaEvidenceDesk` → `ZVUniversalMediaEvidenceDesk` |
-| ZV H3 结构化计划编译器（高级） | `ZV/视频创作/H3` | `ZFH3FocusCompiler` → `ZVH3FocusCompiler` |
-| ZV H3 基础采访表 | `ZV/视频创作/H3` | `ZVH3InterviewForm` |
+| ZV H3 采访表 | `ZV/视频创作/H3` | `ZVH3InterviewFormV2`（唯一当前表格） |
+| ZV H3 独立反推阶段 | `ZV/视频创作/H3` | `ZVH3ReverseStage` |
 
 Python 类名、注册键和前端匹配 ID 同步使用新 ZV ID，旧 ID 不再注册，也不增加兼容别名或重复节点。取证台 socket 正式改为 `ZV_MEDIA_PROJECT`；后续采访/适配接口使用该类型。未迁移的旧本地或云端工作流需要迁移或重新建节点，不再承诺旧 ID 自动兼容。
 

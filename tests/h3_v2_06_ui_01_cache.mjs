@@ -38,7 +38,6 @@ try {
     check(await page.evaluate(()=>typeof oldOutlets.createOriginalOutlet==='undefined'&&typeof oldOutlets.createMediaOutlets==='function'));
     const primeRequests=await serverRecords();
     deep(primeRequests.filter(r=>r.phase==='prime'&&r.path==='/extensions/media_evidence_outlets.mjs').length,1);
-    deep(primeRequests.filter(r=>r.phase==='prime'&&r.path==='/extensions/media_evidence_slots.mjs').length,1);
     await phase('mixed');await page.goto(origin+'/?stage=mixed');await ready();await sync();
     check(await page.evaluate(()=>typeof outlets.createOriginalOutlet==='undefined'));
     const p=await importFixtures(),video=p.assets.find(a=>a.kind==='video');
@@ -48,10 +47,8 @@ try {
     deep(stable(await graph()),stable(before));deep(await project(),beforeProject);
     const mixedRequests=await serverRecords();
     deep(mixedRequests.filter(r=>r.phase==='mixed'&&r.path==='/extensions/media_evidence_outlets.mjs').length,0);
-    deep(mixedRequests.filter(r=>r.phase==='mixed'&&r.path==='/extensions/media_evidence_slots.mjs').length,0);
     check(network.some(r=>r.event==='cache'&&network.some(q=>q.event==='request'&&q.id===r.id&&q.url.endsWith('/media_evidence_outlets.mjs'))));
-    check(network.some(r=>r.event==='cache'&&network.some(q=>q.event==='request'&&q.id===r.id&&q.url.endsWith('/media_evidence_slots.mjs'))));
-    records.push({name:'mixed cache actual reproduction',status:await page.locator('.zf-med-status').textContent(),prime_http_mjs_requests:1,mixed_http_mjs_requests:0,prime_http_slots_requests:1,mixed_http_slots_requests:0});
+    records.push({name:'mixed cache actual reproduction',status:await page.locator('.zf-med-status').textContent(),prime_http_mjs_requests:1,mixed_http_mjs_requests:0});
     await page.screenshot({path:join(out,'CACHE_MIXED_REPRODUCED.png')});
     if(!process.argv.includes('--reproduce-only')) {
         // Same browser/context, ordinary navigation; old URI remains cached.
@@ -82,7 +79,6 @@ try {
         const saved=await graph();await page.evaluate(data=>loadSaved(data),saved);await sync();deep(stable(await graph()),stable(saved));deep((await graph()).links,saved.links);
         const fixtureRequests=await serverRecords();
         deep(fixtureRequests.filter(r=>r.phase==='fixed'&&r.path===`/extensions/media_evidence_outlets.mjs?v=${version}`).length,1);
-        deep(fixtureRequests.filter(r=>r.phase==='fixed'&&r.path===`/extensions/media_evidence_slots.mjs?v=${version}`).length,1);
         deep(fixtureRequests.filter(r=>r.phase==='fixed'&&r.path==='/extensions/media_evidence_outlets.mjs').length,0);
         check(await page.evaluate(async version=>outlets===await import(`/extensions/media_evidence_outlets.mjs?v=${version}`),version));
         await select(assets.find(a=>a.kind==='video').asset_id);await page.screenshot({path:join(out,'CACHE_FIXED_THREE_ORIGINALS.png')});

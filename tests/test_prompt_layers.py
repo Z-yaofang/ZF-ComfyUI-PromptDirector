@@ -14,31 +14,55 @@ def _load_nodes_module():
     package.__path__ = [str(ROOT)]
     sys.modules.setdefault(PACKAGE_NAME, package)
 
-    comfy_execution = sys.modules.setdefault("comfy_execution", types.ModuleType("comfy_execution"))
+    comfy_execution = types.ModuleType("comfy_execution")
     graph = types.ModuleType("comfy_execution.graph")
     graph.ExecutionBlocker = type("ExecutionBlocker", (), {})
     comfy_execution.graph = graph
-    sys.modules["comfy_execution.graph"] = graph
 
     module_name = f"{PACKAGE_NAME}.nodes"
     spec = importlib.util.spec_from_file_location(module_name, ROOT / "nodes.py")
     module = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = module
     assert spec.loader is not None
-    spec.loader.exec_module(module)
+    stubs = {"comfy_execution": comfy_execution, "comfy_execution.graph": graph}
+    missing = object()
+    previous = {name: sys.modules.get(name, missing) for name in stubs}
+    sys.modules.update(stubs)
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        # Restore only these stubs; unloading newly imported native modules
+        # (for example torch) makes subsequent test collection unsafe.
+        for name, original in previous.items():
+            if original is missing:
+                sys.modules.pop(name, None)
+            else:
+                sys.modules[name] = original
     return module
 
 
 MODULE = _load_nodes_module()
 
 
+def test_registration_loader_preserves_existing_host_graph_modules(monkeypatch):
+    host = types.ModuleType("comfy_execution")
+    graph = types.ModuleType("comfy_execution.graph")
+    host.graph = graph
+    monkeypatch.setitem(sys.modules, "comfy_execution", host)
+    monkeypatch.setitem(sys.modules, "comfy_execution.graph", graph)
+    _load_nodes_module()
+    assert sys.modules["comfy_execution"] is host
+    assert sys.modules["comfy_execution.graph"] is graph
+    assert host.graph is graph
+
+
 def test_video_nodes_register_only_new_zv_ids_and_socket():
-    for node_id in ("ZVUniversalMediaEvidenceDesk", "ZVProcessingWindowOutlet", "ZVH3FocusCompiler", "ZVH3InterviewForm"):
+    for node_id in ("ZVUniversalMediaEvidenceDesk", "ZVProcessingWindowOutlet", "ZVH3InterviewFormV2", "ZVH3ReverseStage"):
         cls = getattr(MODULE, node_id)
         assert MODULE.NODE_CLASS_MAPPINGS[node_id] is cls
         assert cls.__name__ == node_id
         assert list(MODULE.NODE_CLASS_MAPPINGS.values()).count(cls) == 1
-    for old_id in ("ZFUniversalMediaEvidenceDesk", "ZFH3FocusCompiler"):
+    for old_id in ("ZFUniversalMediaEvidenceDesk", "ZFH3FocusCompiler", "ZVH3FocusCompiler", "ZVH3InterviewForm", "ZVPictureSlotOutlet", "ZVVideoSlotOutlet", "ZVAudioSlotOutlet", "ZFBlueprintParser", "ZFSinglePromptTask"):
         assert old_id not in MODULE.NODE_CLASS_MAPPINGS
         assert old_id not in MODULE.NODE_DISPLAY_NAME_MAPPINGS
         assert not hasattr(MODULE, old_id)
@@ -50,8 +74,8 @@ def test_video_nodes_use_zv_display_names_and_categories():
     expected = {
         "ZVUniversalMediaEvidenceDesk": ("ZV 通用素材取证台", "ZV/视频创作/素材取证"),
         "ZVProcessingWindowOutlet": ("ZV 处理窗口参数出口", "ZV/视频创作/素材取证"),
-        "ZVH3FocusCompiler": ("ZV H3 结构化计划编译器（高级）", "ZV/视频创作/H3"),
-        "ZVH3InterviewForm": ("ZV H3 基础采访表", "ZV/视频创作/H3"),
+        "ZVH3InterviewFormV2": ("ZV H3 采访表 · 收集对齐整理", "ZV/视频创作/H3"),
+        "ZVH3ReverseStage": ("ZV H3 独立反推阶段", "ZV/视频创作/H3"),
     }
     for node_id, (display_name, category) in expected.items():
         assert MODULE.NODE_DISPLAY_NAME_MAPPINGS[node_id] == display_name

@@ -31,8 +31,8 @@ def execute(request):
         desk = prompt['165']['inputs']; canvas = prepared.get('output_canvas')
         width, height = (canvas['width'], canvas['height']) if 'width' in desk or 'height' in desk else (None, None)
         current, _, _ = M['DESK'].ZVUniversalMediaEvidenceDesk().export_project(json.dumps(raw), width, height)
-        built = M['V2']['N'].ZVH3InterviewForm().build(current, M['I'].dumps(request['state']), prompt=prompt, unique_id='172')
-        return {'ready': built[7], 'tuple_count': len(built), 'canvas': current.get('output_canvas'), 'errors': built[8]['errors']}
+        built = M['V2']['N'].ZVH3InterviewFormV2().build(current, M['I'].dumps(request['state']), prompt=prompt, unique_id='172')
+        return {'ready': built[5], 'tuple_count': len(built), 'canvas': current.get('output_canvas'), 'errors': built[6]['errors']}
     return B['execute'](request)
 
 

@@ -227,9 +227,9 @@ def test_pool_only_keeps_alignment_then_picture_banks_actual_24_outlet_and_porta
     for bank,slot in [('first_frame',0),('last_frame',1),('ref_images',2)]:
         current=I.empty_interview();current['bindings']={'shot':{'item_id':'shot','participates':True,'banks':[bank]}}
         current=M['V2']['aligned'](store.canonical(project),current)
-        built=M['V2']['N'].ZVH3InterviewForm().build(project,I.dumps(current),prompt=M['prompt'](),unique_id='172')
-        assert built[7]
-        outputs=M['OUT'].ZVH3ReferenceOutlet().export_references(built[8])
+        built=M['V2']['N'].ZVH3InterviewFormV2().build(project,I.dumps(current),prompt=M['prompt'](),unique_id='172')
+        assert built[5]
+        outputs=M['OUT'].ZVH3ReferenceOutlet().export_references(built[6])
         assert len(outputs)==24 and list(outputs[slot].shape)==[1,24,32,3]
         assert outputs[slot][0,0,0].tolist()==pytest.approx([40/255,39/255,101/255])
         current['intent']=f"保持 <Picture 1> 的画面";template=M['P'].capture_template(current,project)

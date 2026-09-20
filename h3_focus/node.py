@@ -1,10 +1,7 @@
 import copy
-import json
 from collections.abc import Mapping
 
-from .compiler import compile_plan
-from .contract import ContractError, parse_json
-from .interview import InterviewError, annotate_conditioning, annotate_project_errors, build_system_prompt, compile_interview, dumps, empty_interview, normalize_interview, parse_interview
+from .interview import MATERIAL_CONTEXT_VERSION, InterviewError, annotate_conditioning, annotate_project_errors, compile_interview, dumps, empty_interview, normalize_interview, parse_interview
 from .reference_detection import compare_detection, detect_reference_wiring, validate_reference_hub_wiring, validate_conditioning_settings
 from .reference_plan import build_reference_plan, empty_reference_plan, planned_detection
 
@@ -20,37 +17,13 @@ def _prompt_uses_reference_hub(prompt, interview_id):
         link = inputs.get("reference_plan") if isinstance(inputs, Mapping) else None
         if (
             isinstance(link, list) and len(link) == 2
-            and str(link[0]) == wanted and link[1] == 8
+            and str(link[0]) == wanted and link[1] == 6
         ):
             return True
     return False
 
 
-class ZVH3FocusCompiler:
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {"plan_json": ("STRING", {"multiline": True, "default": "{}"})},
-            "optional": {"llm_patch_json": ("STRING", {"multiline": True, "default": ""})},
-        }
-
-    RETURN_TYPES = ("STRING", "STRING", "STRING", "STRING", "STRING", "BOOLEAN")
-    RETURN_NAMES = ("normalized_plan_json", "final_prompt", "reverse_task_json", "human_report", "validation_report_json", "ready")
-    FUNCTION = "compile"
-    CATEGORY = "ZV/视频创作/H3"
-
-    def compile(self, plan_json, llm_patch_json=""):
-        try:
-            result = compile_plan(parse_json(plan_json), llm_patch_json if llm_patch_json.strip() else None)
-        except ContractError as exc:
-            validation = {"ready": False, "errors": exc.issues, "warnings": []}
-            report = "H3 计划未通过契约校验：\n" + "\n".join(f"{e['path']}：{e['message']}" for e in exc.issues)
-            return ("{}", "", "{}", report, json.dumps(validation, ensure_ascii=False), False)
-        dump = lambda value: json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False)
-        return (dump(result["plan"]), result["final_prompt"], dump(result["reverse_tasks"]), result["human_report"], dump(result["validation"]), result["ready"])
-
-
-class ZVH3InterviewForm:
+class ZVH3InterviewFormV2:
     """A visual interview stored as JSON and grounded by a media-project input."""
 
     @classmethod
@@ -66,10 +39,8 @@ class ZVH3InterviewForm:
             },
         }
 
-    # The first eight outputs are the released contract. Keep their indices
-    # stable and append the fixed-reference plan at the end.
-    RETURN_TYPES = ("STRING", "STRING", "STRING", "STRING", "FLOAT", "STRING", "STRING", "BOOLEAN", "ZV_H3_REFERENCE_PLAN")
-    RETURN_NAMES = ("system_prompt", "stage1_task", "stage2_prefix", "stage3_prefix", "duration_seconds", "interview_json", "human_report", "ready", "reference_plan")
+    RETURN_TYPES = ("STRING", "STRING", "FLOAT", "STRING", "STRING", "BOOLEAN", "ZV_H3_REFERENCE_PLAN")
+    RETURN_NAMES = ("user_prompt", "material_context_json", "duration_seconds", "interview_json", "human_report", "ready", "reference_plan")
     FUNCTION = "build"
     CATEGORY = "ZV/视频创作/H3"
 
@@ -79,7 +50,7 @@ class ZVH3InterviewForm:
         # check itself only walks the submitted prompt graph and does no media IO.
         return float("nan")
 
-    def build(self, media_project, interview_json, prompt=None, unique_id=None):
+    def _compile(self, media_project, interview_json, prompt=None, unique_id=None):
         from ..media_evidence import runtime
         from ..media_evidence.contract import ProjectError, normalize_project
 
@@ -130,12 +101,8 @@ class ZVH3InterviewForm:
 
         except InterviewError as exc:
             state = empty_interview()
-            system_prompt = build_system_prompt(state)
             report = "H3 采访数据无效：\n" + "\n".join(f"{row['path']}：{row['message']}" for row in exc.issues)
-            return (
-                system_prompt, "", "", "", 0.0, dumps(state, indent=2), report, False,
-                empty_reference_plan(errors=[{"path": "/interview_json", "code": "interview", "message": report}]),
-            )
+            return self._invalid_result(state, report, "/interview_json", "interview")
         except ProjectError as exc:
             state = empty_interview()
             try:
@@ -143,19 +110,27 @@ class ZVH3InterviewForm:
             except InterviewError:
                 pass
             report = "素材工程无效：\n" + "\n".join(f"{row['path']}：{row['message']}" for row in exc.errors)
-            return (
-                build_system_prompt(state), "", "", "", 0.0, dumps(state, indent=2), report, False,
-                empty_reference_plan(errors=[{"path": "/media_project", "code": "project", "message": report}]),
-            )
+            return self._invalid_result(state, report, "/media_project", "project")
         reference_plan = build_reference_plan(project, result)
+        return result, reference_plan, project
+
+    @staticmethod
+    def _invalid_result(state, report, path, code):
+        error = {"path": path, "code": code, "message": report}
+        result = {
+            "state": state, "user_prompt": "", "duration_seconds": 0.0,
+            "material_context_json": dumps({
+                "schema_version": MATERIAL_CONTEXT_VERSION, "mode": "T2VA",
+                "duration_seconds": 0.0, "target_fps": 24, "target_frames": 0, "materials": [],
+            }),
+            "human_report": report, "validation": {"ready": False},
+        }
+        return result, empty_reference_plan(errors=[error]), None
+
+    def build(self, media_project, interview_json, prompt=None, unique_id=None):
+        result, reference_plan, _project = self._compile(media_project, interview_json, prompt, unique_id)
         return (
-            result["system_prompt"],
-            result["stage1_task"],
-            result["stage2_prefix"],
-            result["stage3_prefix"],
-            result["duration_seconds"],
-            dumps(result["state"], indent=2),
-            result["human_report"],
-            result["validation"]["ready"],
+            result["user_prompt"], result["material_context_json"], result["duration_seconds"],
+            dumps(result["state"], indent=2), result["human_report"], result["validation"]["ready"],
             reference_plan,
         )

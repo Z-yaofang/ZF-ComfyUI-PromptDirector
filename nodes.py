@@ -12,12 +12,23 @@ from .flow_nodes import ZFPromptDirectorAnyFilter, ZFPromptDirectorMultiTextSele
 from .local_multimodal import ZFPromptDirectorLocalLLM
 from .music_nodes import ZFMusic3PromptDirector, ZFMusic3ResponseParser
 from .portrait_nodes import ZIPortraitPromptGenerator
-from .h3_focus.node import ZVH3FocusCompiler, ZVH3InterviewForm
+from .h3_focus.node import ZVH3InterviewFormV2
+from .h3_focus.reverse_pipeline import ZVH3ReverseStage
 from .h3_focus.outlet_node import ZVH3ReferenceOutlet
+from .long_video.plan_node import ZVLongVideoSegmentDesk
+from .long_video.interview import ZVSegmentInterview
+from .long_video.masks import (
+    ZVH3MaskedFrameCompose,
+    ZVH3MaskedLatentRestore,
+    ZVH3MaskedSegmentLatent,
+    ZVMaskedSegmentBundle,
+    ZVSegmentMaskSlice,
+    ZVSegmentVideoMaskSource,
+)
+from .long_video.execution_nodes import ZVLongVideoExecutionEnd, ZVLongVideoExecutionEntry, ZVLongVideoExecutionSetup, ZVLongVideoSegmentRecorder
 from .media_evidence.node import ZVUniversalMediaEvidenceDesk
 from .media_evidence.outlet_nodes import ZVPictureOutlet, ZVVideoOutlet, ZVAudioOutlet, ZVTimelineAudioOutlet, ZVProcessingWindowOutlet
 from .media_evidence.original_nodes import ZVOriginalPictureOutlet, ZVOriginalVideoOutlet, ZVOriginalAudioOutlet
-from .media_evidence.slot_nodes import ZVPictureSlotOutlet, ZVVideoSlotOutlet, ZVAudioSlotOutlet
 
 
 ROOT = Path(__file__).resolve().parent
@@ -1457,56 +1468,6 @@ class ZFPromptDirector:
         )
 
 
-class ZFBlueprintParser:
-    """Legacy compatibility node. Version 2 no longer uses a model-authored blueprint list."""
-
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "planner_output": ("STRING", {"forceInput": True}),
-                "expected_count": ("INT", {"forceInput": True, "min": 1, "max": 100}),
-            }
-        }
-
-    RETURN_TYPES = ("STRING", "STRING", "BOOLEAN", "INT")
-    RETURN_NAMES = ("blueprints", "report", "valid", "actual_count")
-    OUTPUT_IS_LIST = (True, False, False, False)
-    FUNCTION = "parse"
-    CATEGORY = "ZF/提示词创意导演/旧版兼容"
-
-    def parse(self, planner_output, expected_count):
-        text = str(planner_output or "").strip()
-        items = [text] if text else ["主题创作任务"]
-        return (items, "旧版兼容节点；V2工作流无需连接此节点", bool(text), len(items))
-
-
-class ZFSinglePromptTask:
-    """Legacy compatibility node. Version 2 sends director tasks straight to the writer model."""
-
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "enabled": ("BOOLEAN", {"forceInput": True}),
-                "blueprint": ("STRING", {"forceInput": True}),
-                "theme": ("STRING", {"forceInput": True}),
-                "user_prompt": ("STRING", {"forceInput": True}),
-                "selection_json": ("STRING", {"forceInput": True}),
-                "width": ("INT", {"forceInput": True}),
-                "height": ("INT", {"forceInput": True}),
-            }
-        }
-
-    RETURN_TYPES = ("STRING", "STRING", "INT", "INT")
-    RETURN_NAMES = ("writer_system_prompt", "writer_user_prompt", "min_chars", "max_chars")
-    FUNCTION = "build"
-    CATEGORY = "ZF/提示词创意导演/旧版兼容"
-
-    def build(self, enabled, blueprint, theme, user_prompt, selection_json, width, height):
-        selection = _safe_selection(selection_json)
-        minimum, maximum = _length_target(selection, DEFAULT_MODEL_LEVEL)
-        return (DIRECTOR_SYSTEM_PROMPT, str(blueprint or user_prompt or "主题创作任务"), minimum, maximum)
 
 
 class ZFDecisiveLlamaParams:
@@ -1603,16 +1564,25 @@ NODE_CLASS_MAPPINGS = {
     "ZVOriginalPictureOutlet": ZVOriginalPictureOutlet,
     "ZVOriginalVideoOutlet": ZVOriginalVideoOutlet,
     "ZVOriginalAudioOutlet": ZVOriginalAudioOutlet,
-    "ZVPictureSlotOutlet": ZVPictureSlotOutlet,
-    "ZVVideoSlotOutlet": ZVVideoSlotOutlet,
-    "ZVAudioSlotOutlet": ZVAudioSlotOutlet,
     "ZVVideoOutlet": ZVVideoOutlet,
     "ZVAudioOutlet": ZVAudioOutlet,
     "ZVTimelineAudioOutlet": ZVTimelineAudioOutlet,
     "ZVProcessingWindowOutlet": ZVProcessingWindowOutlet,
-    "ZVH3FocusCompiler": ZVH3FocusCompiler,
-    "ZVH3InterviewForm": ZVH3InterviewForm,
+    "ZVH3InterviewFormV2": ZVH3InterviewFormV2,
+    "ZVH3ReverseStage": ZVH3ReverseStage,
     "ZVH3ReferenceOutlet": ZVH3ReferenceOutlet,
+    "ZVLongVideoSegmentDesk": ZVLongVideoSegmentDesk,
+    "ZVSegmentInterview": ZVSegmentInterview,
+    "ZVSegmentVideoMaskSource": ZVSegmentVideoMaskSource,
+    "ZVMaskedSegmentBundle": ZVMaskedSegmentBundle,
+    "ZVSegmentMaskSlice": ZVSegmentMaskSlice,
+    "ZVH3MaskedSegmentLatent": ZVH3MaskedSegmentLatent,
+    "ZVH3MaskedLatentRestore": ZVH3MaskedLatentRestore,
+    "ZVH3MaskedFrameCompose": ZVH3MaskedFrameCompose,
+    "ZVLongVideoExecutionSetup": ZVLongVideoExecutionSetup,
+    "ZVLongVideoExecutionEntry": ZVLongVideoExecutionEntry,
+    "ZVLongVideoSegmentRecorder": ZVLongVideoSegmentRecorder,
+    "ZVLongVideoExecutionEnd": ZVLongVideoExecutionEnd,
     "ZFPromptDirectorAnyFilter": ZFPromptDirectorAnyFilter,
     "ZFPromptDirectorMultiTextSelector": ZFPromptDirectorMultiTextSelector,
     "ZFPromptDirectorLocalLLM": ZFPromptDirectorLocalLLM,
@@ -1624,8 +1594,6 @@ NODE_CLASS_MAPPINGS = {
     "ZFReferenceAnalysisPromptBuilder": ZFReferenceAnalysisPromptBuilder,
     "ZFReferenceCreativeAdapter": ZFReferenceCreativeAdapter,
     "ZFPromptDirector": ZFPromptDirector,
-    "ZFBlueprintParser": ZFBlueprintParser,
-    "ZFSinglePromptTask": ZFSinglePromptTask,
     "ZFDecisiveLlamaParams": ZFDecisiveLlamaParams,
     "ZFPromptValidator": ZFPromptValidator,
     "ZFLazyPromptSwitch": ZFLazyPromptSwitch,
@@ -1638,16 +1606,25 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ZVOriginalPictureOutlet": "ZV 原图片出口",
     "ZVOriginalVideoOutlet": "ZV 原视频出口",
     "ZVOriginalAudioOutlet": "ZV 原音频出口",
-    "ZVPictureSlotOutlet": "ZV 图片槽位出口",
-    "ZVVideoSlotOutlet": "ZV 视频槽位出口",
-    "ZVAudioSlotOutlet": "ZV 音频槽位出口",
     "ZVVideoOutlet": "ZV 视频素材出口",
     "ZVAudioOutlet": "ZV 音频素材出口",
     "ZVTimelineAudioOutlet": "ZV 时间线混音出口",
     "ZVProcessingWindowOutlet": "ZV 处理窗口参数出口",
-    "ZVH3FocusCompiler": "ZV H3 结构化计划编译器（高级）",
-    "ZVH3InterviewForm": "ZV H3 基础采访表",
+    "ZVH3InterviewFormV2": "ZV H3 采访表 · 收集对齐整理",
+    "ZVH3ReverseStage": "ZV H3 独立反推阶段",
     "ZVH3ReferenceOutlet": "ZV H3 素材对齐出口（官方容量）",
+    "ZVLongVideoSegmentDesk": "ZV 长视频分段台",
+    "ZVSegmentInterview": "ZV 分段采访表",
+    "ZVSegmentVideoMaskSource": "ZV 遮罩源视频",
+    "ZVMaskedSegmentBundle": "ZV 外接 MASK 分段绑定",
+    "ZVSegmentMaskSlice": "ZV 当前分段 MASK",
+    "ZVH3MaskedSegmentLatent": "ZV H3 蒙版分段 Latent",
+    "ZVH3MaskedLatentRestore": "ZV H3 HIGH 蒙版恢复",
+    "ZVH3MaskedFrameCompose": "ZV H3 蒙版像素回贴",
+    "ZVLongVideoExecutionSetup": "ZV 长视频执行准备",
+    "ZVLongVideoExecutionEntry": "ZV 当前分段执行入口",
+    "ZVLongVideoSegmentRecorder": "ZV 分段结果落盘",
+    "ZVLongVideoExecutionEnd": "ZV 长视频精确拼接",
     "ZFPromptDirectorAnyFilter": "ZF任意过滤器",
     "ZFPromptDirectorMultiTextSelector": "ZF文本动态多路点选",
     "ZFPromptDirectorLocalLLM": "ZF本地多模态指令",
@@ -1659,8 +1636,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ZFReferenceAnalysisPromptBuilder": "ZF 产品图/参考图分析生成器（API）",
     "ZFReferenceCreativeAdapter": "ZF 参考图临时用途与创意适配器",
     "ZFPromptDirector": "ZF 提示词创意导演 V2",
-    "ZFBlueprintParser": "ZF 视觉蓝图解析器（旧版兼容）",
-    "ZFSinglePromptTask": "ZF 单图写作任务（旧版兼容）",
     "ZFDecisiveLlamaParams": "ZF Llama参数透传",
     "ZFPromptValidator": "ZF 提示词整理与观察",
     "ZFLazyPromptSwitch": "ZF 提示词总开关",

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {readFile} from 'node:fs/promises';
 const {chromium}=createRequire(import.meta.url)(process.argv[2]||'playwright');
-const files=Object.fromEntries(await Promise.all(['media_evidence_desk.js','media_evidence_core.mjs','media_evidence_presets.mjs','media_evidence_outlets.mjs','media_evidence_slots.mjs','media_processing_presets.json','media_evidence_desk.css','dom_widget_layout.mjs'].map(async name=>[name,await readFile(new URL(`../web/${name}`,import.meta.url),'utf8')])));
+const files=Object.fromEntries(await Promise.all(['media_evidence_desk.js','media_evidence_core.mjs','media_evidence_presets.mjs','media_evidence_outlets.mjs','media_processing_presets.json','media_evidence_desk.css','dom_widget_layout.mjs'].map(async name=>[name,await readFile(new URL(`../web/${name}`,import.meta.url),'utf8')])));
 const browser=await chromium.launch({headless:true,executablePath:process.argv[3]});
 const page=await browser.newPage({viewport:{width:1240,height:1060}}),errors=[];
 page.on('pageerror',error=>errors.push(error.message));

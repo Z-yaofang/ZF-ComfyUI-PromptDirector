@@ -11,8 +11,6 @@ venv/
 
 # Local acceptance records may contain personal media, paths and presets.
 docs/evidence/
-docs/H3_V2_HANDOFF.md
-docs/H3_V2_06_UI_01_FRONTEND_VERSION.md
 
 # Full/private worldview libraries are independent local creative assets.
 # Public instructional examples belong under examples/ instead.

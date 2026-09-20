@@ -77,14 +77,16 @@ def validate_slot(slot):
 
 
 def validate_template(value):
-    from .interview import TEXT_FIELDS, FOCUSES, RECIPES, MODES
+    from .interview import TEXT_FIELDS, FOCUSES, MODES
     keys(value, {"schema_version", "fields", "director_focus", "slots", "notes"})
     if value["schema_version"] != SCHEMA or value["director_focus"] not in FOCUSES:
         raise PresetError("preset_version", "模板版本或导演侧重无效")
     keys(value["fields"], TEXT_FIELDS)
-    keys(value["notes"], {"recipe", "mode"})
-    if not isinstance(value["notes"]["recipe"], str) or value["notes"]["recipe"] not in RECIPES or value["notes"]["mode"] not in MODES:
-        raise PresetError("preset_notes", "旧配方或模式备注无效")
+    if isinstance(value["notes"], dict):
+        value["notes"].pop("recipe", None)
+    keys(value["notes"], {"mode"})
+    if value["notes"]["mode"] not in MODES:
+        raise PresetError("preset_notes", "模式备注无效")
     entries = list(value["fields"].values())
     slots, identities = value["slots"], set()
     if not isinstance(slots, list) or len(slots) > 1536:
@@ -236,7 +238,7 @@ def capture_template(raw_state, project):
                 current = source_for_call(candidates[0], inventory)
             definitions.append({"token": definition["token"], "source": {key: current[key] for key in ("kind", "slot", "bank")}})
         return {"text": entry["text"], "definitions": definitions}
-    template = {"schema_version": SCHEMA, "fields": {key: portable(key) for key in TEXT_FIELDS}, "director_focus": state["director_focus"], "notes": {"recipe": state["recipe"], "mode": state["mode"]}, "slots": []}
+    template = {"schema_version": SCHEMA, "fields": {key: portable(key) for key in TEXT_FIELDS}, "director_focus": state["director_focus"], "notes": {"mode": state["mode"]}, "slots": []}
     rows = typed_rows(inventory)
     for base_slot in reusable_template(state, inventory)["slots"]:
         kind, ordinal = base_slot["kind"], base_slot["slot"]
@@ -286,7 +288,7 @@ def apply_template(template, raw_state, project):
     state["preset_pending"] = []
     for key in TEXT_FIELDS: install(template["fields"][key], key)
     state["director_focus"] = template["director_focus"]
-    state["recipe"], state["mode"] = template["notes"]["recipe"], template["notes"]["mode"]
+    state["mode"] = template["notes"]["mode"]
     matched = set()
     for slot in template["slots"]:
         kind, ordinal = slot["kind"], slot["slot"]

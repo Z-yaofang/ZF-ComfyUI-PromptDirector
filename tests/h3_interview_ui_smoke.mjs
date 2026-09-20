@@ -43,7 +43,7 @@ window.install=function(state=h3.emptyState(), project=fixture, savedGraph=null,
   if(savedGraph){nodes=structuredClone(savedGraph.nodes);links=Object.fromEntries(savedGraph.links.map(row=>[row[0],{origin_id:row[1],origin_slot:row[2]}]));}
   else{
     const desk={id:165,type:"ZVUniversalMediaEvidenceDesk",inputs:[],outputs:[{name:"media_project"}]};
-    const interview={id:172,type:"ZVH3InterviewForm",inputs:[{name:"media_project",link:1}],outputs:[]};
+    const interview={id:172,type:"ZVH3InterviewFormV2",inputs:[{name:"media_project",link:1}],outputs:[]};
     const hub={id:182,type:"ZVH3ReferenceOutlet",inputs:[{name:"reference_plan",link:2}],outputs:hubNames.map(name=>({name}))};
     const stage={id:146,type:"ZFPromptDirectorLocalLLM",title:"Stage①",inputs:[{name:"prompt",link:3},{name:"role",link:4}],outputs:[]};
     const low={id:7,type:"MiniMaxH3AudioConditioningT8",title:"LOW",inputs:[{name:"prompt",link:5}],outputs:[]};
@@ -51,7 +51,8 @@ window.install=function(state=h3.emptyState(), project=fixture, savedGraph=null,
     const count={id:171,type:"ZVProcessingWindowOutlet",inputs:[{name:"media_project",link:7}],outputs:[]};
     const math={id:30,type:"ComfyMathExpression",inputs:[{name:"values.a",link:8}],outputs:[],widgets:[{name:"expression",value:"max(5, round(a)) + (5 - (max(5, round(a)) % 17)) % 17"}]};
     low.inputs.push({name:"length",link:9});high.inputs.push({name:"length",link:100});
-    nodes=[desk,interview,hub,stage,low,high,count,math];links={1:{origin_id:165,origin_slot:0},2:{origin_id:172,origin_slot:8},3:{origin_id:172,origin_slot:1},4:{origin_id:172,origin_slot:0},5:{origin_id:172,origin_slot:3},6:{origin_id:172,origin_slot:3},7:{origin_id:165,origin_slot:0},8:{origin_id:171,origin_slot:4},9:{origin_id:30,origin_slot:1},100:{origin_id:30,origin_slot:1}};
+    const reverse={id:173,type:"ZVH3ReverseStage",inputs:[{name:"user_prompt",link:101},{name:"material_context_json",link:102}],outputs:[{name:"system_prompt"},{name:"user_task"}]};
+    nodes=[desk,interview,hub,reverse,stage,low,high,count,math];links={1:{origin_id:165,origin_slot:0},2:{origin_id:172,origin_slot:6},3:{origin_id:173,origin_slot:1},4:{origin_id:173,origin_slot:0},5:{origin_id:146,origin_slot:0},6:{origin_id:146,origin_slot:0},7:{origin_id:165,origin_slot:0},8:{origin_id:171,origin_slot:4},9:{origin_id:30,origin_slot:1},100:{origin_id:30,origin_slot:1},101:{origin_id:172,origin_slot:0},102:{origin_id:172,origin_slot:1}};
     let id=10;const connect=(target,name,slot)=>{links[id]={origin_id:182,origin_slot:slot};target.inputs.push({name,link:id++});};
     const map=[["first_frame",0],["last_frame",1],...Array.from({length:9},(_,i)=>['ref_images.ref_image_'+i,2+i]),...Array.from({length:3},(_,i)=>['ref_videos.ref_video_'+i,11+i]),...Array.from({length:3},(_,i)=>['ref_video_audios.ref_video_audio_'+i,14+i]),["drive_audio",17],["final_audio",18],...Array.from({length:3},(_,i)=>['ref_audios.ref_audio_'+i,19+i])];
     for(const target of [low,high]){for(const [name,slot] of map)connect(target,name,slot);target.widgets=[{name:"task_type",value:"Ref2VA — 参考生音视频"},{name:"audio_mode",value:"lock_source"},{name:"add_source_as_reference",value:false},{name:"prompt_primary_audio_ordinal",value:1}];}
@@ -126,6 +127,21 @@ const projectChange = async project => {
 
 try {
   await page.goto("https://h3-interview.test/"); await page.waitForSelector(".zv-h3i textarea[name=intent]");
+  {
+    const preview=page.getByRole("textbox", {name:"表格输出的中文需求"});
+    const reviewed=page.getByRole("button", {name:"我已核对当前整理内容"});
+    await page.locator("textarea[name=intent]").fill("只整理这句用户需求，不补写衣服和场景。");
+    await page.waitForFunction(()=>document.querySelector('textarea[aria-label="表格输出的中文需求"]')?.value.includes("只整理这句用户需求"));
+    check(!(await preview.inputValue()).includes("未指定"));
+    await reviewed.click();
+    check((await page.evaluate(()=>interviewNode.properties.zv_h3_reviewed_prompt)).includes("只整理这句用户需求"));
+    await page.locator("textarea[name=intent]").fill("修改后的中文要求");
+    await page.waitForFunction(()=>document.querySelector('textarea[aria-label="表格输出的中文需求"]')?.value.includes("修改后的中文要求"));
+    check((await preview.inputValue()).includes("修改后的中文要求"));
+    check((await page.locator(".zv-h3i-fields").first().textContent()).includes("原稿已整理，请核对"));
+    await page.locator("textarea[name=intent]").fill("");
+    scenarios++;
+  }
   check(await page.locator(".zv-h3i-role-options input:checked").count() === 0);
   await page.getByRole("button", { name: "检测并对齐素材" }).click();
   await page.waitForFunction(() => JSON.parse(interviewNode.widgets[0].value).reference_detection != null);
@@ -144,7 +160,7 @@ try {
   await picture.locator('.zv-h3i-role-options input[value="subject_identity"]').check();
   await picture.locator('textarea[name="purpose-p1"]').fill("同一图定义 <Subject 1> 和 <Subject 2>，自由剧情与转场");
   await page.waitForTimeout(200); deep((await saved()).reference_detection, before);
-  await page.locator(".zv-h3-teaching summary").click(); await page.locator(".zv-h3-teaching select").selectOption("video_continue"); deep((await saved()).reference_detection, before);
+  check(await page.locator(".zv-h3-teaching").count() === 0);
   await page.getByRole("button", { name: "清空用途" }).click(); deep((await saved()).reference_detection, before); scenarios++;
 
   await picture.locator('input[name="participates"]').uncheck(); check((await saved()).reference_detection === null);
@@ -207,12 +223,12 @@ try {
   await page.evaluate(value => install(JSON.parse(value.original), value.project, value.graph), { ...actual, original });
   const expectedActual = await page.evaluate(() => h3.plannedReferenceSnapshot(h3.inventory(h3.readProject(interviewNode).project), h3.safeState(interviewNode.widgets[0].value), 2));
   await detect(); state = await saved();
-  check(state.recipe === JSON.parse(original).recipe && state.intent === JSON.parse(original).intent);
+  check(state.recipe === undefined && state.intent === JSON.parse(original).intent);
   check(lastPlan.validation.conditioning.length_verified && lastPlan.validation.conditioning.lengths.every(row=>row.proof === 'known_grid_expression_same_project'));
   for(const kind of ['pictures','videos','audios'])deep(state.reference_detection[kind].map(row => [row.item_id,row.origin]), expectedActual[kind].map(row => [row.item_id,row.origin]));
   check((await page.locator(".zv-h3-detection-status").textContent()).includes(`${expectedActual.pictures.length} 图 / ${expectedActual.videos.length} 视频 / ${expectedActual.audios.length} 音频`));
   await page.locator(".zv-h3i-media-card").first().locator(".zv-h3-media-thumb").click();
-  await page.waitForFunction(() => document.querySelector('.zv-h3-shared-preview video')?.readyState >= 1);
+  await page.waitForFunction(() => document.querySelector('.zv-h3-shared-preview img')?.naturalWidth > 0);
   await page.evaluate(() => { document.querySelector('.zv-h3i-body aside').scrollTop=0; });
   const snapshot = state.reference_detection; await page.getByRole("button", { name: "清空用途" }).click(); deep((await saved()).reference_detection, snapshot); scenarios++;
 
@@ -242,5 +258,10 @@ try {
     scenarios+=await runStage04Cases({page,rpc,check,deep,saved,detect,projectChange,screenshot:process.argv[4]});
   }
   deep(errors, []); check(previews > 0);
+  if (process.argv[4]) {
+    await page.waitForFunction(() => ![...document.querySelectorAll('button')].find(button=>button.textContent==='我已核对当前整理内容')?.disabled);
+    await page.evaluate(()=>{ document.querySelector('.zv-h3i-body main').scrollTop=0; document.querySelector('.zv-h3i-body aside').scrollTop=0; });
+    await page.screenshot({path:process.argv[4],fullPage:true});
+  }
   console.log(`H3_INTERVIEW_UI_OK ${scenarios} scenarios, ${vectorList.length} Python/JS plan-context-mode vectors, ${assertions} assertions, ${previews} cache responses, 0 failed, 0 skipped; neutral CPU fixtures imported/cached during setup; planning performs no decode; no GPU generation`);
 } finally { await browser.close(); python.stdin.end(); }

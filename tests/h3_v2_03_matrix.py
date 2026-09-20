@@ -118,8 +118,8 @@ async def run_matrix(directory):
             current,_,_=DESK.ZVUniversalMediaEvidenceDesk().export_project(json.dumps(current),width=64,height=96)
             graph=prompt();planned,state=await detect(current,state,graph)
             check(planned["validation"]["ready"]==(expected_error is None))
-            built=V2["N"].ZVH3InterviewForm().build(current,I.dumps(state),prompt=graph,unique_id="172")
-            plan=built[8];check(len(built)==9)
+            built=V2["N"].ZVH3InterviewFormV2().build(current,I.dumps(state),prompt=graph,unique_id="172")
+            plan=built[6];check(len(built)==7)
             record={"case":name,"mode":planned["validation"]["effective_mode"],"ready":plan["ready"],"mixed_sources":planned["validation"]["mixed_sources"],"errors":[row["code"] for row in plan["errors"]],"model_length":planned["validation"]["conditioning"]["model_length"],"source_selection":plan["reference_selection"]}
             if expected_error:
                 check(expected_error in record["errors"])

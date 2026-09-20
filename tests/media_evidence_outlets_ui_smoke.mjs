@@ -5,7 +5,7 @@ import {createRequire} from 'node:module';
 import {readFile,readdir} from 'node:fs/promises';
 import {join} from 'node:path';
 const {chromium}=createRequire(import.meta.url)(process.argv[2]||'playwright');
-const files=Object.fromEntries(await Promise.all(['media_evidence_desk.js','media_evidence_core.mjs','media_evidence_presets.mjs','media_evidence_outlets.mjs','media_evidence_slots.mjs','media_processing_presets.json','media_evidence_desk.css','dom_widget_layout.mjs'].map(async name=>[name,await readFile(new URL(`../web/${name}`,import.meta.url),'utf8')])));
+const files=Object.fromEntries(await Promise.all(['media_evidence_desk.js','media_evidence_core.mjs','media_evidence_presets.mjs','media_evidence_outlets.mjs','media_processing_presets.json','media_evidence_desk.css','dom_widget_layout.mjs'].map(async name=>[name,await readFile(new URL(`../web/${name}`,import.meta.url),'utf8')])));
 const browser=await chromium.launch({headless:true,executablePath:process.argv[3]});
 const page=await browser.newPage({viewport:{width:1240,height:1180}}),errors=[];
 let requestCount=0;page.on('request',()=>requestCount++);
@@ -13,7 +13,7 @@ page.on('pageerror',error=>errors.push(error.message));
 const html=`<!doctype html><meta charset="utf-8"><style>body{margin:20px;background:#10151d}#mount{width:1180px;height:1000px}#outside{height:100px}</style><div id="mount"></div><div id="outside">canvas</div><script type="module">
 import {app} from '/scripts/app.js';import {attachMediaDesk} from '/extensions/media_evidence_desk.js';import {freshProject} from '/extensions/media_evidence_core.mjs';import * as outlets from '/extensions/media_evidence_outlets.mjs?v=h3-v2-07';
 window.app=app;window.outlets=outlets;window.outsideDrops=0;window.nextFailure=null;window.connectCount=0;window.queueCalls=0;
-app.queuePrompt=window.queuePrompt=()=>{queueCalls++;throw new Error('Slot edit must not queue');};
+app.queuePrompt=window.queuePrompt=()=>{queueCalls++;throw new Error('Media edit must not queue');};
 class Graph {
  constructor(){this.nodes=[];this.links=new Map();this.lastId=0;this.lastLinkId=0;this.list_of_graphcanvas=[{graph:this}];}
  getNodeById(id){return this.nodes.find(n=>String(n.id)===String(id));}
@@ -31,11 +31,11 @@ class Node {
  connect(output,target,input){connectCount++;if(nextFailure==='connect'||nextFailure===connectCount)return null;const g=this.graph,id=++g.lastLinkId,link={id,origin_id:this.id,origin_slot:output,target_id:target.id,target_slot:input,type:this.outputs[output].type};g.links.set(id,link);this.outputs[output].links.push(id);target.inputs[input].link=id;return link;}
  collapse(){this.flags.collapsed=!this.flags.collapsed;}
 }
-window.LiteGraph={createNode(type){if(nextFailure===type)return null;if(type==='TestSink'){const n=new Node(type);n.inputs=[{name:'image',type:'IMAGE',link:null},{name:'audio',type:'AUDIO',link:null}];return n;}if(!['ZVPictureOutlet','ZVVideoOutlet','ZVAudioOutlet','ZVTimelineAudioOutlet','ZVPictureSlotOutlet','ZVVideoSlotOutlet','ZVAudioSlotOutlet'].includes(type))return null;const n=new Node(type);n.inputs=[{name:'media_project',type:'ZV_MEDIA_PROJECT',link:null}];if(type!=='ZVTimelineAudioOutlet')n.widgets=[{name:type.includes('SlotOutlet')?'slot_id':type==='ZVPictureOutlet'?'item_id':'clip_id',value:''}];n.outputs=((type==='ZVVideoOutlet'||type==='ZVVideoSlotOutlet')?['IMAGE','AUDIO','STRING','STRING']:[(type==='ZVPictureOutlet'||type==='ZVPictureSlotOutlet')?'IMAGE':'AUDIO','STRING','STRING']).map(type=>({type,links:[]}));return n;}};
+window.LiteGraph={createNode(type){if(nextFailure===type)return null;if(type==='TestSink'){const n=new Node(type);n.inputs=[{name:'image',type:'IMAGE',link:null},{name:'audio',type:'AUDIO',link:null}];return n;}if(!['ZVPictureOutlet','ZVVideoOutlet','ZVAudioOutlet','ZVTimelineAudioOutlet'].includes(type))return null;const n=new Node(type);n.inputs=[{name:'media_project',type:'ZV_MEDIA_PROJECT',link:null}];if(type!=='ZVTimelineAudioOutlet')n.widgets=[{name:type==='ZVPictureOutlet'?'item_id':'clip_id',value:''}];n.outputs=((type==='ZVVideoOutlet')?['IMAGE','AUDIO','STRING','STRING']:[(type==='ZVPictureOutlet')?'IMAGE':'AUDIO','STRING','STRING']).map(type=>({type,links:[]}));return n;}};
 window.deskNode=new Node('ZVUniversalMediaEvidenceDesk');deskNode.widgets=[{name:'project_data',value:JSON.stringify(freshProject())}];deskNode.outputs=[{type:'ZV_MEDIA_PROJECT',links:[]},{type:'STRING',links:[]}];deskNode.size=[1180,1100];deskNode.pos=[40,80];deskNode.addDOMWidget=(n,t,root)=>{document.querySelector('#mount').append(root);return {};};
 window.resetGraph=()=>{window.graph=new Graph();deskNode.id=-1;deskNode.outputs.forEach(o=>o.links=[]);graph.add(deskNode);app.canvas={graph};nextFailure=null;connectCount=0;};resetGraph();attachMediaDesk(deskNode);
 window.placeholder=(type,{source=deskNode,binding='',connected=true}={})=>{const node=LiteGraph.createNode(type);node.widgets[0].value=binding;node.properties={keep:'unrelated property',zv_media_outlet:{binding_key:node.widgets[0].name,binding_id:'stale-property'}};node.title='预接出口';graph.add(node);if(connected)source.connect(0,node,0);return node;};
-window.wireSinks=node=>{for(let i=0;i<2;i++){const sink=LiteGraph.createNode('TestSink');graph.add(sink);node.connect(0,sink,(node.type==='ZVAudioOutlet'||node.type==='ZVAudioSlotOutlet')?1:0);if(node.type==='ZVVideoOutlet'||node.type==='ZVVideoSlotOutlet')node.connect(1,sink,1);}};
+window.wireSinks=node=>{for(let i=0;i<2;i++){const sink=LiteGraph.createNode('TestSink');graph.add(sink);node.connect(0,sink,(node.type==='ZVAudioOutlet')?1:0);if(node.type==='ZVVideoOutlet')node.connect(1,sink,1);}};
 window.otherDesk=()=>{const node=new Node('OtherDesk');node.outputs=[{type:'ZV_MEDIA_PROJECT',links:[]}];graph.add(node);return node;};
 window.bindingSnapshot=()=>({graph:graph.serialize(),project:deskNode.zfMediaDesk.getProject(),view:deskNode.properties.zf_media_desk_view,counters:{before:graph.before||0,after:graph.after||0,dirty:graph.dirty||0}});
 document.querySelector('#outside').addEventListener('drop',()=>outsideDrops++);
@@ -127,15 +127,7 @@ try {
     await reset(fixture(),'v1');assertAudioVisible(await audioButtons());assert.equal((await audioButtons()).gutter.width,70);assert.equal((await audioButtons()).rootScroll,0);check('70px video gutter and low node height keep both Chinese labels fully visible without scrolling');
     if(process.argv[5])await page.locator('.zf-med-timeline').screenshot({path:process.argv[5]});
     await page.setViewportSize({width:1240,height:1180});await page.evaluate(()=>{document.querySelector('#mount').removeAttribute('style');document.querySelector('.zf-med-timeline').style.removeProperty('grid-template-columns');});
-    const slotFixture=(extra=0)=>{const p=fixture();p.outlet_slots={version:1,items:[{slot_id:'picture-slot',kind:'picture',ordinal:1,binding_id:null},{slot_id:'video-slot',kind:'video',ordinal:1,binding_id:null},{slot_id:'audio-slot',kind:'audio',ordinal:1,binding_id:null},...Array.from({length:extra},(_,i)=>({slot_id:`extra-${i}`,kind:'picture',ordinal:i+2,binding_id:null}))]};return p;};
-    const prepareSlots=async(p=slotFixture(),selected='p1')=>{
-        await reset(p,selected);await page.evaluate(async()=>{document.querySelector('.zf-med-slot-panel').open=false;const slots=await import('/extensions/media_evidence_slots.mjs');window.slots=slots;for(const slot of deskNode.zfMediaDesk.getProject().outlet_slots.items){const n=LiteGraph.createNode(slots.SLOT_TYPES[slot.kind]);n.widgets[0].value=slot.slot_id;graph.add(n);deskNode.connect(0,n,0);wireSinks(n);}graph.findNodesByType=()=>{throw new Error('Slot UI must follow the project output edges, never scan the graph');};deskNode.zfMediaDesk.restore();});await synced();
-    };
-    const legacy=slotFixture();legacy.outlet_slots.items[0].binding_id='p1';await prepareSlots(legacy);assert.equal(await page.locator('.zf-med-slot-panel').getAttribute('open'),null);assert.equal(await page.locator('.zf-med-slot-panel summary').textContent(),'旧版固定槽位（3，仅兼容）');assert.equal(await page.locator('.zf-med-inspect-actions .primary').textContent(),'发送图片1');assert.equal(await page.getByLabel('目标出口槽位').count(),0);check('legacy slots stay visible only as a collapsed compatibility panel and never replace direct send');
-    const legacyBefore=await bindingSnapshot(),requests=requestCount;await single();const directAfter=await bindingSnapshot();assert.equal(requestCount,requests);assert.equal(await page.evaluate(()=>queueCalls),0);assert.equal(directAfter.project.outlet_slots.items[0].binding_id,'p1');assert(directAfter.graph.nodes.some(n=>n.type==='ZVPictureOutlet'&&n.widgets_values[0]==='p1'));assert(legacyBefore.graph.links.every(link=>directAfter.graph.links.some(row=>JSON.stringify(row)===JSON.stringify(link))));check('发送图片1 adds a direct outlet without changing old slot mappings or downstream wires');
-    await page.locator('.zf-med-slot-panel summary').click();const fixed=await nodes(),clearRequests=requestCount;await page.getByRole('button',{name:'清空图片1',exact:true}).click();assert.equal(requestCount,clearRequests);assert.equal((await bindingSnapshot()).project.outlet_slots.items[0].binding_id,null);assert.deepEqual((await nodes()).links,fixed.links);check('legacy clear remains available for old workflows and preserves every wire');
-    await prepareSlots(slotFixture(17));const sizeBefore=await page.evaluate(()=>({size:deskNode.size,outputs:deskNode.outputs.length,root:document.querySelector('.zf-med').getBoundingClientRect().height,panel:document.querySelector('.zf-med-slot-panel').getBoundingClientRect().height}));assert(sizeBefore.panel<45);await page.locator('.zf-med-slot-panel summary').click();const large=await page.evaluate(()=>({size:deskNode.size,outputs:deskNode.outputs.length,root:document.querySelector('.zf-med').getBoundingClientRect().height,list:document.querySelector('.zf-med-slot-list').getBoundingClientRect().height,rows:document.querySelectorAll('.zf-med-slot-row').length}));assert.deepEqual(large.size,sizeBefore.size);assert.equal(large.outputs,2);assert.equal(large.root,sizeBefore.root);assert.equal(large.rows,20);assert(large.list<=150);check('20 slots remain in a bounded foldable list without enlarging the desk or its ports');
-    const missing=slotFixture();missing.outlet_slots.items[0].binding_id='deleted-picture';await prepareSlots(missing);const missingTitle=await page.evaluate(()=>slots.connectedSlotNodes(deskNode).find(n=>n.type==='ZVPictureSlotOutlet'));assert.match(missingTitle.title,/素材已不存在或类型不符/);assert.equal(missingTitle.color,'#743f45');check('a stale saved binding has an explicit red missing-media title without automatic retargeting');
+    assert.equal(await page.locator('.zf-med-slot-panel').count(),0);check('retired fixed-slot manager is absent');
     if(process.argv[4]) {
         const frontend=process.argv[4],assets=await readdir(join(frontend,'assets'));
         let graphModule;
@@ -159,9 +151,9 @@ try {
             const api=await import('/extensions/media_evidence_outlets.mjs?v=h3-v2-07');
             class Desk extends LGraphNode {constructor(){super();this.addOutput('media_project','ZV_MEDIA_PROJECT');this.addOutput('project_json','STRING');this.pos=[40,80];this.size=[1180,1100];}}
             LiteGraph.registerNodeType('ZVUniversalMediaEvidenceDesk',Desk);
-            for(const type of ['ZVPictureOutlet','ZVVideoOutlet','ZVAudioOutlet','ZVTimelineAudioOutlet','ZVPictureSlotOutlet','ZVVideoSlotOutlet','ZVAudioSlotOutlet']) {
+            for(const type of ['ZVPictureOutlet','ZVVideoOutlet','ZVAudioOutlet','ZVTimelineAudioOutlet']) {
                 // ComfyNode enables widget serialization in the installed frontend constructor.
-                class Outlet extends LGraphNode {constructor(){super();this.serialize_widgets=true;this.addInput('media_project','ZV_MEDIA_PROJECT');if(type!=='ZVTimelineAudioOutlet')this.addWidget('text',type.includes('SlotOutlet')?'slot_id':type==='ZVPictureOutlet'?'item_id':'clip_id','',()=>{});for(const output of (type==='ZVVideoOutlet'||type==='ZVVideoSlotOutlet')?['IMAGE','AUDIO','STRING','STRING']:[(type==='ZVPictureOutlet'||type==='ZVPictureSlotOutlet')?'IMAGE':'AUDIO','STRING','STRING'])this.addOutput(output,output);}}
+                class Outlet extends LGraphNode {constructor(){super();this.serialize_widgets=true;this.addInput('media_project','ZV_MEDIA_PROJECT');if(type!=='ZVTimelineAudioOutlet')this.addWidget('text',type==='ZVPictureOutlet'?'item_id':'clip_id','',()=>{});for(const output of (type==='ZVVideoOutlet')?['IMAGE','AUDIO','STRING','STRING']:[(type==='ZVPictureOutlet')?'IMAGE':'AUDIO','STRING','STRING'])this.addOutput(output,output);}}
                 LiteGraph.registerNodeType(type,Outlet);
             }
             const graph=new LGraph(),desk=LiteGraph.createNode('ZVUniversalMediaEvidenceDesk');graph.add(desk);
@@ -177,46 +169,12 @@ try {
             restored.connect=()=>null;let failure='';try {api.createMediaOutlets(restored,p,api.outletItems(p),app);}catch(error){failure=error.message;}restored.connect=connect;
             const afterFailure=graph.findNodesByType('ZVPictureOutlet').length;
             bound.collapse();
-            class Sink extends LGraphNode {constructor(){super();this.addInput('image','IMAGE');this.addInput('audio','AUDIO');this.addOutput('binding','STRING');}}
-            LiteGraph.registerNodeType('TestSink',Sink);
-            const bindingGraph=new LGraph(),bindingDesk=LiteGraph.createNode('ZVUniversalMediaEvidenceDesk');
-            // Each real workflow owns a separate widget-store namespace.
-            bindingGraph.id='11111111-1111-4111-8111-111111111111';bindingGraph.add(bindingDesk);
-            const bindingApp={canvas:{graph:bindingGraph}};
-            for(const type of ['ZVPictureOutlet','ZVVideoOutlet','ZVAudioOutlet']){
-                const outlet=LiteGraph.createNode(type);bindingGraph.add(outlet);bindingDesk.connect(0,outlet,0);
-                for(let i=0;i<2;i++){const sink=LiteGraph.createNode('TestSink');bindingGraph.add(sink);outlet.connect(0,sink,type==='ZVAudioOutlet'?1:0);if(type==='ZVVideoOutlet')outlet.connect(1,sink,1);}
-            }
-            const beforeBinding=JSON.parse(JSON.stringify(bindingGraph.serialize()));
-            for(const selected of ['p1','linked','a1'])api.bindSelectedMediaOutlet(bindingDesk,p,selected,bindingApp);
-            const savedBinding=JSON.parse(JSON.stringify(bindingGraph.serialize()));bindingGraph.configure(savedBinding);
-            const restoredBindingDesk=bindingGraph.getNodeById(bindingDesk.id),afterBindingReload=JSON.parse(JSON.stringify(bindingGraph.serialize()));
-            let boundError='';try {api.bindSelectedMediaOutlet(restoredBindingDesk,p,'p2',bindingApp);}catch(error){boundError=error.message;}
-            const afterBoundRejection=JSON.parse(JSON.stringify(bindingGraph.serialize()));
-            const converted=LiteGraph.createNode('ZVPictureOutlet');converted.addInput('item_id','STRING');bindingGraph.add(converted);restoredBindingDesk.connect(0,converted,0);bindingGraph.findNodesByType('TestSink')[0].connect(0,converted,1);
-            const beforeConvertedRejection=JSON.parse(JSON.stringify(bindingGraph.serialize()));let convertedError='';try {api.bindSelectedMediaOutlet(restoredBindingDesk,p,'p2',bindingApp);}catch(error){convertedError=error.message;}
-            const afterConvertedRejection=JSON.parse(JSON.stringify(bindingGraph.serialize()));
-            const slotApi=await import('/extensions/media_evidence_slots.mjs'),slotGraph=new LGraph();slotGraph.id='22222222-2222-4222-8222-222222222222';
-            const slotDesk=LiteGraph.createNode('ZVUniversalMediaEvidenceDesk');slotGraph.add(slotDesk);let slotProject={...p,outlet_slots:{version:1,items:[]}};
-            for(const selected of ['p1','linked','a1']){const result=slotApi.createSlotOutlet(slotDesk,slotProject,selected,{canvas:{graph:slotGraph}});slotProject=result.project;for(let i=0;i<2;i++){const sink=LiteGraph.createNode('TestSink');slotGraph.add(sink);result.node.connect(0,sink,result.slot.kind==='audio'?1:0);if(result.slot.kind==='video')result.node.connect(1,sink,1);}}
-            const slotSaved=JSON.parse(JSON.stringify(slotGraph.serialize()));slotGraph.configure(slotSaved);const slotReload=JSON.parse(JSON.stringify(slotGraph.serialize()));
-            slotProject=slotApi.assignSlot(slotProject,slotProject.outlet_slots.items[0].slot_id,'p2');slotApi.syncSlotTitles(slotGraph.getNodeById(slotDesk.id),slotProject);const slotSwapped=JSON.parse(JSON.stringify(slotGraph.serialize()));
-            return {first,duplicate,reload,saved,afterReload,reordered,failure,beforeFailure,afterFailure,collapsed:bound.flags.collapsed,binding:{beforeBinding,savedBinding,afterBindingReload,boundError,afterBoundRejection,beforeConvertedRejection,convertedError,afterConvertedRejection},slots:{slotSaved,slotReload,slotSwapped,slotProject}};
+            return {first,duplicate,reload,saved,afterReload,reordered,failure,beforeFailure,afterFailure,collapsed:bound.flags.collapsed};
         },{graphModule,vueModule,p:fixture()});
         assert.deepEqual(actual.first,{created:6,existing:0});assert.equal(actual.saved.links.length,6);assert(actual.saved.nodes.slice(1).every(n=>n.size[0]<=320&&n.size[1]<=180));check('actual installed LiteGraph creates compact nodes and real graph links');
         assert.deepEqual(actual.duplicate,{created:0,existing:6});assert.deepEqual(actual.reload,{created:0,existing:6});assert.deepEqual(actual.afterReload.links,actual.saved.links);assert.deepEqual(actual.afterReload.nodes.map(n=>n.widgets_values),actual.saved.nodes.map(n=>n.widgets_values));check('actual LiteGraph serialization/configuration preserves widget values and link-based deduplication');
         assert.match(actual.reordered.title,/图片2.*image1/);assert.equal(actual.reordered.binding,'p1');assert.equal(actual.reordered.property.binding_id,'p1');assert.equal(actual.collapsed,true);check('actual LiteGraph title updates preserve binding and native collapse works');
         assert.match(actual.failure,/自动连线失败/);assert.equal(actual.beforeFailure,actual.afterFailure);check('actual LiteGraph removes failed outlet nodes without removing existing nodes');
-        const binding=actual.binding;assert.equal(binding.savedBinding.nodes.length,binding.beforeBinding.nodes.length);assert.deepEqual(binding.savedBinding.links,binding.beforeBinding.links);
-        assert.deepEqual(binding.savedBinding.nodes.filter(n=>n.type.endsWith('Outlet')).map(n=>n.widgets_values[0]),['p1','v1','a1']);
-        assert.deepEqual(binding.savedBinding.nodes.filter(n=>n.type.endsWith('Outlet')).map(n=>n.properties.zv_media_outlet.binding_id),['p1','v1','a1']);
-        assert.deepEqual(binding.savedBinding.nodes.filter(n=>!n.type.endsWith('Outlet')),binding.beforeBinding.nodes.filter(n=>!n.type.endsWith('Outlet')));check('actual LiteGraph binds picture/video-paired-audio/audio without changing any downstream graph link');
-        // Native configure recomputes execution order among independent branches.
-        const withoutExecutionOrder=graph=>({...graph,nodes:graph.nodes.map(({order,...node})=>node)});
-        assert.deepEqual(withoutExecutionOrder(binding.afterBindingReload),withoutExecutionOrder(binding.savedBinding));check('actual LiteGraph serialization/configuration preserves the three prewired bindings');
-        assert.match(binding.boundError,/[\u3400-\u9fff]/);assert.deepEqual(binding.afterBoundRejection,binding.afterBindingReload);check('actual LiteGraph rejects overwriting an existing binding without mutation');
-        assert.match(binding.convertedError,/[\u3400-\u9fff]/);assert.deepEqual(binding.afterConvertedRejection,binding.beforeConvertedRejection);check('actual LiteGraph protects a connected converted binding input');
-        assert.deepEqual(withoutExecutionOrder(actual.slots.slotSaved),withoutExecutionOrder(actual.slots.slotReload));assert.deepEqual(actual.slots.slotReload.links,actual.slots.slotSwapped.links);assert.deepEqual(actual.slots.slotReload.nodes.map(n=>[n.id,n.type,n.widgets_values]),actual.slots.slotSwapped.nodes.map(n=>[n.id,n.type,n.widgets_values]));assert.equal(actual.slots.slotProject.outlet_slots.items[0].binding_id,'p2');check('actual LiteGraph safely serializes all three fixed slot_id nodes and keeps sockets during media swaps');
         await real.close();
     }
     assert.deepEqual(errors,[]);check('no browser page exceptions');console.log(`OUTLETS_UI_OK ${checks}`);

@@ -1,5 +1,6 @@
 """Browser bridge: neutral temporary CPU fixtures; planning reads caches only."""
 
+import copy
 import hashlib
 import json
 import runpy
@@ -17,6 +18,7 @@ MEDIA_ROOT = ROOT.parents[1] / "input/zf_media_evidence"
 NEUTRAL_DIRECTORY = tempfile.TemporaryDirectory(prefix="h3-v2-neutral-")
 NEUTRAL_ROOT = None
 NEUTRAL_HANDLES = set()
+NEUTRAL_PROJECT = None
 LIBRARY_ROOT = Path(NEUTRAL_DIRECTORY.name) / "user"
 LIBRARY_ROOT.mkdir()
 
@@ -34,7 +36,9 @@ def cached_path(handle, variant):
 
 
 def fixture():
-    global NEUTRAL_ROOT, NEUTRAL_HANDLES
+    global NEUTRAL_ROOT, NEUTRAL_HANDLES, NEUTRAL_PROJECT
+    if NEUTRAL_PROJECT is not None:
+        return copy.deepcopy(NEUTRAL_PROJECT)
     media = runpy.run_path(str(ROOT / "tests/media_outlet_smoke.py"))
     store, generated = media["imported_project"](Path(NEUTRAL_DIRECTORY.name))
     image, video, audio = generated["assets"][0], generated["assets"][3], generated["assets"][4]
@@ -47,7 +51,8 @@ def fixture():
     for row in project["picture_track"]: row["asset_id"] = image["asset_id"]
     project["video_track"][0]["asset_id"] = video["asset_id"]
     for row in project["audio_track"]: row["asset_id"] = video["asset_id"] if row["linked_video_clip_id"] else audio["asset_id"]
-    return C.normalize_project(project)
+    NEUTRAL_PROJECT = C.normalize_project(project)
+    return copy.deepcopy(NEUTRAL_PROJECT)
 
 
 def vectors():
@@ -99,7 +104,10 @@ def execute(request):
     if request["action"] == "workflow":
         graph = json.loads(H["WORKFLOW"].read_text(encoding="utf-8"))
         nodes = {node["id"]: node for node in graph["nodes"]}
-        return {"graph": graph, "state": I.normalize_interview(json.loads(nodes[172]["widgets_values"][0])), "project": C.normalize_project(json.loads(nodes[165]["widgets_values"][0]))}
+        project = fixture()
+        # Exercise the distributed topology with generated neutral media only.
+        nodes[165]["widgets_values"][0] = json.dumps(project)
+        return {"graph": graph, "state": I.normalize_interview(json.loads(nodes[172]["widgets_values"][0])), "project": project}
     raise ValueError("Unknown test action")
 
 

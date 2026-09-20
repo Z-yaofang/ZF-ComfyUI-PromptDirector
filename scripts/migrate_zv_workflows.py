@@ -8,7 +8,7 @@ from pathlib import Path
 import re
 import uuid
 
-IDS = {"ZFUniversalMediaEvidenceDesk": "ZVUniversalMediaEvidenceDesk", "ZFH3FocusCompiler": "ZVH3FocusCompiler"}
+IDS = {"ZFUniversalMediaEvidenceDesk": "ZVUniversalMediaEvidenceDesk"}
 NAME_FIELDS = {"Node name for S&R", "node_type", "class_type", "type", "name"}
 SPACE = re.compile(r"[ \t\r\n]*")
 

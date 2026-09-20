@@ -105,11 +105,10 @@ def test_main_preflights_copy_destination_and_invalid_parent_before_creating_out
 
 
 def test_real_main_new_output_directory_produces_complete_safe_skeleton(audit, tmp_path):
-    comfy = Path(__file__).resolve().parents[3]
-    workflow = comfy / 'user/default/workflows/MiniMax H3 10Eros Beta4 三步测试-ZV素材出口V1 (2).json'
+    workflow = Path(__file__).resolve().parent / 'fixtures/h3_focus_interview_topology.json'
     source = workflow.read_bytes(); output = tmp_path / 'new-out'
     script = Path(__file__).resolve().parents[1] / 'tools/h3_v2_audit.py'
-    result = subprocess.run([sys.executable, str(script), '--workflow', str(workflow), '--output-dir', str(output)], capture_output=True, text=True)
+    result = subprocess.run([sys.executable, str(script), '--workflow', str(workflow), '--output-dir', str(output)], capture_output=True, text=True, encoding='utf-8', errors='replace')
     assert result.returncode == 0, result.stderr
     assert 'H3_V2_03_AUDIT_OK' in result.stdout
     assert workflow.read_bytes() == source
@@ -117,8 +116,9 @@ def test_real_main_new_output_directory_produces_complete_safe_skeleton(audit, t
     graph = json.loads((output / 'H3_V2_03_PREPARATION_WORKFLOW.json').read_bytes())
     proof = json.loads((output / 'H3_V2_03_SHARE_CHECK.json').read_bytes())
     assert graph['extra']['generation_ready'] is proof['generation_ready'] is False
-    assert 'final H3 prompt processing chain' in graph['extra']['h3_example']
-    assert len(graph['nodes']) == 9 and len(graph['links']) == 74
+    assert 'independent three-stage' in graph['extra']['h3_example']
+    assert len(graph['nodes']) == 14
+    assert sum(node['type'] == 'ZVH3ReverseStage' for node in graph['nodes']) == 3
     assert proof['media_wires_per_conditioning'] == 22 and proof['backend_fixed_hub_wiring_errors'] == []
 
 
@@ -130,7 +130,7 @@ def test_consecutive_copied_registrations_have_fresh_routes_and_clean_only_owned
     for _ in range(2):
         result, mappings = audit['copied_registration'](destination)
         results.append(result)
-        name = mappings['ZVH3InterviewForm'].__module__.split('.')[0]; names.append(name)
+        name = mappings['ZVH3InterviewFormV2'].__module__.split('.')[0]; names.append(name)
         assert not any(key == name or key.startswith(name + '.') for key in sys.modules)
         assert all(sys.modules.get(key) is value for key, value in protected.items())
         assert all(sys.modules.get(key) is value for key, value in existing.items())
@@ -138,12 +138,15 @@ def test_consecutive_copied_registrations_have_fresh_routes_and_clean_only_owned
         assert proof['backend_fixed_hub_wiring_errors'] == []
     assert names[0] != names[1]
     assert results[0]['registered_classes'] == results[1]['registered_classes']
-    assert results[0]['routes'] == results[1]['routes'] and len(results[0]['routes']) == 21
+    assert results[0]['routes'] == results[1]['routes']
+    assert {row['path'] for row in results[0]['routes']} >= {
+        '/zf-prompt-director/long-video/plan',
+        '/zf-prompt-director/long-video/interview',
+    }
 
 
 def test_consecutive_real_main_calls_register_consistent_outputs(audit, tmp_path):
-    comfy = Path(__file__).resolve().parents[3]
-    workflow = comfy / 'user/default/workflows/MiniMax H3 10Eros Beta4 三步测试-ZV素材出口V1 (2).json'
+    workflow = Path(__file__).resolve().parent / 'fixtures/h3_focus_interview_topology.json'
     before = workflow.read_bytes(); results = []
     for index in range(2):
         output = tmp_path / f'output-{index}'
@@ -156,8 +159,7 @@ def test_consecutive_real_main_calls_register_consistent_outputs(audit, tmp_path
 
 def test_exclusive_reservation_refuses_late_target_without_truncating_it(audit, tmp_path, monkeypatch):
     """A late target appearing after preflight still cannot be opened for overwrite."""
-    comfy = Path(__file__).resolve().parents[3]
-    workflow = comfy / 'user/default/workflows/MiniMax H3 10Eros Beta4 三步测试-ZV素材出口V1 (2).json'
+    workflow = Path(__file__).resolve().parent / 'fixtures/h3_focus_interview_topology.json'
     output = tmp_path / 'out'; original_open = Path.open
     # Only isolate expensive computation for this filesystem race boundary test.
     globals_ = audit['main'].__globals__

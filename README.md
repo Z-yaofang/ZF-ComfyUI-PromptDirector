@@ -71,11 +71,10 @@ The H3/media implementation is included in this repository. The media desk now h
 
 The ZV media desk also accepts optional `width` / `height` inputs. Connect the actual generation canvas once and every downstream video outlet inherits it, resizing while decoding instead of materializing a source-resolution batch first. For general workflows, select a track item and use its single explicit action, such as **发送图片6 / 发送视频1 / 发送音频1**. This creates a direct outlet bound to that item's stable ID; an existing outlet is reused and its output can fan out to any number of downstream nodes. Sending changes only the graph and does not queue generation or decode media.
 
-Legacy `ZVPictureSlotOutlet`, `ZVVideoSlotOutlet`, and `ZVAudioSlotOutlet` nodes remain executable. Their manager appears only as a collapsed compatibility panel when an old project actually contains slot definitions; new daily use no longer requires target-slot selection. See [legacy fixed-slot compatibility](docs/ZV_MEDIA_SLOTS.md).
 
 - `ZF文本动态多路点选` shows 1–32 text routes and executes only the route selected by its button. The **空文本** button deliberately returns an empty string and route index `0`.
 - `ZFI` is a compact bank of 1–32 independent frontend-only virtual reroutes. Like ComfyUI's native reroute, it is resolved directly to the upstream source when a prompt is queued, so it creates no backend execution step or data cache. Outputs support normal fan-out; only channel count, labels, and graph wiring are serialized. One base label is numbered across all channels; delimited labels still name channels individually.
-- `ZV H3 Basic Interview Form` consumes the media desk's explicit `ZV_MEDIA_PROJECT`, records user intent and stable per-item reference roles, validates the current 24 fps / 48–360 frame / 15-second H3 single window, and emits the system prompt plus Stage 1/2/3 task text. New templates connect its `reference_plan` to one `ZV H3 Reference Alignment Outlet (official capacity)`, whose complete fixed surface is prewired once: first/last frame, nine reference images, three reference videos with three same-numbered soundtracks, one drive audio, and three standalone reference audios. The familiar 6+3+3 profile is only a selection convenience, not the hard capacity. After changing material, the player clicks **检测并对齐素材**; no per-item outlet creation or ZFI dependency is required. See [the interview-form contract](docs/ZV_H3_INTERVIEW_FORM.md).
+- `ZV H3 Interview Form` collects, aligns and formats user requirements as a Chinese `user_prompt` and factual `material_context_json`; blank fields are omitted. Three independent reverse stages observe media, organize Chinese intent, and write the final H3 prompt, each with replaceable system instructions. `reference_plan` controls the fixed physical media outlet separately. The sole current form is `ZVH3InterviewFormV2`; obsolete form/compiler nodes are removed. See [interview usage](docs/H3_INTERVIEW.md) and [segmented/masked long video](docs/LONG_VIDEO_GUIDE.md).
 - `ZI 人像提示词生成器` is reusable across image models and assembles editable portrait prompts without reverse analysis. With `quantity = 1` it outputs the current prompt; larger values return a list of that size, keeping the current selection for item one and randomizing later items while preserving every lock. Quantity also has a serialized node-property fallback, so switching workflows no longer resets it to one.
 - `ZF任意过滤器` accepts arbitrary ComfyUI data. Its condition and output action are independent: a match can return real `None` so a downstream Any Switch skips the route, return an empty string so the route intentionally stops, preserve the original value, or remove literal text.
 - These classes use PromptDirector-specific internal IDs, so the original nodes in `ZF-ComfyUI-Helper` can remain installed without name collisions.
@@ -183,8 +182,6 @@ git clone https://github.com/Z-yaofang/ZF-ComfyUI-Helper.git
 - `ZF Product/Reference Image Analysis Prompt Builder (API)`
 - `ZF Temporary Text Memory (cross-queue reuse)`
 - `ZF Final Text List Memory (cross-queue reuse)`
-
-Legacy blueprint/task nodes remain available for workflow compatibility.
 
 ## Reference-Image Behavior
 

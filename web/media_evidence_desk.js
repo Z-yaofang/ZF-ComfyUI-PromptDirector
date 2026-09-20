@@ -6,7 +6,6 @@ const api = globalThis.comfyAPI?.api?.api ?? {
 import * as edit from "./media_evidence_core.mjs";
 import * as presets from "./media_evidence_presets.mjs";
 import * as outlets from "./media_evidence_outlets.mjs?v=h3-v2-07";
-import * as slots from "./media_evidence_slots.mjs?v=h3-v2-07";
 import { pinDOMWidgetFullWidth } from "./dom_widget_layout.mjs";
 
 const NAME = "ZVUniversalMediaEvidenceDesk";
@@ -52,9 +51,6 @@ export function attachMediaDesk(node) {
         outletActions.append(button);
     }
     $(".zf-med-brand").append(outletActions);
-    const slotPanel=el("details","zf-med-slot-panel");
-    slotPanel.innerHTML='<summary>旧版固定槽位</summary><div class="zf-med-slot-list"></div>';
-    $(".zf-med-top").before(slotPanel);
     const projectPanel=el("section","zf-med-project-window");
     projectPanel.innerHTML='<div class="zf-med-project-title"><strong>处理窗口</strong><small class="zf-med-preset-summary"></small></div><div class="zf-med-project-fields"><span class="zf-med-window-total"></span><span class="zf-med-window-frames"></span><span class="zf-med-window-state"></span></div><div class="zf-med-compatibility"></div>';
     root.append(projectPanel);
@@ -68,6 +64,7 @@ export function attachMediaDesk(node) {
     let presetLibrary={builtins:presets.builtins,users:[]},libraryRevision=0,presetChoices=new Map();
     const visualCache = new Map(), visualAbort = new AbortController();
     const viewSave = () => {node.properties ||= {}; node.properties.zf_media_desk_view = {...view};};
+    const autoFitVideoWindow = (value, kind) => node.properties?.zv_auto_fit_video_window && kind === "video" ? edit.fitProcessingWindowToVideoTrack(value) : value;
     const persist = () => {widget.value = JSON.stringify(project); viewSave(); node.setDirtyCanvas?.(true, true); root.dispatchEvent(new CustomEvent("zf-media-project-change"));};
     const status = (text = "", error = false, warning = false) => {$(".zf-med-status").textContent = text; $(".zf-med-status").classList.remove("valid");$(".zf-med-status").classList.toggle("error", error);$(".zf-med-status").classList.toggle("warning",warning);};
     const label = id => pending ? "编号同步中…" : project.label_map?.find(row => row.item_id === id)?.label || "待编号";
@@ -204,26 +201,7 @@ export function attachMediaDesk(node) {
         history.record(before); project = next; persist(); renderPool(); renderTimeline(); renderInspector();renderPresetPicker(); normalize();
         syncTimeline(true);
     }
-    function paintSlots() {
-        const items=slots.slotItems(project),list=$(".zf-med-slot-list");list.replaceChildren();
-        slotPanel.hidden=!items.length;
-        slotPanel.querySelector("summary").textContent=`旧版固定槽位（${items.length}，仅兼容）`;
-        for(const slot of [...items].sort((a,b)=>a.kind.localeCompare(b.kind)||a.ordinal-b.ordinal)){
-            const row=el("div","zf-med-slot-row"),name=el("span","",`${slots.slotLabel(slot)} · ${slots.slotStatus(project,slot).name}`);
-            name.title=name.textContent;const clear=el("button","","清空");clear.disabled=slot.binding_id===null;clear.setAttribute("aria-label",`清空${slots.slotLabel(slot)}`);
-            clear.onclick=()=>{commitSlots(slots.clearSlot(project,slot.slot_id));status(`${slots.slotLabel(slot)} 已清空；出口及连线保留。`);};row.append(name,clear);list.append(row);
-        }
-        slots.syncSlotTitles(node,project);
-    }
-    function showSlotChange(next) {
-        ++revision;pending=false;root.setAttribute("aria-busy","false");project=next;
-        persist();paintSlots();renderInspector();
-        $("[data-action=undo]").disabled=!history.past.length; $("[data-action=redo]").disabled=!history.future.length;
-    }
-    function commitSlots(next) {history.record(project);showSlotChange(next);}
     function restoreHistory(next) {
-        const before={...project},after={...next};delete before.outlet_slots;delete after.outlet_slots;
-        if(JSON.stringify(before)===JSON.stringify(after)){showSlotChange(next);return;}
         project=next;persist();renderPool();renderTimeline();renderInspector();renderPresetPicker();syncTimeline(true);normalize();
     }
     function restore() {
@@ -232,11 +210,10 @@ export function attachMediaDesk(node) {
         ++revision;pending=false;root.setAttribute("aria-busy","false");stopTimeline();clearPreview();
         try {
             const loaded = presets.migrateProject(JSON.parse(widget.value));
-            slots.slotItems(loaded);
             if (!loaded.assets || !loaded.video_track || !loaded.audio_track || !loaded.picture_track || !loaded.processing_window) throw new Error("缺少项目字段");
             if(!loaded.processing_preset||presets.ruleErrors(loaded.processing_preset.snapshot).length)throw new Error("处理预设快照缺失或规则无效");
             history = new edit.History(); playbackError="";
-            project = loaded; view = {...view, ...restoredView, slotTargets:restoredView?.slotTargets||{}};
+            project = loaded; view = {...view, ...restoredView};
             view.zoom = Math.max(2, Math.min(140, Number(view.zoom)||35)); view.playhead = Math.max(0, Number(view.playhead)||0);
             $(".zf-med-zoom").value = view.zoom; $(".zf-med-snap").checked = view.snap;
             renderPool(); renderTimeline(); renderInspector();renderPresetPicker(); scroller.scrollLeft = view.scroll || 0; normalize();
@@ -597,7 +574,6 @@ export function attachMediaDesk(node) {
         view.monitor_mode="timeline";view.playhead=Math.max(0,time);syncTimeline(true);
     }
     function renderTimeline() {
-        paintSlots();
         outlets.syncOutletTitles(node,project);
         const timed=[...project.video_track,...project.audio_track], end=Math.max(20,project.processing_window.end_seconds+3,...timed.map(c=>c.timeline_in_seconds+Math.max(0,edit.duration(c))+3));
         grid.style.width=`${Math.max(end*view.zoom,project.picture_track.length*126,scroller.clientWidth)}px`;
@@ -698,7 +674,7 @@ export function attachMediaDesk(node) {
                     const form=new FormData(); form.append("file",file); const data=await request("/upload",{method:"POST",body:form});
                     if(disposed) return;
                     let next=edit.clone(project); next.assets.push(data.asset);
-                    if(track && data.asset.kind===track) {next=edit.addAsset(next,data.asset,current); current+=data.asset.probe.duration_seconds||0;}
+                    if(track && data.asset.kind===track) {next=autoFitVideoWindow(edit.addAsset(next,data.asset,current),data.asset.kind); current+=data.asset.probe.duration_seconds||0;}
                     else if(track) failures.push(`${file.name} 已进入素材池；类型与目标轨道不符`);
                     commit(next); view.asset=data.asset.asset_id; view.selected=null;
                 } catch(error) {failures.push(`${file.name}：${error.message}`);}
@@ -719,7 +695,7 @@ export function attachMediaDesk(node) {
         undo:()=>restoreHistory(history.undo(project)),
         redo:()=>restoreHistory(history.redo(project)),
         split:()=>commit(edit.split(project,view.selected,view.playhead)),
-        context:()=>{const asset=activeAsset();if(!selected()&&asset)commit(edit.addAsset(project,asset,view.playhead));},
+        context:()=>{const asset=activeAsset();if(!selected()&&asset)commit(autoFitVideoWindow(edit.addAsset(project,asset,view.playhead),asset.kind));},
         delete:()=>{const item=selected();if(!item)return;if(item.track==="audio"&&item.clip.linked_video_clip_id){status("音频仍绑定视频，请先解绑音频再删除",false,true);return;}const next=edit.remove(project,view.selected);view.selected=null;commit(next);},
         play:async()=>{
             if(view.monitor_mode==="timeline"){playTimeline();return;}
@@ -762,7 +738,7 @@ export function attachMediaDesk(node) {
         const id=draggingAssetId||event.dataTransfer.getData("application/x-zf-media"),asset=project.assets.find(a=>a.asset_id===id),files=[...event.dataTransfer.files];
         finishAssetDrag();
         if(files.length)importFiles(files,track,track?at:view.playhead);
-        else if(asset&&track){if(asset.kind!==track)status("请将素材拖到对应类型的轨道。",true);else {commit(edit.addAsset(project,asset,at));setPlayhead(at);}}
+        else if(asset&&track){if(asset.kind!==track)status("请将素材拖到对应类型的轨道。",true);else {commit(autoFitVideoWindow(edit.addAsset(project,asset,at),asset.kind));setPlayhead(at);}}
     });
     root.addEventListener("keydown",event=>{if(event.target.closest(".zf-med-preset-editor")||event.target.matches("input,textarea,select")||(event.code==="Space"&&event.target.matches("button")))return;let action;if(event.code==="Space")action="play";if(event.key==="Delete"||event.key==="Backspace")action="delete";if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="z")action=event.shiftKey?"redo":"undo";if(action){event.preventDefault();event.stopPropagation();actions[action]();}});
     root.addEventListener("pointerdown",event=>{event.stopPropagation();if(!event.target.matches("input,textarea,select,button"))root.focus({preventScroll:true});});

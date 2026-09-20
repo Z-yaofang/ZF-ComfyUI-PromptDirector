@@ -3,11 +3,23 @@ import {builtin} from './media_evidence_presets.mjs';
 export const clone = (value) => JSON.parse(JSON.stringify(value));
 export const uid = () => crypto.randomUUID().replaceAll("-", "");
 export const frame = (seconds, fps) => Math.floor(seconds * fps + .5);
-export const freshProject = () => ({schema_version: 2, project_clock: {fps: 24}, assets: [], picture_track: [], video_track: [], audio_track: [], processing_window: {start_seconds: 0, end_seconds: 10, fps: 24}, processing_preset:builtin(),outlet_slots:{version:1,items:[]}});
+export const freshProject = () => ({schema_version: 2, project_clock: {fps: 24}, assets: [], picture_track: [], video_track: [], audio_track: [], processing_window: {start_seconds: 0, end_seconds: 10, fps: 24}, processing_preset:builtin()});
 export const duration = (clip) => clip.source_out_seconds - clip.source_in_seconds;
 export const compareTimelineClips = (a, b) => a.timeline_in_seconds-b.timeline_in_seconds || (a.clip_id < b.clip_id ? -1 : a.clip_id > b.clip_id ? 1 : 0);
 export const sourceTime = (clip, playhead) => clip.source_in_seconds + (playhead-clip.timeline_in_seconds);
 export const timelineEnd = project => Math.max(0, ...[...project.video_track, ...project.audio_track].filter(c => Number.isFinite(c.timeline_in_seconds+duration(c)) && duration(c)>0).map(c => c.timeline_in_seconds+duration(c)));
+export function fitProcessingWindowToVideoTrack(project) {
+    const p = clone(project), videos = p.video_track.filter(clip =>
+        Number.isFinite(clip.timeline_in_seconds) && Number.isFinite(duration(clip)) && duration(clip) > 0
+    );
+    if (!videos.length) return p;
+    const start = Math.min(...videos.map(clip => clip.timeline_in_seconds));
+    const end = Math.max(...videos.map(clip => clip.timeline_in_seconds + duration(clip)));
+    const target = p.processing_preset?.snapshot?.rules?.target_fps;
+    const fps = Number.isFinite(target) && target > 0 ? target : p.processing_window.fps;
+    p.processing_window = {...p.processing_window, start_seconds:start, end_seconds:end, fps};
+    return p;
+}
 export function timelineAt(project, playhead) {
     const resolve = clip => {
         const asset = project.assets.find(a => a.asset_id === clip.asset_id), time = sourceTime(clip, playhead);
@@ -99,7 +111,6 @@ export function remove(project, id) {
     if (!item) return p;
     p[`${item.track}_track`] = p[`${item.track}_track`].filter(c => c !== item.clip);
     if (item.track === "video") p.audio_track = p.audio_track.filter(a => a.clip_id !== item.clip.audio_link_id);
-    clearMissingSlotBindings(p);
     return p;
 }
 export function unloadAsset(project, assetId) {
@@ -108,14 +119,7 @@ export function unloadAsset(project, assetId) {
     for (const track of ["picture_track", "video_track", "audio_track"]) {
         p[track] = p[track].filter(item => item.asset_id !== assetId);
     }
-    clearMissingSlotBindings(p);
     return p;
-}
-function clearMissingSlotBindings(project) {
-    for(const slot of project.outlet_slots?.items||[]) {
-        const key=slot.kind==="picture"?"item_id":"clip_id";
-        if(slot.binding_id!==null&&!project[`${slot.kind}_track`].some(item=>item[key]===slot.binding_id))slot.binding_id=null;
-    }
 }
 export function sampleClipPeaks(peaks, sourceDuration, sourceIn, sourceOut, count = 128) {
     if (!peaks?.length || ![sourceDuration, sourceIn, sourceOut, count].every(Number.isFinite) || sourceDuration <= 0 || sourceOut <= sourceIn) return [];

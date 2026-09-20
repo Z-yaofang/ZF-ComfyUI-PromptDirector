@@ -49,6 +49,20 @@ def codes(p):
     return {e["code"] for e in C.normalize_project(p)["validation"]["errors"]}
 
 
+def test_retired_slots_do_not_return_or_discard_media():
+    p = bound_project()
+    p["outlet_slots"] = {"version": 1, "items": [{"slot_id": "retired", "binding_id": "v1"}]}
+    original = copy.deepcopy(p)
+    result = C.normalize_project(p)
+    assert "outlet_slots" not in result
+    assert "outlet_slots" not in C.empty_project()
+    assert result["assets"] == original["assets"]
+    assert result["video_track"][0]["clip_id"] == "v1"
+    assert result["audio_track"][0]["clip_id"] == "a1"
+    assert not result["validation"]["errors"]
+    assert p == original
+
+
 def test_schema_round_trip_and_input_immutable():
     p = bound_project()
     original = copy.deepcopy(p)

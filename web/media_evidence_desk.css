@@ -41,13 +41,6 @@
 .zf-med-inspect-actions .zf-med-label {flex-basis:100%}
 .zf-med-inspect-actions button {flex:1 1 auto;min-width:0;white-space:normal}
 .zf-med-inspect-actions button.primary {flex-basis:100%;border-color:#58b9c7;color:#a6f1f5;background:#22434b;font-weight:600}
-.zf-med-slot-panel {flex-shrink:0;border:1px solid #354155;border-radius:6px;background:#1d2531;padding:5px 8px}
-.zf-med-slot-panel summary {cursor:pointer;color:#bce7ed}
-.zf-med-slot-list {max-height:150px;overflow:auto;display:flex;flex-direction:column;gap:4px}
-.zf-med-slot-row {display:flex;align-items:center;gap:6px;flex-shrink:0}
-.zf-med-slot-row span {flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.zf-med-slot-row button {padding:2px 6px}
-.zf-med-inspect-actions .zf-med-slot-select {width:100%;max-width:100%}
 .zf-med-facts {white-space:pre-line;word-break:break-word;color:#b7c7da;line-height:1.8}
 .zf-med-field {display:flex;align-items:center;justify-content:space-between;gap:6px}
 .zf-med-label {color:#89a2be}

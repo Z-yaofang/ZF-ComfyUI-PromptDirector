@@ -20,7 +20,7 @@ def node(class_type, **inputs):
 
 def base_prompt():
     return {
-        "172": node("ZVH3InterviewForm", media_project=["165", 0]),
+        "172": node("ZVH3InterviewFormV2", media_project=["165", 0]),
         "165": node("ZVUniversalMediaEvidenceDesk", project_data="{}"),
         "176": node("ZVPictureOutlet", media_project=["165", 0], item_id="picture-stable"),
         "177": node("ZVVideoOutlet", media_project=["165", 0], clip_id="video-stable"),
@@ -66,9 +66,9 @@ def base_prompt():
 
 def fixed_hub_prompt():
     prompt = {
-        "172": node("ZVH3InterviewForm", media_project=["165", 0]),
+        "172": node("ZVH3InterviewFormV2", media_project=["165", 0]),
         "165": node("ZVUniversalMediaEvidenceDesk", project_data="{}"),
-        "180": node("ZVH3ReferenceOutlet", reference_plan=["172", 8]),
+        "180": node("ZVH3ReferenceOutlet", reference_plan=["172", 6]),
         "146": node("ZFPromptDirectorLocalLLM", prompt=["172", 1]),
     }
     hub_inputs = {

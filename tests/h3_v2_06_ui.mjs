@@ -31,11 +31,10 @@ window.app=app;
 const {attachMediaDesk}=await import('/extensions/media_evidence_desk.js');
 const edit=await import('/extensions/media_evidence_core.mjs');
 window.outlets=await import('/extensions/media_evidence_outlets.mjs?v=h3-v2-07');
-window.slots=await import('/extensions/media_evidence_slots.mjs?v=h3-v2-07');
 class Desk extends LGraphNode {constructor(){super();this.serialize_widgets=true;this.addWidget('text','project_data',JSON.stringify(edit.freshProject()),()=>{});this.addOutput('media_project','ZV_MEDIA_PROJECT');this.addOutput('project_json','STRING');this.addOutput('原素材来源','ZV_ORIGINAL_SOURCES');this.pos=[40,80];this.size=[1180,1000];}addDOMWidget(n,t,root){if(this.graph===app.canvas?.graph)document.querySelector('#mount').replaceChildren(root);return {};}}
 LiteGraph.registerNodeType('ZVUniversalMediaEvidenceDesk',Desk);
-for(const type of ['ZVPictureOutlet','ZVPictureSlotOutlet','ZVVideoOutlet','ZVAudioOutlet','ZVOriginalPictureOutlet','ZVOriginalVideoOutlet','ZVOriginalAudioOutlet']){
- class Outlet extends LGraphNode {constructor(){super();this.serialize_widgets=true;const original=type.includes('Original');this.addInput(original?'original_sources':'media_project',original?'ZV_ORIGINAL_SOURCES':'ZV_MEDIA_PROJECT');this.addWidget('text',original?'source_handle':type.includes('SlotOutlet')?'slot_id':type==='ZVPictureOutlet'?'item_id':'clip_id','',()=>{});if(original)this.addWidget('text','asset_id','',()=>{});const outputs=original?[type.includes('Picture')?'IMAGE':type.includes('Video')?'VIDEO':'AUDIO','STRING','STRING','STRING']:type==='ZVVideoOutlet'?['IMAGE','AUDIO','STRING','STRING']:[type.includes('Picture')?'IMAGE':'AUDIO','STRING','STRING'];for(const output of outputs)this.addOutput(output,output);}}
+for(const type of ['ZVPictureOutlet','ZVVideoOutlet','ZVAudioOutlet','ZVOriginalPictureOutlet','ZVOriginalVideoOutlet','ZVOriginalAudioOutlet']){
+ class Outlet extends LGraphNode {constructor(){super();this.serialize_widgets=true;const original=type.includes('Original');this.addInput(original?'original_sources':'media_project',original?'ZV_ORIGINAL_SOURCES':'ZV_MEDIA_PROJECT');this.addWidget('text',original?'source_handle':type==='ZVPictureOutlet'?'item_id':'clip_id','',()=>{});if(original)this.addWidget('text','asset_id','',()=>{});const outputs=original?[type.includes('Picture')?'IMAGE':type.includes('Video')?'VIDEO':'AUDIO','STRING','STRING','STRING']:type==='ZVVideoOutlet'?['IMAGE','AUDIO','STRING','STRING']:[type.includes('Picture')?'IMAGE':'AUDIO','STRING','STRING'];for(const output of outputs)this.addOutput(output,output);}}
  LiteGraph.registerNodeType(type,Outlet);
 }
 class Sink extends LGraphNode {constructor(){super();this.addInput('image','IMAGE');this.addOutput('binding','STRING');}}
@@ -80,14 +79,13 @@ try{
  const selected=p.picture_track[0].item_id,other=p.picture_track[1].item_id;
  await selectItem(selected);check(!(await page.locator('[data-action=delete-picture]').isDisabled()));check(!(await page.locator('[data-action=context]').isVisible()));check(await original().count()===0);
  check(await page.getByRole('button',{name:'删除此片段',exact:true}).count()===0);
- const slotResult=await page.evaluate(id=>{const r=slots.createSlotOutlet(deskNode,deskNode.zfMediaDesk.getProject(),id,{canvas:{graph}});return {project:r.project,node:r.node.id};},selected);
- const withSlot=slotResult.project;await restore(withSlot);await selectItem(selected);
+ const beforeRemoval=await project();
  await page.locator('.zf-med-create-outlet').click();const beforeDelete=await graph();
  await page.locator('[data-action=delete-picture]').click();await sync();let after=await project();
- deep(after.assets,withSlot.assets);deep(after.picture_track.map(i=>i.item_id),[other,withSlot.picture_track[2].item_id]);deep(after.picture_track.map(i=>i.order),[1,2]);
- deep(after.outlet_slots.items[0].binding_id,null);deep((await graph()).links,beforeDelete.links);check((await graph()).nodes.some(n=>n.type==='ZVPictureOutlet'&&n.title.includes('绑定素材已不存在')));
+ deep(after.assets,beforeRemoval.assets);deep(after.picture_track.map(i=>i.item_id),[other,beforeRemoval.picture_track[2].item_id]);deep(after.picture_track.map(i=>i.order),[1,2]);
+ deep((await graph()).links,beforeDelete.links);check((await graph()).nodes.some(n=>n.type==='ZVPictureOutlet'&&n.title.includes('绑定素材已不存在')));
  deep(await png(picture.source_handle),bytes);deep(await png(shot.source_handle),shotBytes);
- await page.getByRole('button',{name:'撤销',exact:true}).click();await sync();deep((await project()).picture_track,withSlot.picture_track);deep((await project()).outlet_slots,withSlot.outlet_slots);check((await graph()).nodes.some(n=>n.type==='ZVPictureOutlet'&&n.title.includes('图片1')));
+ await page.getByRole('button',{name:'撤销',exact:true}).click();await sync();deep((await project()).picture_track,beforeRemoval.picture_track);check((await graph()).nodes.some(n=>n.type==='ZVPictureOutlet'&&n.title.includes('图片1')));
  await page.getByRole('button',{name:'重做',exact:true}).click();await sync();deep((await project()).picture_track,after.picture_track);
  await page.getByRole('button',{name:'撤销',exact:true}).click();await sync();await selectItem(selected);await page.locator('.zf-med').press('Delete');await sync();deep((await project()).picture_track,after.picture_track);
  // A synthetic click on the now hidden context must have no deletion path.
@@ -95,7 +93,7 @@ try{
  const rect=await page.locator('[data-action=delete-picture]').boundingBox(),gutter=await page.locator('.zf-med-picture-gutter').boundingBox();check(rect.y>=gutter.y&&rect.y+rect.height<=gutter.y+gutter.height);check(rect.x>=gutter.x&&rect.x+rect.width<=gutter.x+gutter.width);
  await page.locator('.zf-med').screenshot({path:join(process.argv[6],'PICTURE_NEAR_DELETE.png')});
  // Three independent source bindings; no parent output links or project mutation.
- await restore(withSlot);for(const a of [picture,video,audio,shot]){
+ await restore(beforeRemoval);for(const a of [picture,video,audio,shot]){
    await selectAsset(a.asset_id);const before=await project(),beforeGraph=await graph(),requestCount=requests.length;
    await original().click();const g=await graph(),type='ZVOriginal'+({picture:'Picture',video:'Video',audio:'Audio'}[a.kind])+'Outlet',n=g.nodes.find(n=>n.type===type&&n.widgets_values[1]===a.asset_id);
    check(!!n);deep(n.outputs.map(o=>o.type),[a.kind==='picture'?'IMAGE':a.kind==='video'?'VIDEO':'AUDIO','STRING','STRING','STRING']);

@@ -40,7 +40,7 @@ def problem(path, code, message):
 
 
 def empty_project():
-    return {"schema_version": 2, "project_clock": {"fps": 24}, "assets": [], "picture_track": [], "video_track": [], "audio_track": [], "processing_window": {"start_seconds": 0, "end_seconds": 10, "fps": 24}, "processing_preset": builtin(), "outlet_slots": {"version": 1, "items": []}}
+    return {"schema_version": 2, "project_clock": {"fps": 24}, "assets": [], "picture_track": [], "video_track": [], "audio_track": [], "processing_window": {"start_seconds": 0, "end_seconds": 10, "fps": 24}, "processing_preset": builtin()}
 
 
 def parse_project(text):
@@ -120,6 +120,7 @@ def normalize_project(project):
     if not isinstance(project, dict):
         raise ProjectError([problem("", "type", "Project must be an object")])
     result = copy.deepcopy(project)
+    result.pop("outlet_slots", None)
     if type(result.get("schema_version")) is int and result["schema_version"] == 1:
         result["schema_version"] = 2
         result.setdefault("processing_preset", builtin("builtin.minimax-h3.single"))
@@ -141,13 +142,6 @@ def normalize_project(project):
     errors = shape_errors(result)
     if errors:
         raise ProjectError(errors)
-    slot_ids, slot_ordinals = set(), set()
-    for index, slot in enumerate(result.get("outlet_slots", {}).get("items", [])):
-        ordinal = (slot["kind"], slot["ordinal"])
-        if slot["slot_id"] in slot_ids or ordinal in slot_ordinals:
-            raise ProjectError([problem(f"/outlet_slots/items/{index}", "duplicate_slot", "槽位 ID 和同类型序号必须唯一")])
-        slot_ids.add(slot["slot_id"])
-        slot_ordinals.add(ordinal)
     preset_errors = rule_errors(result["processing_preset"]["snapshot"])
     if preset_errors:
         raise ProjectError([problem("/processing_preset", "preset_rules", message) for message in preset_errors])
