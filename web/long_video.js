@@ -24,7 +24,7 @@ function mount(node,key,title,minHeight=600){
 }
 
 function attachDesk(node){
-    const mounted=mount(node,"segment_data","ZV 长视频分段台",650);if(!mounted)return;
+    const mounted=mount(node,"segment_data","ZV H3 长视频分段台",650);if(!mounted)return;
     const {root,widget,save}=mounted;
     let settings={...defaultSettings(),...parse(widget.value,defaultSettings)},plan=null,selected=null,playhead=0,scale=2,disposed=false,token=0,timer=null,upstreamText="",snap=true,activePlayheadDrag=null,timelineRenderPending=false;
     const undo=[],redo=[];
@@ -177,7 +177,7 @@ const fields=[["intent","要生成什么 / 本段发生什么"],["style","画面
 const banks={picture:[["ref_images","参考图片"],["first_frame","首帧"],["last_frame","尾帧"]],video:[["ref_videos","参考视频"]],audio:[["ref_audios","参考音频"],["drive_audio","复用 / 驱动音频"]]};
 const roles={picture:[["subject_identity","主体身份/外观"],["composition_reference","构图"],["style_reference","风格"]],video:[["motion_reference","动作参考"],["camera_reference","运镜参考"],["video_edit","原视频编辑"],["video_continue","续写"]],audio:[["music_reference","音乐参考"],["voice_reference","音色参考"],["sound_reference","声音参考"],["audio_reuse","直接复用"],["speech_lipsync","台词口型"]]};
 function attachInterview(node){
-    const mounted=mount(node,"interview_data","ZV 分段采访表",720);if(!mounted)return;
+    const mounted=mount(node,"interview_data","ZV H3 分段采访表",720);if(!mounted)return;
     const {root,widget,save}=mounted;let state={...emptyInterview(),...parse(widget.value,emptyInterview)},active="global",result=null,disposed=false,token=0,lastSource="",delay=null;
     const toolbar=el("div","bar"),editor=el("div","editor"),list=el("div","segments"),form=el("div","form"),assets=el("div","assets"),status=el("div","status");editor.append(list,form,assets);
     toolbar.append(button("检测并对齐全部分段",()=>refresh(true),true),el("p","","先选择分段，勾选本段素材并填写要求。修改后运行前再对齐一次。"));root.append(toolbar,editor,status);

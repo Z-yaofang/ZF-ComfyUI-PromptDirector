@@ -10,7 +10,9 @@
 git clone https://github.com/Z-yaofang/ZF-ComfyUI-PromptDirector.git
 ```
 
-已有副本先确认无本地改动，再 `git pull --ff-only`。正常重启 ComfyUI，并刷新浏览器前端，确保新后端端口和 `h3-v2-07` Web 模块同时生效。
+已有副本先确认无本地改动，再 `git pull --ff-only`。正常重启 ComfyUI，并刷新浏览器前端，确保新后端端口和 Web 模块同时生效。
+
+RunningHub 会将前端模块发布为带哈希的 `.js` 并改写导入地址。相对模块导入不要附加 `?v=` 或 `#`：已确认带版本参数的素材出口导入在云端变成不存在的地址（404），导致新旧素材台都只显示原始 JSON。修复仓库后仍需平台重新发布插件前端资源；仅刷新页面不会修复服务器上的错误导入。验收时检查 Console 的 `Error loading extension`，确认新建空素材台和已有素材台都显示面板；不要通过重建素材或恢复旧节点绕过加载失败。
 
 素材/采访功能需要近期支持 UserManager 和原生 VIDEO 的 ComfyUI，以及 Pillow、PyAV、numpy、torch、aiohttp；媒体代理还需要 FFmpeg（或 imageio_ffmpeg 提供的可执行文件）及 libx264/AAC 编码器。用户目录应可写、可持久，使用真实挂载目录；存储边界拒绝逃逸路径、符号链接及相关不安全链接。
 
@@ -28,5 +30,13 @@ git clone https://github.com/Z-yaofang/ZF-ComfyUI-PromptDirector.git
 
 ```sh
 python -m pytest -q --rootdir=tests --confcutdir=tests --import-mode=importlib tests --tb=short -rs
-node --test tests/media_evidence_core.test.mjs tests/media_evidence_original_outlets.test.mjs tests/media_evidence_presets.test.mjs
+node --test tests/frontend_cloud_compat.test.mjs tests/media_evidence_core.test.mjs tests/media_evidence_original_outlets.test.mjs tests/media_evidence_presets.test.mjs
 ```
+
+发布前还应运行真实浏览器模块加载回归（使用已安装的 Playwright 和 Chromium 路径）：
+
+```sh
+node tests/frontend_cloud_load_smoke.mjs <playwright-package> <chromium-executable>
+```
+
+该测试在本地模拟云端哈希文件名，复现旧导入 404，并验证修复后空节点和已保存节点的面板挂载；不访问云端、不运行模型，不能代替平台更新后的实际验收。

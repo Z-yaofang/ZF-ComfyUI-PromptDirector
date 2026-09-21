@@ -74,9 +74,15 @@ def test_pending_initial_source_metadata_rejects_missing_or_invalid(case):
 def test_explicit_runtime_copy_registration_and_real_shared_node_schemas(tmp_path):
     audit=runpy.run_path(str(Path(__file__).resolve().parents[1]/'tools/h3_v2_audit.py'))
     manifest=audit['manifest']();destination=audit['copy_runtime'](tmp_path/'runtime')
+    assert {row['path'] for row in manifest['files']} >= {
+        'animate_video/nodes.py', 'animate_video/masking.py', 'web/animate_video.js',
+        'web/zfi_reroute.js', 'locales/zh/nodeDefs.json',
+    }
     assert all(audit['sha'](destination/row['path'])==row['sha256'] for row in manifest['files'])
     registration,mappings=audit['copied_registration'](destination)
     assert registration['passed'] and not registration['full_comfy_service_started']
+    assert 'ZVAnimateSegmentDesk' in registration['registered_classes']
+    assert 'ZVAnimateMaskGate' in registration['registered_classes']
     graph,proof=audit['skeleton'](mappings)
     assert proof['actual_plugin_input_output_and_T8_autogrow_checked'] and proof['backend_fixed_hub_wiring_errors']==[]
     assert len(graph['nodes'])==14 and len(graph['links'])==101

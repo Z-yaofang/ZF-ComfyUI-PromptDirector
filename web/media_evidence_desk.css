@@ -74,8 +74,8 @@
 .zf-med-window {position:absolute;top:2px;height:19px;border:1px solid #57deed;background:#36c6dc44;border-radius:4px;cursor:grab;z-index:4;touch-action:none;text-align:center;white-space:nowrap;font-size:10px;color:#9cf1fa;user-select:none}
 .zf-med-window.invalid {border-color:#ff8b91;background:#a9404855;color:#ffd2d5}
 .zf-med-window-guide {position:absolute;top:44px;height:258px;border-left:1px dashed #55d4e6;border-right:1px dashed #55d4e6;background:#4dd9e507;pointer-events:none;z-index:2}
-.zf-med-playhead {position:absolute;top:0;bottom:0;width:16px;transform:translateX(-50%);cursor:ew-resize;touch-action:none;user-select:none;z-index:10;outline:none}
-.zf-med-playhead::before {content:'';position:absolute;top:3px;left:1px;border-left:7px solid transparent;border-right:7px solid transparent;border-top:10px solid #ffd268;filter:drop-shadow(0 1px 2px #000)}
+.zf-med-playhead {position:absolute;top:0;bottom:0;width:16px;transform:translateX(-50%);pointer-events:none;cursor:ew-resize;touch-action:none;user-select:none;z-index:10;outline:none}
+.zf-med-playhead::before {content:'';position:absolute;top:3px;left:1px;pointer-events:auto;border-left:7px solid transparent;border-right:7px solid transparent;border-top:10px solid #ffd268;filter:drop-shadow(0 1px 2px #000)}
 .zf-med-playhead::after {content:'';position:absolute;top:12px;bottom:0;left:8px;width:1px;background:#ffd268}
 .zf-med-status {height:44px;overflow:auto;padding:6px 9px;border-radius:5px;background:#202b3b;color:#a9bfd7;flex-shrink:0;white-space:pre-line}
 .zf-med-status.error {background:#432a31;color:#ffb8be}
@@ -100,6 +100,7 @@
 .zf-med-clip.audio.compact .zf-med-clip-wave {height:100%}
 .zf-med-playhead:focus::before {filter:drop-shadow(0 0 3px #ffe6a6)}
 .zf-med-playhead-time {color:#ffd268;font-variant-numeric:tabular-nums;font-size:11px}
+.zf-med-frame-jump {color:#ffd268;font-variant-numeric:tabular-nums}
 .zf-med-lane.drop-target {outline:2px dashed #70e5ee;outline-offset:-3px;background-color:#235a6370}
 .zf-med-lane.drop-reject {outline:2px dashed #ff969e;outline-offset:-3px}
 .zf-med-lane[data-drop-hint]::after {content:attr(data-drop-hint);position:absolute;top:3px;left:var(--drop-hint-x,12px);z-index:7;padding:3px 9px;background:#122731f2;color:#7cf0fa;border-radius:4px;pointer-events:none}

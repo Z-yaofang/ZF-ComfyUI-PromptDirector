@@ -17,7 +17,7 @@ class ZVLongVideoSegmentDesk:
     RETURN_TYPES = ("ZV_SEGMENT_PLAN", "STRING")
     RETURN_NAMES = ("segment_plan", "report")
     FUNCTION = "build"
-    CATEGORY = "ZV/视频创作/长视频"
+    CATEGORY = "ZV/视频创作/H3长视频"
 
     def build(self, media_project, segment_data):
         try:

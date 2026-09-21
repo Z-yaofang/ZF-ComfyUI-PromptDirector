@@ -1223,7 +1223,7 @@ class ZVSegmentVideoMaskSource:
     RETURN_TYPES = ("IMAGE", "ZV_MASK_SOURCE", "AUDIO")
     RETURN_NAMES = ("frames", "source_info", "source_audio")
     FUNCTION = "read"
-    CATEGORY = "ZV/视频创作/长视频"
+    CATEGORY = "ZV/视频创作/H3长视频"
 
     @classmethod
     def IS_CHANGED(cls, **_kwargs):
@@ -1251,7 +1251,7 @@ class ZVMaskedSegmentBundle:
     RETURN_TYPES = ("ZV_MASKED_SEGMENT_BUNDLE", "STRING")
     RETURN_NAMES = ("masked_segments", "report")
     FUNCTION = "build"
-    CATEGORY = "ZV/视频创作/长视频"
+    CATEGORY = "ZV/视频创作/H3长视频"
 
     def build(self, segment_plan, mask, source_info, mode):
         return build_masked_segment_bundle(segment_plan, mask, source_info, mode)
@@ -1271,7 +1271,7 @@ class ZVSegmentMaskSlice:
     RETURN_TYPES = ("MASK", "STRING")
     RETURN_NAMES = ("mask", "clock_evidence_json")
     FUNCTION = "slice"
-    CATEGORY = "ZV/视频创作/长视频"
+    CATEGORY = "ZV/视频创作/H3长视频"
 
     def slice(self, masked_segments, segment_plan, segment_index):
         mask, evidence = slice_mask_for_segment(masked_segments, segment_plan, segment_index + 1)
@@ -1302,7 +1302,7 @@ class ZVH3MaskedSegmentLatent:
         "clock_evidence_json", "model_length",
     )
     FUNCTION = "prepare"
-    CATEGORY = "ZV/视频创作/长视频"
+    CATEGORY = "ZV/视频创作/H3长视频"
 
     def prepare(
         self,
@@ -1342,7 +1342,7 @@ class ZVH3MaskedLatentRestore:
     RETURN_TYPES = ("LATENT", "STRING")
     RETURN_NAMES = ("av_latent", "evidence_json")
     FUNCTION = "restore"
-    CATEGORY = "ZV/视频创作/长视频"
+    CATEGORY = "ZV/视频创作/H3长视频"
 
     def restore(self, av_latent, source_latent, model_mask):
         return restore_h3_masked_latent(av_latent, source_latent, model_mask)
@@ -1362,7 +1362,7 @@ class ZVH3MaskedFrameCompose:
     RETURN_TYPES = ("IMAGE", "STRING")
     RETURN_NAMES = ("frames", "evidence_json")
     FUNCTION = "compose"
-    CATEGORY = "ZV/视频创作/长视频"
+    CATEGORY = "ZV/视频创作/H3长视频"
 
     def compose(self, generated_frames, source_frames, model_mask):
         return compose_h3_masked_frames(generated_frames, source_frames, model_mask)

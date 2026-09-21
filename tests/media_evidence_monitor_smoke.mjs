@@ -80,7 +80,40 @@ const assertPicturePreview=async(before,id='picture1',name='image1.png')=>{
 let checks=0;
 const check=label=>{checks++;console.log(`OK ${label}`);};
 try {
-    await page.goto('http://monitor.test/');await page.waitForSelector('.zf-med');await reset();
+    await page.goto('https://monitor.test/');await page.waitForSelector('.zf-med');await reset();
+    const frameInput=page.getByRole('spinbutton',{name:'播放头工程帧',exact:true}),locate=page.getByRole('button',{name:'定位',exact:true});
+    const projectBefore=await page.evaluate(()=>deskNode.zfMediaDesk.getProject());
+    assert.equal(await frameInput.inputValue(),'48');
+    await page.locator('.zf-med-snap').check();await frameInput.fill('95');assert.equal(await head(),2);await frameInput.press('Enter');
+    assert.equal(await head(),95/24);assert.equal(await frameInput.inputValue(),'95');assert.equal((await live()).find(s=>s.clip==='v1').time,3+95/24);check('frame entry confirms on Enter and bypasses nearby 4-second snapping');
+    await frameInput.fill('144');await locate.click();assert.equal(await head(),6);assert.equal((await live()).find(s=>s.clip==='v2').time,12);assert((await live()).every(s=>s.paused));
+    assert.deepEqual(await page.evaluate(()=>deskNode.zfMediaDesk.getProject()),projectBefore);assert(await page.getByRole('button',{name:'撤销',exact:true}).isDisabled());check('locate button seeks video/audio without editing clips or undo history');
+    for(const value of ['', '-1', '1.5', '999999999999']){
+        await frameInput.fill(value);await frameInput.press('Enter');assert.equal(await head(),6);assert.equal(await frameInput.evaluate(input=>input.checkValidity()),false);
+    }
+    await frameInput.press('Escape');assert.equal(await frameInput.inputValue(),'144');assert.equal(await frameInput.evaluate(input=>input.checkValidity()),true);check('invalid frame numbers leave playhead untouched; Escape restores the displayed frame');
+    await play();await frameInput.fill('120');await step(.2);assert.equal(await frameInput.inputValue(),'120');await frameInput.press('Enter');assert.equal(await head(),5);assert.deepEqual(await sounding(),[]);check('playback cannot overwrite a frame being typed; confirming pauses and seeks');
+    await frameInput.fill('7200');await locate.click();assert.equal(await head(),300);
+    assert(await page.evaluate(()=>{const h=document.querySelector('.zf-med-playhead').getBoundingClientRect(),s=document.querySelector('.zf-med-scroll').getBoundingClientRect();return h.x>=s.x&&h.right<=s.right;}));check('distant frame expands and scrolls the timeline to keep the yellow handle visible');
+    const fpsProject=fixture();fpsProject.project_clock.fps=29.97;await reset(fpsProject,1);
+    await frameInput.fill('185');await frameInput.press('Enter');assert.equal(await head(),185/29.97);assert.equal(await frameInput.inputValue(),'185');check('frame-to-seconds mapping uses the project clock, including fractional fps');
+    await reset(fixture(),6,'v1');const fixedHead=await headSnapshot();
+    await page.locator('[data-id="v2"]').click({position:{x:40,y:30}});assert.deepEqual(await headSnapshot(),fixedHead);assert.equal(await page.locator('.zf-med-clip.video.selected').getAttribute('data-id'),'v2');
+    await page.locator('[data-id="mp3"]').click({position:{x:40,y:30}});assert.deepEqual(await headSnapshot(),fixedHead);
+    await page.locator('.zf-med-lane[data-track="video"]').click({position:{x:700,y:60}});assert.deepEqual(await headSnapshot(),fixedHead);check('video, audio and empty-lane clicks cannot displace an already positioned playhead');
+    await page.locator('[data-id="v1"]').click();await page.getByRole('button',{name:'分割',exact:true}).click();assert.match(await page.locator('.zf-med-status').textContent(),/黄线不在所选片段内部/);
+    assert.equal((await page.evaluate(()=>deskNode.zfMediaDesk.getProject())).video_track.length,2);check('splitting the wrong selected clip reports why instead of silently doing nothing');
+    await page.locator('[data-id="v2"]').click({position:{x:40,y:30}});await page.getByRole('button',{name:'分割',exact:true}).click();
+    await page.waitForFunction(()=>document.querySelector('.zf-med').getAttribute('aria-busy')==='false');
+    const splitProject=await page.evaluate(()=>deskNode.zfMediaDesk.getProject());assert.deepEqual(errors,[]);assert.equal(splitProject.video_track.length,3);
+    assert.equal(splitProject.video_track[1].source_out_seconds,12);assert.equal(splitProject.video_track[2].source_in_seconds,12);assert.equal(splitProject.video_track[2].timeline_in_seconds,6);
+    assert.equal(splitProject.audio_track.filter(s=>s.origin==='video_source').length,2);assert.equal(await head(),6);check('locate, select, split preserves the chosen cut and splits the linked original audio');
+    await reset(fixture(),3.5);assert.equal(await frameInput.inputValue(),'84');
+    assert.equal(await page.evaluate(()=>{const h=document.querySelector('.zf-med-playhead').getBoundingClientRect();return document.elementFromPoint(h.x+8,h.y+140)?.classList.contains('zf-med-playhead');}),false);
+    const handleBox=await page.locator('.zf-med-playhead').boundingBox();
+    await page.mouse.move(handleBox.x+8,handleBox.y+6);await page.mouse.down();await page.mouse.move(handleBox.x+38,handleBox.y+6,{steps:5});await page.mouse.up();
+    assert.equal(await head(),4);assert.equal(await frameInput.inputValue(),'96');check('only the top triangle catches playhead dragging; the vertical line passes clicks through');
+    await reset();
     assert.equal(await page.locator('.zf-med-monitor-mode').textContent(),'时间线监看');
     let records=await live();assert.equal(records.find(s=>s.clip==='v1').time,5);assert.equal(records.find(s=>s.clip==='mp3').time,8);assert(records.every(s=>s.paused));check('seek maps both trimmed sources without playback');
     await play();assert.deepEqual(await sounding(),['mp3']);assert((await live()).find(s=>s.clip==='v1').muted);check('silent video plus independent MP3');
@@ -105,7 +138,7 @@ try {
     const sourceHead=await head();await page.getByRole('button',{name:'播放素材',exact:true}).click();await step(1);
     records=(await snapshot()).filter(s=>s.src);assert.equal(records.filter(s=>!s.paused).length,2);assert(records.find(s=>s.tag==='VIDEO').muted);assert.equal(await head(),sourceHead);check('source preview has isolated sound and never drives project clock');
     await page.locator('.zf-med-ruler').click({position:{x:3*60,y:30}});assert.equal(await page.locator('.zf-med-monitor-mode').textContent(),'时间线监看');assert((await snapshot()).every(s=>s.paused));check('ruler changes to timeline and stops source sound');
-    await page.locator('[data-id="v2"]').click();assert.equal(await page.locator('.zf-med-monitor-mode').textContent(),'时间线监看');assert((await live()).some(s=>s.clip==='v2'));check('clip click monitors timeline at clicked position');
+    const selectionHead=await headSnapshot();await page.locator('[data-id="v2"]').click();assert.equal(await page.locator('.zf-med-monitor-mode').textContent(),'时间线监看');assert.deepEqual(await headSnapshot(),selectionHead);assert((await live()).some(s=>s.clip==='v1'));check('clip selection keeps the timeline preview at the fixed playhead, not the clicked clip');
     await reset(pictureFixture(),2.375);const pictureHead=await headSnapshot();
     await page.locator('[data-id="picture1"]').click({position:{x:30,y:30}});await assertPicturePreview(pictureHead);assert.deepEqual(await pictureOrder(),['picture1','picture2','picture3']);check('picture card click previews the selected image and inspector without moving a nonzero playhead');
     const pictureBox=await page.locator('[data-id="picture1"]').boundingBox();

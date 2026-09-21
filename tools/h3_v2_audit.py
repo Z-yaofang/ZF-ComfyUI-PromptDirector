@@ -56,6 +56,13 @@ def new_target(path):
     raise ValueError(f"Output target already exists (including links): {path}")
 
 
+def check_copy_destination(destination, root):
+    if destination.is_relative_to(root.resolve()):
+        raise ValueError("Copy destination must be new and outside the plugin")
+    if any(parent.name.casefold() == "custom_nodes" for parent in (destination, *destination.parents)):
+        raise ValueError("Audit copies must stay outside custom_nodes; ComfyUI would load duplicate nodes and frontends")
+
+
 def preflight(workflow, output_dir, copy_to=None):
     workflow = Path(workflow).resolve(strict=True)
     if not workflow.is_file():
@@ -67,8 +74,7 @@ def preflight(workflow, output_dir, copy_to=None):
     targets = tuple(new_target(path) for path in targets)
     copy_to = new_target(copy_to) if copy_to is not None else None
     if copy_to is not None:
-        if copy_to.is_relative_to(PLUGIN.resolve()):
-            raise ValueError("Copy destination must be outside the plugin")
+        check_copy_destination(copy_to, PLUGIN)
         if copy_to == workflow or output_dir.is_relative_to(copy_to) or any(copy_to.is_relative_to(path) for path in targets):
             raise ValueError("Copy destination overlaps an input or audit output")
     return workflow, output_dir, targets, copy_to
@@ -77,9 +83,10 @@ def preflight(workflow, output_dir, copy_to=None):
 def runtime_files(root=PLUGIN):
     files=[root/name for name in ROOT_FILES]+[root/"data"/name for name in DATA_FILES]
     files.extend(root/"schemas"/name for name in SCHEMA_FILES)
-    for folder in ("h3_focus","media_evidence","long_video"):
+    for folder in ("h3_focus","media_evidence","long_video","animate_video"):
         files.extend(path for path in (root/folder).iterdir() if path.suffix in (".py",".json"))
-    files.extend(path for path in (root/"web").iterdir() if path.suffix in (".js",".mjs",".css",".json") and path.name!="zfi_reroute.js")
+    files.extend(path for path in (root/"web").iterdir() if path.suffix in (".js",".mjs",".css",".json"))
+    files.extend((root/"locales").glob("*/nodeDefs.json"))
     catalog=json.loads((root/"data/visual_methods.json").read_text(encoding="utf-8"))
     files.extend(root/"web/thumbnails"/row["thumbnail"] for row in catalog if row.get("thumbnail"))
     result=sorted(set(path.relative_to(root).as_posix() for path in files))
@@ -92,13 +99,12 @@ def runtime_files(root=PLUGIN):
 
 def manifest(root=PLUGIN):
     tracked=set(subprocess.check_output(["git","ls-files"],cwd=root,text=True,encoding="utf-8").splitlines())
-    return {"scope":"explicit complete backend registration and H3/media/frontend runtime, excluding unrelated legacy ZFI UI shim; catalog stock thumbnails only","published":False,"files":[{"path":key,"sha256":sha(root/key),"git_tracked":key in tracked} for key in runtime_files(root)],"excluded":[".git",".env","API/model configuration","user preset databases","registry","cache","imported media","tests","private logs","legacy web/zfi_reroute.js"]}
+    return {"scope":"current backend registration and frontend runtime, including H3, Animate and ZFI; catalog stock thumbnails only","published":False,"files":[{"path":key,"sha256":sha(root/key),"git_tracked":key in tracked} for key in runtime_files(root)],"excluded":[".git",".env","API/model configuration","user preset databases","registry","cache","imported media","tests","private logs"]}
 
 
 def copy_runtime(destination, root=PLUGIN):
     destination=new_target(destination)
-    if destination.is_relative_to(root.resolve()):
-        raise ValueError("Copy destination must be new and outside the plugin")
+    check_copy_destination(destination, root)
     destination.mkdir(parents=True)
     for relative in runtime_files(root):
         target=destination/relative;target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(root/relative,target)
@@ -109,12 +115,12 @@ def copied_registration(destination, comfy=COMFY):
     """Execute copied real __init__; isolate core graph/server boot, not plugin classes."""
     from aiohttp import web
     graph_path=comfy/"comfy_execution/graph_utils.py"
-    spec=importlib.util.spec_from_file_location("_h3_copy_core_graph_utils",graph_path)
-    utilities=importlib.util.module_from_spec(spec);spec.loader.exec_module(utilities)
+    utilities=importlib.import_module("comfy_execution.graph_utils")
+    if Path(utilities.__file__).resolve() != graph_path.resolve():
+        raise ValueError("Run the audit with the Python environment for this ComfyUI installation")
     graph=types.ModuleType("comfy_execution.graph");graph.ExecutionBlocker=utilities.ExecutionBlocker
-    core=types.ModuleType("comfy_execution");core.__path__=[]
     server=types.ModuleType("server");server.PromptServer=type("PromptServer",(),{"instance":types.SimpleNamespace(routes=web.RouteTableDef())})
-    overrides={"server":server,"comfy_execution":core,"comfy_execution.graph":graph}
+    overrides={"server":server,"comfy_execution.graph":graph}
     previous={key:sys.modules.get(key) for key in overrides};sys.modules.update(overrides)
     name="_h3_v2_copied_runtime_" + uuid.uuid4().hex
     try:
@@ -126,6 +132,8 @@ def copied_registration(destination, comfy=COMFY):
             "ZVLongVideoSegmentDesk","ZVSegmentInterview","ZVSegmentVideoMaskSource","ZVMaskedSegmentBundle",
             "ZVSegmentMaskSlice","ZVLongVideoExecutionSetup","ZVLongVideoExecutionEntry",
             "ZVLongVideoSegmentRecorder","ZVLongVideoExecutionEnd",
+            "ZVAnimateSegmentDesk","ZVAnimateExecutionEntry","ZVAnimateSegmentRecorder","ZVAnimateExecutionEnd",
+            "ZVAnimateMaskFrame","ZVAnimateMaskSeed","ZVAnimateMaskGate",
         )
         for key in required:
             cls=plugin.NODE_CLASS_MAPPINGS[key]
@@ -138,6 +146,7 @@ def copied_registration(destination, comfy=COMFY):
         assert any(route["path"].endswith("/presets/{preset_id}/apply") for route in routes)
         assert any(route["path"]=="/zf-prompt-director/long-video/plan" for route in routes)
         assert any(route["path"]=="/zf-prompt-director/long-video/interview" for route in routes)
+        assert any(route["path"]=="/zf-prompt-director/animate-video/plan" for route in routes)
         value={"scope":"copied actual plugin __init__ + real classes + aiohttp route registration; server and core graph boot adapters; no Comfy GPU boot","core_execution_blocker_sha256":sha(graph_path),"registered_classes":sorted(plugin.NODE_CLASS_MAPPINGS),"routes":routes,"web_directory":plugin.WEB_DIRECTORY,"passed":True,"full_comfy_service_started":False}
         return value,plugin.NODE_CLASS_MAPPINGS
     finally:

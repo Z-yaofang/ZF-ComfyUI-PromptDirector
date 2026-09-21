@@ -5,7 +5,7 @@ const api = globalThis.comfyAPI?.api?.api ?? {
 };
 import * as edit from "./media_evidence_core.mjs";
 import * as presets from "./media_evidence_presets.mjs";
-import * as outlets from "./media_evidence_outlets.mjs?v=h3-v2-07";
+import * as outlets from "./media_evidence_outlets.mjs";
 import { pinDOMWidgetFullWidth } from "./dom_widget_layout.mjs";
 
 const NAME = "ZVUniversalMediaEvidenceDesk";
@@ -41,7 +41,7 @@ export function attachMediaDesk(node) {
     <div class="zf-med-top"><section class="zf-med-panel"><div class="zf-med-title">统一素材池 <button data-action="import">＋ 导入素材</button><button data-action="revalidate">复测素材</button></div><div class="zf-med-pool"></div></section>
     <section class="zf-med-panel zf-med-monitor"><div class="zf-med-title"><span class="zf-med-monitor-mode">素材预览</span><span class="zf-med-preview-name">未选择素材</span></div><div class="zf-med-screen"></div><div class="zf-med-controls"><button data-action="play">播放素材</button><span class="zf-med-spacer"></span><span class="zf-med-time">0.000 / 0.000 秒</span><input class="zf-med-seek" type="range" min="0" max="1" step="0.001" value="0" aria-label="源素材播放位置"></div><div class="zf-med-readout">点击任意素材预览，拖到对应轨道开始编排</div></section>
     <section class="zf-med-panel zf-med-inspector-panel"><div class="zf-med-title">机械信息 / 数值裁剪</div><div class="zf-med-context"><button data-action="context" disabled>选择素材或片段</button></div><div class="zf-med-inspect-actions" role="group" aria-label="素材出口操作"></div><div class="zf-med-inspect"></div></section></div>
-    <div class="zf-med-tools"><label><input class="zf-med-snap" type="checkbox" checked>吸附</label><button data-action="redo">重做</button><button data-action="undo">撤销</button><button data-action="split" title="在播放头位置分割当前选中片段；绑定原声随视频同时分割">分割</button><button data-action="screenshot" disabled title="截取黄色播放头所在的原视频画面，只加入素材池">截图</button><span class="zf-med-playhead-time"></span><span class="zf-med-spacer"></span><label>缩放 <input class="zf-med-zoom" type="range" min="2" max="140" value="35" aria-label="时间线缩放"></label><span class="zf-med-window-info"></span></div>
+    <div class="zf-med-tools"><label><input class="zf-med-snap" type="checkbox" checked>吸附</label><button data-action="redo">重做</button><button data-action="undo">撤销</button><button data-action="split" title="在播放头位置分割当前选中片段；绑定原声随视频同时分割">分割</button><button data-action="screenshot" disabled title="截取黄色播放头所在的原视频画面，只加入素材池">截图</button><span class="zf-med-playhead-time"></span><label class="zf-med-frame-jump">工程帧 <input class="zf-med-playhead-frame" type="number" min="0" step="1" value="0" required aria-label="播放头工程帧"></label><button data-action="seek-frame" title="输入工程帧号，按 Enter 或点击定位；不受吸附影响">定位</button><span class="zf-med-spacer"></span><label>缩放 <input class="zf-med-zoom" type="range" min="2" max="140" value="35" aria-label="时间线缩放"></label><span class="zf-med-window-info"></span></div>
     <div class="zf-med-timeline"><div class="zf-med-gutters"><div class="zf-med-gutter">时间 / 秒</div><div class="zf-med-gutter zf-med-picture-gutter">图片<br><small>固定卡片</small><button class="zf-med-delete-picture" data-action="delete-picture" disabled title="请先选择图片卡片">删除</button></div><div class="zf-med-gutter zf-med-video-gutter">视频<br><small>秒时间轴</small><button class="zf-med-delete-video" data-action="delete-video" disabled title="请先选择视频片段">删除</button><button class="zf-med-unlink-audio" data-action="unlink-audio" disabled title="请先选择带原声的视频">解绑音频</button></div><div class="zf-med-gutter zf-med-audio-gutter">音频<br><small>秒时间轴</small><button class="zf-med-delete-audio" data-action="delete-audio" disabled title="请先选择独立或已解绑音频片段">删除</button></div></div><div class="zf-med-scroll"><div class="zf-med-grid"><div class="zf-med-ruler"></div><div class="zf-med-lane" data-track="picture"></div><div class="zf-med-lane" data-track="video"></div><div class="zf-med-lane" data-track="audio"></div><div class="zf-med-window-guide"></div><div class="zf-med-playhead" role="slider" tabindex="0" aria-label="播放头（拖动定位）" aria-valuemin="0"></div></div></div></div><div class="zf-med-status"></div>`;
     const $ = selector => root.querySelector(selector), $$ = selector => [...root.querySelectorAll(selector)];
     const outletActions=el("div","zf-med-preset-tools");
@@ -58,6 +58,8 @@ export function attachMediaDesk(node) {
     let project = edit.freshProject(), history = new edit.History(), revision = 0, projectGeneration = 0, disposed = false, importing = false, media = null, sound = null, previewToken = 0, waveform = null, previewAsset = null, previewMode = null;
     let view = {zoom:35, playhead:0, selected:null, asset:null, snap:true, scroll:0, ...(node.properties?.zf_media_desk_view || {})};
     let pending = false, rechecking = false, recheckToken = 0, draggingAssetId = null, internalDragController = null, previewSeekTime = 0;
+    const frameInput=$(".zf-med-playhead-frame");
+    let frameDraft=false;
     let capturing = false, captureEpoch = 0, captureSourceId = null;
     let timelinePlaying = false, timelineBuffering = false, clockHead = 0, clockStart = 0, animationId = 0, timelineVideo = null, playbackError = "";
     const timelineAudio = new Map();
@@ -220,6 +222,7 @@ export function attachMediaDesk(node) {
     }
     function restore() {
         captureEpoch++;
+        frameDraft=false;frameInput.setCustomValidity("");
         const restoredView=node.properties?.zf_media_desk_view;
         ++revision;projectGeneration++;pending=false;recheckButton.disabled=rechecking;root.setAttribute("aria-busy",String(rechecking));stopTimeline();clearPreview();
         try {
@@ -606,14 +609,27 @@ export function attachMediaDesk(node) {
         const head=$(".zf-med-playhead");head.style.left=`${Math.max(0,view.playhead)*view.zoom}px`;
         head.setAttribute("aria-valuenow",String(view.playhead));head.setAttribute("aria-valuetext",`${seconds(view.playhead)} 秒`);
         $(".zf-med-playhead-time").textContent=`播放头 ${seconds(view.playhead)} s`;
+        frameInput.max=String(Math.floor(43200*project.project_clock.fps));
+        frameInput.title=`工程帧从 0 起，按工程 ${project.project_clock.fps} fps 定位；不是预览下方的原视频源帧号。`;
+        if(!frameDraft)frameInput.value=String(edit.frame(view.playhead,project.project_clock.fps));
     }
     function setPlayhead(time) {
         pauseTimeline();stopPreview();previewAsset=null;previewMode=null;
+        frameDraft=false;frameInput.setCustomValidity("");
         view.monitor_mode="timeline";view.playhead=Math.max(0,time);syncTimeline(true);
+    }
+    function jumpToFrame() {
+        const value=frameInput.valueAsNumber;
+        frameInput.setCustomValidity(Number.isSafeInteger(value)&&value>=0&&value<=Number(frameInput.max)?"":`请输入 0–${frameInput.max} 之间的整数帧号`);
+        if(!frameInput.reportValidity())return;
+        setPlayhead(value/project.project_clock.fps);renderTimeline();
+        const x=view.playhead*view.zoom;
+        if(x<scroller.scrollLeft+16||x>scroller.scrollLeft+scroller.clientWidth-16)scroller.scrollLeft=Math.max(0,x-scroller.clientWidth/2);
+        view.scroll=scroller.scrollLeft;viewSave();
     }
     function renderTimeline() {
         outlets.syncOutletTitles(node,project);
-        const timed=[...project.video_track,...project.audio_track], end=Math.max(20,project.processing_window.end_seconds+3,...timed.map(c=>c.timeline_in_seconds+Math.max(0,edit.duration(c))+3));
+        const timed=[...project.video_track,...project.audio_track], end=Math.max(20,view.playhead+3,project.processing_window.end_seconds+3,...timed.map(c=>c.timeline_in_seconds+Math.max(0,edit.duration(c))+3));
         grid.style.width=`${Math.max(end*view.zoom,project.picture_track.length*126,scroller.clientWidth)}px`;
         const ruler=$(".zf-med-ruler"); ruler.replaceChildren();
         const step=view.zoom>=60?1:view.zoom>=20?5:view.zoom>=7?10:30;
@@ -695,7 +711,7 @@ export function attachMediaDesk(node) {
             persist(); renderTimeline(); renderInspector();syncTimeline(true);
             if(id==="window")validationStatus();
         }
-        function finish(e) {e.stopPropagation();controller.abort(); if(e.type==="pointercancel") {project=before; persist(); renderTimeline();renderInspector();syncTimeline(true);normalize();return;} if(moved) commit(project,before); else {renderTimeline();if(local&&local.track!=="picture")setPlayhead(timelineTime(e));if(pending)normalize();} viewSave();}
+        function finish(e) {e.stopPropagation();controller.abort(); if(e.type==="pointercancel") {project=before; persist(); renderTimeline();renderInspector();syncTimeline(true);normalize();return;} if(moved) commit(project,before); else {renderTimeline();if(pending)normalize();} viewSave();}
         window.addEventListener("pointermove",drag,{capture:true,signal:controller.signal}); window.addEventListener("pointerup",finish,{capture:true,signal:controller.signal,once:true}); window.addEventListener("pointercancel",finish,{capture:true,signal:controller.signal,once:true});
         root._dragAbort=()=>controller.abort();
     }
@@ -726,6 +742,7 @@ export function attachMediaDesk(node) {
         import:()=>fileInput.click(),
         revalidate:()=>revalidateProject(),
         screenshot:()=>captureFrame(),
+        "seek-frame":()=>jumpToFrame(),
         "timeline-outlet":()=>createOutlets([outlets.timelineOutletItem()]),
         "delete-picture":()=>{if(selected()?.track==="picture")actions.delete();},
         "delete-video":()=>{if(selected()?.track==="video")actions.delete();},
@@ -733,7 +750,13 @@ export function attachMediaDesk(node) {
         "unlink-audio":()=>{if(linkedAudioVideo())commit(edit.audioAction(project,view.selected,"unlink"));},
         undo:()=>restoreHistory(history.undo(project)),
         redo:()=>restoreHistory(history.redo(project)),
-        split:()=>commit(edit.split(project,view.selected,view.playhead)),
+        split:()=>{
+            const item=selected();
+            if(!item||item.track==="picture"){status("请先选中要分割的视频或音频片段，黄线位置不会改变。",false,true);return;}
+            const offset=view.playhead-item.clip.timeline_in_seconds;
+            if(offset<=.001||offset>=edit.duration(item.clip)-.001){status("黄线不在所选片段内部：请选中黄线所在的片段，或拖动黄线顶部定位后再分割。",false,true);return;}
+            commit(edit.split(project,view.selected,view.playhead));
+        },
         context:()=>{const asset=activeAsset();if(!selected()&&asset)commit(autoFitVideoWindow(edit.addAsset(project,asset,view.playhead),asset.kind));},
         delete:()=>{const item=selected();if(!item)return;if(item.track==="audio"&&item.clip.linked_video_clip_id){status("音频仍绑定视频，请先解绑音频再删除",false,true);return;}const next=edit.remove(project,view.selected);view.selected=null;commit(next);},
         play:async()=>{
@@ -748,6 +771,9 @@ export function attachMediaDesk(node) {
         export:async()=>{try {const data=await request("/normalize",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(project)});const blob=new Blob([JSON.stringify(data.project,null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),link=el("a");link.href=url;link.download="zv-media-project-v2.json";link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(error){status(error.message,true);}}
     };
     $$('[data-action]').forEach(button=>button.addEventListener("click",event=>{event.stopPropagation();actions[button.dataset.action]();}));
+    selectNumberOnFirstClick(frameInput);
+    frameInput.oninput=()=>{frameDraft=true;frameInput.setCustomValidity("");};
+    frameInput.onkeydown=event=>{if(event.key==="Enter"){event.preventDefault();event.stopPropagation();jumpToFrame();}else if(event.key==="Escape"){event.preventDefault();event.stopPropagation();frameDraft=false;frameInput.setCustomValidity("");paintPlayhead();}};
     $(".zf-med-seek").oninput=event=>{if(view.monitor_mode==="timeline")setPlayhead(Number(event.target.value));else if(media) {media.pause();media.currentTime=Number(event.target.value);previewSeekTime=media.currentTime;if(sound)sound.currentTime=media.currentTime;readout();}};
     $(".zf-med-zoom").oninput=event=>{view.zoom=Number(event.target.value);viewSave();renderTimeline();};
     $(".zf-med-snap").onchange=event=>{view.snap=event.target.checked;viewSave();};
@@ -755,7 +781,6 @@ export function attachMediaDesk(node) {
     $(".zf-med-ruler").addEventListener("pointerdown",event=>{if(!event.target.closest(".zf-med-window"))beginPlayheadDrag(event,true);});
     $(".zf-med-playhead").addEventListener("pointerdown",event=>beginPlayheadDrag(event));
     $(".zf-med-playhead").addEventListener("keydown",event=>{if(["ArrowLeft","ArrowRight"].includes(event.key)){event.preventDefault();event.stopPropagation();setPlayhead(view.playhead+(event.key==="ArrowRight"?1:-1)/project.project_clock.fps);}});
-    for(const lane of $$(".zf-med-lane"))lane.addEventListener("pointerdown",event=>{if(event.target===lane)beginPlayheadDrag(event,true);});
     document.addEventListener("visibilitychange",()=>{if(document.hidden){pauseTimeline();media?.pause();syncTimeline(true);}},{signal:visualAbort.signal});
     function clearDropFeedback() {for(const lane of $$(".zf-med-lane")){lane.classList.remove("drop-target","drop-reject");delete lane.dataset.dropHint;}pool.classList.remove("zf-med-drop");}
     function finishAssetDrag() {draggingAssetId=null;internalDragController?.abort();internalDragController=null;clearDropFeedback();if(!disposed){renderPool();renderTimeline();renderInspector();}}

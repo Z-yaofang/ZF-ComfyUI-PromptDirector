@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import {createRequire} from "node:module";
-import {spawn} from "node:child_process";
 import {mkdir} from "node:fs/promises";
+import {fileURLToPath} from "node:url";
+import {startUiServer} from "./ui_server_process.mjs";
 const {chromium}=createRequire(import.meta.url)(process.argv[3]||"playwright");
-const server=spawn(process.argv[2],[new URL("./long_video_ui_server.py",import.meta.url).pathname.replace(/^\/([A-Z]:)/i,"$1")],{windowsHide:true,stdio:["ignore","pipe","pipe"]});
-const url=await new Promise((resolve,reject)=>{server.stdout.once("data",data=>resolve(String(data).trim()));server.stderr.on("data",data=>reject(new Error(String(data))));server.on("exit",code=>reject(new Error(`harness exit ${code}`)));});
-let browser;
+let server,browser;
 try{
+    server=await startUiServer(process.argv[2],[fileURLToPath(new URL("./long_video_ui_server.py",import.meta.url))]);
+    const url=server.url;
     browser=await chromium.launch({headless:true,executablePath:process.argv[4]||undefined});
     const page=await browser.newPage({viewport:{width:1240,height:1000}}),errors=[];
     page.on("pageerror",error=>errors.push(error.message));
@@ -116,4 +117,4 @@ try{
     line=pane.getByRole("slider",{name:"黄色播放头"});box=await line.boundingBox();assert(box);await page.mouse.move(box.x+box.width/2,box.y+16);await page.mouse.down();await page.evaluate(()=>desk.onRemoved());await page.mouse.up();await page.waitForTimeout(30);
     assert.deepEqual(errors,[]);
     console.log("LONG_VIDEO_UI_OK: draggable playhead under scroll/zoom, deferred redraw, cancel/removal cleanup, split selection, H3 frame hint, planning, undo, coverage, reroute dimensions, exact inspector, scope migration, stale callback guard, auto-to-manual plan migration, reload");
-}finally{await browser?.close();server.kill();}
+}finally{try{await browser?.close();}finally{await server?.stop();}}

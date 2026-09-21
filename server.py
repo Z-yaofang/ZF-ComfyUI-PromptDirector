@@ -8,10 +8,12 @@ from .media_evidence.runtime import get_preset_library
 from .media_evidence.server import register_media_routes
 from .h3_focus.server import register_interview_routes
 from .long_video.server import register_long_video_routes
+from .animate_video.server import register_animate_routes
 
 register_media_routes(PromptServer.instance.routes, get_media_store, get_preset_library)
 register_interview_routes(PromptServer.instance.routes)
 register_long_video_routes(PromptServer.instance.routes)
+register_animate_routes(PromptServer.instance.routes)
 
 
 ROOT = Path(__file__).resolve().parent

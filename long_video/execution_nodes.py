@@ -95,7 +95,7 @@ class ZVLongVideoExecutionSetup:
     RETURN_TYPES = ("INT", "STRING")
     RETURN_NAMES = ("segment_count", "report")
     FUNCTION = "setup"
-    CATEGORY = "ZV/视频创作/长视频"
+    CATEGORY = "ZV/视频创作/H3长视频"
 
     def setup(self, execution_plan):
         count = execution_count(execution_plan)
@@ -127,7 +127,7 @@ class ZVLongVideoExecutionEntry:
         "guide_audio", "guide_frame_idx", "segment_id", "report",
     )
     FUNCTION = "enter"
-    CATEGORY = "ZV/视频创作/长视频"
+    CATEGORY = "ZV/视频创作/H3长视频"
 
     @classmethod
     def IS_CHANGED(cls, **_kwargs):
@@ -172,7 +172,7 @@ class ZVLongVideoSegmentRecorder:
     RETURN_TYPES = ("ZV_LONG_VIDEO_RUN", "STRING")
     RETURN_NAMES = ("run_result", "report")
     FUNCTION = "record"
-    CATEGORY = "ZV/视频创作/长视频"
+    CATEGORY = "ZV/视频创作/H3长视频"
 
     @classmethod
     def IS_CHANGED(cls, **_kwargs):
@@ -232,7 +232,7 @@ class ZVLongVideoExecutionEnd:
     RETURN_TYPES = ("VIDEO", "INT", "STRING")
     RETURN_NAMES = ("video", "frame_count", "report")
     FUNCTION = "finish"
-    CATEGORY = "ZV/视频创作/长视频"
+    CATEGORY = "ZV/视频创作/H3长视频"
 
     @classmethod
     def IS_CHANGED(cls, **_kwargs):

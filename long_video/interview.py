@@ -186,7 +186,7 @@ class ZVSegmentInterview:
     RETURN_TYPES = ("ZV_SEGMENT_EXECUTION_PLAN", "STRING", "BOOLEAN")
     RETURN_NAMES = ("execution_plan", "检查报告", "ready")
     FUNCTION = "compile"
-    CATEGORY = "ZV/视频创作/长视频"
+    CATEGORY = "ZV/视频创作/H3长视频"
 
     def compile(self, segment_plan, interview_data):
         result = compile_segment_interview(segment_plan, interview_data)

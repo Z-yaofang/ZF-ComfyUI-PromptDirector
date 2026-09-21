@@ -122,8 +122,24 @@ def test_real_main_new_output_directory_produces_complete_safe_skeleton(audit, t
     assert proof['media_wires_per_conditioning'] == 22 and proof['backend_fixed_hub_wiring_errors'] == []
 
 
+@pytest.mark.parametrize('folder', ['custom_nodes', 'CUSTOM_NODES'])
+def test_audit_copy_cannot_install_duplicate_plugin(audit, tmp_path, folder):
+    workflow = tmp_path / 'source.json'; workflow.write_bytes(b'original source')
+    output = tmp_path / 'out'
+    copy_to = tmp_path / 'ComfyUI' / folder / '.hidden-audit-copy'
+    with pytest.raises(ValueError, match='outside custom_nodes'):
+        audit['copy_runtime'](copy_to)
+    assert not copy_to.parent.exists()
+    with pytest.raises(SystemExit) as error:
+        audit['main'](['--workflow', str(workflow), '--output-dir', str(output), '--copy-to', str(copy_to)])
+    assert error.value.code == 2
+    assert not copy_to.parent.exists() and not output.exists()
+    assert workflow.read_bytes() == b'original source'
+
+
 def test_consecutive_copied_registrations_have_fresh_routes_and_clean_only_owned_modules(audit, tmp_path):
-    protected = {key: sys.modules.get(key) for key in ('server', 'comfy_execution', 'comfy_execution.graph')}
+    import comfy_execution.graph_utils
+    protected = {key: sys.modules.get(key) for key in ('server', 'comfy_execution', 'comfy_execution.graph', 'comfy_execution.graph_utils')}
     existing = {key: value for key, value in sys.modules.items() if 'h3' in key.lower()}
     destination = audit['copy_runtime'](tmp_path / 'runtime')
     results = []; names = []
@@ -142,7 +158,30 @@ def test_consecutive_copied_registrations_have_fresh_routes_and_clean_only_owned
     assert {row['path'] for row in results[0]['routes']} >= {
         '/zf-prompt-director/long-video/plan',
         '/zf-prompt-director/long-video/interview',
+        '/zf-prompt-director/animate-video/plan',
     }
+
+
+def test_fresh_registration_preserves_native_blocker_identity_without_gpu(audit, tmp_path):
+    destination = audit['copy_runtime'](tmp_path / 'runtime')
+    script = Path(__file__).resolve().parents[1] / 'tools/h3_v2_audit.py'
+    code = '''
+import runpy, sys
+from pathlib import Path
+audit = runpy.run_path(sys.argv[1])
+result, _ = audit['copied_registration'](Path(sys.argv[2]))
+from comfy_api.latest import io
+from comfy_api.latest import _io
+from comfy_execution.graph_utils import ExecutionBlocker
+import torch
+assert result['passed']
+assert _io.ExecutionBlocker is ExecutionBlocker
+io.NodeOutput.from_dict({'result': ExecutionBlocker(None)})
+assert 'comfy.model_management' not in sys.modules
+assert not torch.cuda.is_initialized()
+'''
+    result = subprocess.run([sys.executable, '-c', code, str(script), str(destination)], capture_output=True, text=True, encoding='utf-8', errors='replace')
+    assert result.returncode == 0, result.stderr
 
 
 def test_consecutive_real_main_calls_register_consistent_outputs(audit, tmp_path):
