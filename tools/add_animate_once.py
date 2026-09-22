@@ -68,6 +68,49 @@ def _descendants(children, start):
     return found
 
 
+def _close_video_outputs(editor, start_id, end_id):
+    end = editor.nodes[end_id]
+    incoming = {link[4]: link for link in editor.links if link[3] == end_id}
+    inputs, termination_count = [], 0
+    for slot, port in enumerate(end["inputs"]):
+        link = incoming.get(slot)
+        if port["name"].startswith("termination"):
+            if link is None:
+                continue
+            port = {**port, "name": f"terminations.termination{termination_count}"}
+            termination_count += 1
+        if link is not None:
+            link[4] = len(inputs)
+        inputs.append(port)
+    end["inputs"] = inputs
+
+    children = _children(editor)
+    children[end_id] = set()
+    loop_nodes = _descendants(children, start_id)
+    connected = {link[1] for link in incoming.values()}
+    for identifier in sorted(loop_nodes):
+        node = editor.nodes[identifier]
+        if node["type"] != "VHS_VideoCombine" or identifier in connected:
+            continue
+        if termination_count >= 50:
+            raise WorkflowBuildError("循环输出支路超过 EndLoop 原生终止支路数量上限")
+        port = f"terminations.termination{termination_count}"
+        end["inputs"].append({"name": port, "type": "*", "link": None, "shape": 7})
+        editor.wire(identifier, "Filenames", end_id, port, "*")
+        termination_count += 1
+
+
+def repair_loop_outputs(workflow):
+    editor = Editor(workflow)
+    ids = workflow.get("extra", {}).get("zv_animate_once", {}).get("new_node_ids", {})
+    for key, kind in (("start", "StartLoop"), ("end", "EndLoop")):
+        if editor.nodes.get(ids.get(key), {}).get("type") != kind:
+            raise WorkflowBuildError("工作流缺少一次成片的原生循环接入点")
+    _close_video_outputs(editor, ids["start"], ids["end"])
+    editor.links.sort(key=lambda link: link[0])
+    return editor.finish()
+
+
 def _check_source(editor):
     expected = {
         197: ("SetNode", "SP图像"), 203: ("SetNode", "SP帧计数"),
@@ -241,7 +284,7 @@ def build(workflow, *, output_types=OUTPUT_TYPES):
         raise WorkflowBuildError("循环内清理显存节点超过 EndLoop 原生终止支路数量上限")
     purge_terminations = {}
     for index, identifier in enumerate(purge_ids):
-        port = f"termination{index}"
+        port = f"terminations.termination{index}"
         editor.nodes[ids["end"]]["inputs"].append({"name": port, "type": "*", "link": None, "shape": 7})
         wire(identifier, "anything", ids["end"], port, "*")
         purge_terminations[port] = identifier
@@ -255,6 +298,7 @@ def build(workflow, *, output_types=OUTPUT_TYPES):
             raise WorkflowBuildError(f"输出节点 #{identifier} 还参与生成，不能作为预览静默关闭")
         original_modes[str(identifier)] = node.get("mode", 0)
         node["mode"] = 2
+    _close_video_outputs(editor, ids["start"], ids["end"])
     muted_ids = "、".join(original_modes) or "无"
     editor.nodes[ids["note"]]["widgets_values"] = [
         "原工作流的节点、位置、参数、4n+1 前补与裁回、姿态/人脸/背景/遮罩处理和采样链全部保留。"
@@ -267,7 +311,7 @@ def build(workflow, *, output_types=OUTPUT_TYPES):
         "#304/#461 的旧全局常量不再控制一次成片。原手绘旁路保留原状态；开启手绘后仍是共享输入，需自行确认各段适用。\n\n"
         f"一次成片副本暂时关闭旧单段保存/预览（含独立旧素材预览，mode=2）：{muted_ids}。"
         "这些节点仍保留；原模式、素材接线和遮罩接线记录在 extra.zv_animate_once，原文件未改。\n\n"
-        "原显存清理节点继续执行，其结果旁接 EndLoop 原生终止支路以闭合循环。\n\n"
+        "原显存清理节点与循环内视频输出旁接 EndLoop 原生终止支路。重新开启旧视频预览时，每段预览完成后再进入下一段。\n\n"
         "硬切不传上一段画面；21 帧承接传上一段已裁回成品的尾帧，由原 Plus 处理。"
         "当前 Plus 承接路径可能使每段少 1 帧；不改 Plus，不另行补帧，按实际成品合并并报告帧数差异。"
         "这不是云端 GPU 质量验收。"
@@ -295,12 +339,13 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("source", type=Path)
     parser.add_argument("output", type=Path)
+    parser.add_argument("--repair-loop", action="store_true", help="修复已有一次成片工作流的视频输出循环边界，保留素材及节点启停状态")
     args = parser.parse_args(argv)
     try:
         if args.source.resolve() == args.output.resolve() or args.output.exists():
             raise WorkflowBuildError("必须另存为不存在的新文件；不覆盖原工作流")
         source = json.loads(args.source.read_text(encoding="utf-8-sig"))
-        result = build(source)
+        result = repair_loop_outputs(source) if args.repair_loop else build(source)
         args.output.parent.mkdir(parents=True, exist_ok=True)
         with args.output.open("x", encoding="utf-8", newline="\n") as handle:
             json.dump(result, handle, ensure_ascii=False, indent=2)

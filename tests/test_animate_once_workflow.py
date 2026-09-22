@@ -240,9 +240,9 @@ def test_only_loop_dependent_preview_outputs_are_muted():
     assert nodes_by_id(result)[969]["mode"] == 0
     assert nodes_by_id(result)[887]["mode"] == 0
     metadata = result["extra"]["zv_animate_once"]
-    assert metadata["purge_terminations"] == {"termination0": 831, "termination1": 834}
+    assert metadata["purge_terminations"] == {"terminations.termination0": 831, "terminations.termination1": 834}
     assert nodes_by_id(result)[831]["mode"] == 0
-    assert input_source(result, metadata["new_node_ids"]["end"], "termination0") == (831, "anything")
+    assert input_source(result, metadata["new_node_ids"]["end"], "terminations.termination0") == (831, "anything")
     assert all(not port["name"].startswith("dependency")
                for port in nodes_by_id(result)[metadata["new_node_ids"]["recorder"]]["inputs"])
 
@@ -356,7 +356,7 @@ def resolved_prompt(workflow):
     return result
 
 
-def test_host_native_loop_validator_accepts_all_preserved_output_roots(source):
+def validate_native_loop(workflow):
     comfy_value = os.environ.get("ZV_COMFY_ROOT")
     if not comfy_value:
         pytest.skip("set ZV_COMFY_ROOT for actual ComfyUI loop validation")
@@ -364,14 +364,79 @@ def test_host_native_loop_validator_accepts_all_preserved_output_roots(source):
     if comfy not in sys.path:
         sys.path.insert(0, comfy)
     validate_loops = importlib.import_module("comfy_execution.validation").validate_loops
-    result = BUILDER.build(source)
-    prompt = resolved_prompt(result)
-    ids = result["extra"]["zv_animate_once"]["new_node_ids"]
+    prompt = resolved_prompt(workflow)
+    ids = workflow["extra"]["zv_animate_once"]["new_node_ids"]
     outputs = {identifier for identifier, node in prompt.items()
                if node["class_type"] in BUILDER.OUTPUT_TYPES | {"SaveVideo"}}
     assert validate_loops(prompt, outputs, prompt, {str(ids["start"])}, {str(ids["end"])}) == {
         str(ids["start"]): str(ids["end"]),
     }
+
+
+def test_host_native_loop_validator_accepts_all_preserved_output_roots(source):
+    validate_native_loop(BUILDER.build(source))
+
+
+def with_bypassed_video_outputs():
+    editor = BUILDER.Editor(small_source())
+    for identifier in (78, 109):
+        node = BUILDER.make_node(identifier, "VHS_VideoCombine", "原流预览", [identifier, 0],
+                                 [("images", "IMAGE")], [("Filenames", "VHS_FILENAMES")])
+        node["mode"] = 4
+        editor.add(node)
+        editor.wire(886, "IMAGE", identifier, "images", "IMAGE")
+    return editor.finish()
+
+
+def test_reenabled_video_outputs_remain_inside_native_loop():
+    result = BUILDER.build(with_bypassed_video_outputs())
+    ids = result["extra"]["zv_animate_once"]["new_node_ids"]
+    nodes = nodes_by_id(result)
+    for identifier in (78, 109):
+        assert nodes[identifier]["mode"] == 4
+        nodes[identifier]["mode"] = 0
+        assert any(link[1] == identifier and link[3] == ids["end"] for link in result["links"])
+    validate_native_loop(result)
+
+
+def test_repair_closes_reported_escape_and_preserves_user_edits():
+    editor = BUILDER.Editor(BUILDER.build(with_bypassed_video_outputs()))
+    ids = editor.workflow["extra"]["zv_animate_once"]["new_node_ids"]
+    for identifier in (78, 109):
+        editor.nodes[identifier]["mode"] = 0
+        for link in editor.outgoing(identifier, "Filenames"):
+            editor.disconnect(link[0])
+    for port in editor.nodes[ids["end"]]["inputs"]:
+        port["name"] = port["name"].removeprefix("terminations.")
+    editor.nodes[ids["end"]]["inputs"].append({"name": "terminations.termination0", "type": "*", "link": None})
+    editor.nodes[ids["desk"]]["widgets_values"] = ["user material data stays untouched"]
+    editor.nodes[789]["pos"] = [-50, 100]
+    broken = editor.finish()
+    broken["links"].reverse()
+    original = copy.deepcopy(broken)
+    # This is the same host failure reported for the two re-enabled outputs.
+    with pytest.raises(Exception, match="reaches 109, 78 without passing through End Loop"):
+        validate_native_loop(broken)
+    repaired = BUILDER.repair_loop_outputs(broken)
+    assert broken == original
+    before, after = nodes_by_id(broken), nodes_by_id(repaired)
+    assert before.keys() == after.keys()
+    for identifier in before:
+        assert before[identifier]["mode"] == after[identifier]["mode"]
+        if identifier != ids["end"]:
+            assert logic_without_link_metadata(before[identifier]) == logic_without_link_metadata(after[identifier])
+    ports = after[ids["end"]]["inputs"]
+    assert len({port["name"] for port in ports}) == len(ports)
+    assert all(port["name"].startswith("terminations.") for port in ports if port["name"].startswith("termination"))
+    old_links = {link[0]: link for link in broken["links"]}
+    for link in repaired["links"]:
+        if link[0] in old_links:
+            assert link[:4] == old_links[link[0]][:4]
+            assert link[5] == old_links[link[0]][5]
+            if link[3] != ids["end"]:
+                assert link == old_links[link[0]]
+    assert BUILDER.repair_loop_outputs(repaired) == repaired
+    validate_native_loop(repaired)
 
 
 def test_active_outputs_never_read_old_media_loaders(source):

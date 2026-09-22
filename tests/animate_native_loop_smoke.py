@@ -1,7 +1,7 @@
 """CPU smoke through the installed Comfy executor and native loop expansion.
 
 Only the expensive generation/cleanup body is synthetic. Entry (including actual
-VHS decoding), disk recording, loop carry and final encoded assembly are real.
+VHS decoding), VHS previews, disk recording, loop carry and final saving are real.
 Run with the Comfy Python runtime; this script never starts a server or GPU job.
 """
 
@@ -28,7 +28,7 @@ import nodes
 import execution
 import folder_paths
 import server
-from comfy_extras import nodes_loop
+from comfy_extras import nodes_loop, nodes_video
 
 package = types.ModuleType("zf_animate_native_smoke")
 package.__path__ = [str(ROOT)]
@@ -57,6 +57,7 @@ class Server:
 
 server.PromptServer.instance = Server()
 VHS = importlib.import_module(vhs_package.__name__ + ".load_video_nodes").LoadVideoUpload
+VIDEO_COMBINE = importlib.import_module(vhs_package.__name__ + ".nodes").VideoCombine
 STATE = {}
 
 
@@ -80,6 +81,7 @@ class OriginalBody:
     def generate(self, context, source, transition, picture, mask, background):
         index = context["index"]
         assert index == len(STATE["generated"]), "native loop executed out of order"
+        assert len(STATE["previews"]) == index * 2, "next iteration started before both previews completed"
         assert len(source) == (24, 8, 16)[index]
         assert len(picture) == 1
         if STATE["mask_enabled"]:
@@ -141,8 +143,21 @@ class Capture:
     FUNCTION = "capture"
     OUTPUT_NODE = True
     def capture(self, video, count, report, result):
+        assert "final" not in STATE, "final output executed more than once"
         STATE["final"] = video, count, report, result
         return ()
+
+
+class Preview(VIDEO_COMBINE):
+    def combine_video(self, **kwargs):
+        result = super().combine_video(**kwargs)
+        files = result["result"][0][1]
+        video_files = [Path(path) for path in files if Path(path).suffix == ".mp4"]
+        assert len(video_files) == 1
+        with av.open(str(video_files[0])) as encoded:
+            assert sum(1 for _ in encoded.decode(video=0)) == len(kwargs["images"])
+        STATE["previews"].append((len(STATE["generated"]) - 1, kwargs["filename_prefix"]))
+        return result
 
 
 def source_project(original):
@@ -175,11 +190,19 @@ def graph():
         "record": {"class_type": "ZVAnimateSegmentRecorder", "inputs": {"segment_context": ["entry", 0], "frames": ["body", 0], "source_audio": ["entry", 3], "previous_result": ["start", 4]}},
         "close": {"class_type": "EndLoop", "inputs": {"output_value": ["record", 0], "next_iteration_value": ["record", 0], "accumulate": False}},
         "finish": {"class_type": "ZVAnimateExecutionEnd", "inputs": {"animate_plan": ["plan", 0], "run_result": ["close", 0]}},
-        "capture": {"class_type": "AnimateSmokeCapture", "inputs": {"video": ["finish", 0], "count": ["finish", 1], "report": ["finish", 2], "result": ["close", 0]}},
+        "save": {"class_type": "SaveVideo", "inputs": {"video": ["finish", 0], "filename_prefix": "final", "format": "mp4"}},
+        "capture": {"class_type": "AnimateSmokeCapture", "inputs": {"video": ["save", 0], "count": ["finish", 1], "report": ["finish", 2], "result": ["close", 0]}},
     }
     for index in range(1, 5):
         value[f"cleanup-{index}"] = {"class_type": "AnimateSmokeCleanup", "inputs": {"frames": ["body", 0], "slot": index}}
-        value["close"]["inputs"][f"termination{index - 1}"] = [f"cleanup-{index}", 0]
+        value["close"]["inputs"][f"terminations.termination{index - 1}"] = [f"cleanup-{index}", 0]
+    for index in range(1, 3):
+        name = f"preview-{index}"
+        value[name] = {"class_type": "AnimateSmokePreview", "inputs": {"images": ["body", 0],
+            "frame_rate": 24, "loop_count": 0, "filename_prefix": name, "format": "video/h264-mp4",
+            "pingpong": False, "save_output": False, "pix_fmt": "yuv420p", "crf": 19,
+            "save_metadata": True, "trim_to_audio": False}}
+        value["close"]["inputs"][f"terminations.termination{index + 3}"] = [name, 0]
     return value
 
 
@@ -187,6 +210,7 @@ def main():
     nodes.NODE_CLASS_MAPPINGS.update(nodes_loop.NODE_CLASS_MAPPINGS)
     nodes.NODE_CLASS_MAPPINGS.update({"VHS_LoadVideo": VHS, "AnimateSmokePlan": PlanSource,
         "AnimateSmokeBody": OriginalBody, "AnimateSmokeCleanup": OriginalCleanup, "AnimateSmokeCapture": Capture,
+        "AnimateSmokePreview": Preview, "SaveVideo": nodes_video.SaveVideo,
         "AnimateSmokeMaskDetect": OriginalMaskDetect, "AnimateSmokeMaskTrack": OriginalMaskTrack,
         **{name: getattr(MASKING, name) for name in ("ZVAnimateMaskFrame", "ZVAnimateMaskSeed", "ZVAnimateMaskGate")},
         **{name: getattr(RUNTIME, name) for name in ("ZVAnimateExecutionEntry", "ZVAnimateSegmentRecorder", "ZVAnimateExecutionEnd")}})
@@ -199,13 +223,28 @@ def main():
         RUNTIME._temp_root = lambda: root / "runtime"
         for mode, enabled in ((seam, enabled) for seam in ("hard_cut", "continuation_21") for enabled in (False, True)):
             STATE.clear()
+            case_root = root / f"{mode}-mask-{enabled}"
+            output_root = case_root / "output"
+            temp_root = case_root / "temp"
+            output_root.mkdir(parents=True)
+            temp_root.mkdir()
+            folder_paths.set_output_directory(str(output_root))
+            folder_paths.set_temp_directory(str(temp_root))
             source = source_project(original)
             assets = {row["asset_id"]: row for row in source["assets"]}
             tasks = {row["clip_id"]: {"asset_id": row["asset_id"], "prompt": f"target {i}",
                                      "source_frame": round(row["source_in_seconds"] * assets[row["asset_id"]]["probe"]["fps"]) + 1} for i, row in enumerate(source["video_track"])}
             config = {"schema_version": 1, "seam_mode": mode, "mask_enabled": enabled, "mask_tasks": tasks}
-            STATE.update(mode=mode, mask_enabled=enabled, mask_calls=[], generated=[], transitions=[], cleanup=[], plan=PLAN.build_plan(source, config, fps=24))
+            STATE.update(mode=mode, mask_enabled=enabled, mask_calls=[], generated=[], transitions=[], cleanup=[], previews=[], plan=PLAN.build_plan(source, config, fps=24))
             prompt = graph()
+            if not evidence:
+                unclosed = copy.deepcopy(prompt)
+                for index in (4, 5):
+                    del unclosed["close"]["inputs"][f"terminations.termination{index}"]
+                rejected = asyncio.run(execution.validate_prompt("unclosed-previews", unclosed, None))
+                errors = json.dumps(rejected, ensure_ascii=False)
+                assert not rejected[0] and "without passing through End Loop" in errors, rejected
+                assert "preview-1" in errors and "preview-2" in errors, rejected
             validation = asyncio.run(execution.validate_prompt(mode, prompt, None))
             assert validation[0], validation
             runner = execution.PromptExecutor(Server(), cache_type=False, cache_args={"ram": 0, "ram_inactive": 0})
@@ -216,6 +255,12 @@ def main():
             assert len(STATE["generated"]) == 3
             assert STATE["mask_calls"] == ([0, 1, 2] if enabled else [])
             assert sorted(STATE["cleanup"]) == [(i, j) for i in range(3) for j in range(1, 5)]
+            assert sorted(STATE["previews"]) == [(i, f"preview-{j}") for i in range(3) for j in range(1, 3)]
+            assert len(list(temp_root.glob("*.mp4"))) == 6
+            saved = list(output_root.glob("final_*.mp4"))
+            assert len(saved) == 1, saved
+            with av.open(str(saved[0])) as encoded:
+                assert sum(1 for _ in encoded.decode(video=0)) == 46
             assert result["completed_count"] == 3
             manifest = json.loads((root / "runtime" / "zv_animate_segments" / result["run_id"] / "manifest.json").read_text(encoding="utf-8"))
             assert [row["frames"] for row in manifest["segments"]] == [23, 7, 16]
@@ -225,6 +270,7 @@ def main():
                 assert [frame.pts * frame.time_base for frame in encoded.decode(video=0)] == [Fraction(i, 24) for i in range(46)]
             evidence.append({"mode": mode, "mask_enabled": enabled, "mask_calls": STATE["mask_calls"], "native_iterations": 3, "actual_frames": count,
                 "transition_counts": STATE["transitions"], "cleanup_calls": len(STATE["cleanup"]),
+                "vhs_preview_calls": len(STATE["previews"]), "final_saves": len(saved),
                 "disk_completed_count": result["completed_count"], "frame_deltas": [-1, -1, 0]})
     print(json.dumps({"passed": True, "native_executor": str(Path(execution.__file__)), "results": evidence}, ensure_ascii=False))
 

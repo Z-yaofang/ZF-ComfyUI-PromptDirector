@@ -29,6 +29,8 @@ ComfyUI 必须提供原生 `StartLoop`、`EndLoop`，且 `EndLoop` 支持 `termi
 
 原显存清理节点继续启用，其输出接入 EndLoop 原生 `terminations` 支路，确保每轮执行，不关闭其清理行为，也不增加自定义占位依赖口。
 
+循环内的 VHS 视频保存/预览输出也接入 EndLoop，包括制作副本时处于旁路状态的节点。重新开启这些视频输出时，会在每段预览/保存完成后继续下一段；整条视频仍由循环后的保存节点输出。
+
 新增副本打开时定位到上方素材台和配对台；原节点不移动，原视口记录在 `extra.zv_animate_once.original_view`。
 
 ## 帧数边界
@@ -44,3 +46,5 @@ ComfyUI 必须提供原生 `StartLoop`、`EndLoop`，且 `EndLoop` 支持 `termi
 ## 生成副本
 
 `tools/add_animate_once.py` 接受原工作流 JSON 和一个尚不存在的输出路径，拒绝覆盖任何已有文件。新增素材台默认为空；旧节点的原有控件值完整保留。
+
+已有一次成片工作流如出现 `Start Loop ... reaches ... without passing through End Loop ...`，可用 `tools/add_animate_once.py 输入.json 输出.json --repair-loop` 修复视频输出支路。修复副本保留已填素材、切点、遮罩参数和节点启停状态，并规范 EndLoop 的动态端口名称。
