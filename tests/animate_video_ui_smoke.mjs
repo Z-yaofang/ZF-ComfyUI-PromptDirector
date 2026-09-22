@@ -53,7 +53,7 @@ try{
     await page.evaluate(()=>{fpsNode.widgets[0].value=60;});await page.waitForFunction(()=>desk.zvAnimate.getPlan()?.fps===60);
     assert.equal((await plan()).target_frame_count,1220);assert.equal((await plan()).media_project.video_track[1].source_in_seconds,200/30);checks+=2;
     await page.evaluate(()=>{fpsNode.widgets[0].value=29;});await page.waitForFunction(()=>desk.zvAnimate.getPlan()?.fps===29);
-    assert(!(await plan()).validation.ready);assert.match(await pane.locator(".status").textContent(),/切点不在同一网格/);checks+=2;
+    assert((await plan()).validation.ready);assert.match(await pane.locator(".status").textContent(),/重采样/);checks+=2;
     await page.evaluate(()=>{fpsNode.widgets[0].value=30;});await page.waitForFunction(()=>desk.zvAnimate.getPlan()?.fps===30);
     await page.evaluate(()=>{const p=JSON.parse(sourceNode.widgets[0].value);p.video_track[0].source_out_seconds=199/30;p.audio_track[0].source_out_seconds=199/30;sourceNode.widgets[0].value=JSON.stringify(p);});
     await page.waitForFunction(()=>desk.zvAnimate.getPlan()?.segments[0]?.frame_count===199);

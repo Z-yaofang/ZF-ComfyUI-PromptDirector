@@ -31,6 +31,16 @@ def _hash(value):
     return hashlib.sha256(json.dumps(value, ensure_ascii=False, allow_nan=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
 
 
+def _frame(seconds, fps):
+    return math.floor(seconds * fps + .5 + 1e-9)
+
+
+def _rate(value):
+    rate = float(Fraction(str(value)).limit_denominator(1_000_000))
+    integer = round(rate)
+    return float(integer) if abs(rate - integer) <= 1e-4 else rate
+
+
 def _settings(value):
     if value is None:
         value = {}
@@ -79,15 +89,16 @@ def _source_clips(project, fps):
     assets = {row["asset_id"]: row for row in project["assets"]}
     clips, offset = [], 0
     for clip in project["video_track"]:
-        duration_frames = (clip["source_out_seconds"] - clip["source_in_seconds"]) * fps
-        # Subtracting source seconds can put an exact half-frame below its tie.
-        frames = max(0, math.floor(duration_frames + .5 + 1e-9))
+        load_start = _frame(clip["source_in_seconds"], fps)
+        load_end = _frame(clip["source_out_seconds"], fps)
+        frames = max(0, load_end - load_start)
         probe = assets.get(clip["asset_id"], {}).get("probe", {})
         clips.append({
             "clip_id": clip["clip_id"], "asset_id": clip["asset_id"],
             "name": assets.get(clip["asset_id"], {}).get("name", clip["asset_id"]),
             "timeline_in_seconds": clip["timeline_in_seconds"],
             "source_in_seconds": clip["source_in_seconds"], "source_out_seconds": clip["source_out_seconds"],
+            "load_start_frame": load_start, "load_end_frame": load_end,
             "frame_count": frames, "output_start_frame": offset, "output_end_frame": offset + frames,
             "source_fps": probe.get("fps"), "source_frame_count_exact": probe.get("frame_count_exact", False),
             "source_audio_enabled": clip["source_audio_enabled"], "audio_link_id": clip["audio_link_id"],
@@ -119,7 +130,16 @@ def build_plan(media_project, settings=None, fps=None):
     config = _settings(settings)
     project = _project(media_project)
     errors = _task_errors(project)
-    warnings = copy.deepcopy(project["validation"]["warnings"])
+    warnings, seen_warnings, estimated_frames = [], set(), False
+    for issue in project["validation"]["warnings"]:
+        if issue.get("code") == "estimated_frames":
+            estimated_frames = True
+            continue
+        key = (issue.get("code"), issue.get("message"))
+        if key not in seen_warnings:
+            warnings.append(copy.deepcopy(issue)); seen_warnings.add(key)
+    if estimated_frames:
+        warnings.append(_issue("/video_track", "estimated_frames", "源帧位置为估算值；分段沿用素材台保存的秒切点，不要求重新对齐"))
     assets = {row["asset_id"]: row for row in project["assets"]}
     first_video = project["video_track"][0] if project["video_track"] else None
     source_fps = assets.get(first_video["asset_id"], {}).get("probe", {}).get("fps") if first_video else None
@@ -128,7 +148,7 @@ def build_plan(media_project, settings=None, fps=None):
         fps = source_fps if source_fps is not None and source_fps > 0 else project["project_clock"]["fps"]
     if isinstance(fps, bool) or not isinstance(fps, (int, float)) or not math.isfinite(fps) or not 0 < fps <= 240:
         raise AnimatePlanError([_issue("/fps", "fps", "工作流帧率必须大于 0 且不超过素材出口支持的 240 fps")])
-    fps = float(Fraction(str(fps)).limit_denominator(1_000_000))
+    fps = _rate(fps)
     if first_video and fps_origin == "project":
         warnings.append(_issue("/fps", "source_fps_unknown", f"首段源帧率未知，暂用素材台工程帧率 {fps:g} fps"))
     clips, pictures = _source_clips(project, fps)
@@ -137,11 +157,9 @@ def build_plan(media_project, settings=None, fps=None):
     if not clips:
         errors.append(_issue("/video_track", "missing_video", "请先把视频加入素材台视频轨道"))
     for index, clip in enumerate(clips):
-        if any(abs(clip[key] * fps - round(clip[key] * fps)) > 1e-6 for key in ("source_in_seconds", "source_out_seconds")):
-            errors.append(_issue(f"/video_track/{index}", "source_grid_conflict", f"第 {index + 1} 段：原流帧率 {fps:g} fps 与素材切点不在同一网格；请在素材台确认切点或使用相符的原流帧率，不会自动移动切点"))
         if clip["frame_count"] < 1:
             errors.append(_issue(f"/video_track/{index}", "empty_clip", "视频裁剪范围不足一个目标帧"))
-        if clip["source_fps"] is not None and not math.isclose(clip["source_fps"], fps, rel_tol=1e-9):
+        if clip["source_fps"] is not None and not math.isclose(_rate(clip["source_fps"]), fps, rel_tol=1e-6, abs_tol=1e-6):
             warnings.append(_issue(f"/video_track/{index}", "fps_resampled", f"{clip['name']} 源帧率 {clip['source_fps']:g}，将按 {fps} fps 重采样；分段和成片帧数以重采样后的 {clip['frame_count']} 帧为准"))
     if any(row["origin"] == "standalone" and row["enabled"] for row in project["audio_track"]):
         warnings.append(_issue("/audio_track", "standalone_audio_unused", "Animate 仅保留每个视频配对的原声，独立音轨不参与本次拼接"))
@@ -157,9 +175,9 @@ def build_plan(media_project, settings=None, fps=None):
             errors.append(_issue(path + "/picture_id", "missing_picture", f"第 {index + 1} 段缺少配对图片，请在素材台补齐"))
         frames = clip["frame_count"]
         guide_frames = min(21, clips[index - 1]["frame_count"]) if index and config["seam_mode"] == "continuation_21" else 0
-        reference_fps = clip["source_fps"] or fps
-        frame_min = math.ceil(clip["source_in_seconds"] * reference_fps - 1e-7)
-        frame_max = math.ceil(clip["source_out_seconds"] * reference_fps - 1e-7) - 1
+        reference_fps = _rate(clip["source_fps"]) if clip["source_fps"] else fps
+        frame_min = _frame(clip["source_in_seconds"], reference_fps)
+        frame_max = _frame(clip["source_out_seconds"], reference_fps) - 1
         mask_task = None
         if config["mask_enabled"]:
             task = config["mask_tasks"].get(clip["clip_id"], {})
@@ -171,7 +189,7 @@ def build_plan(media_project, settings=None, fps=None):
             if type(frame) is not int or not frame_min <= frame <= frame_max:
                 errors.append(_issue(path + "/mask_task/source_frame", "mask_frame_range", f"第 {index + 1} 段：原视频源帧需在 {frame_min + 1}–{frame_max + 1}（同素材台，从 1 起），不会自动移动参考帧或切点"))
             else:
-                local_index = math.floor((frame / reference_fps - clip["source_in_seconds"]) * fps + .5 + 1e-9)
+                local_index = _frame(frame / reference_fps, fps) - clip["load_start_frame"]
                 if not 0 <= local_index < frames:
                     errors.append(_issue(path + "/mask_task/source_frame", "mask_frame_resample", f"第 {index + 1} 段：参考帧经原流帧率换算后不在本段，请重新选帧"))
                 mask_task = {"asset_id": clip["asset_id"], "source_frame": frame,
@@ -183,6 +201,7 @@ def build_plan(media_project, settings=None, fps=None):
             "picture_id": picture["item_id"] if picture else None, "picture_asset_id": picture["asset_id"] if picture else None,
             "video_asset_id": clip["asset_id"], "source_in_seconds": clip["source_in_seconds"],
             "source_start_seconds": clip["source_in_seconds"], "source_end_seconds": clip["source_out_seconds"],
+            "load_start_frame": clip["load_start_frame"], "load_end_frame": clip["load_end_frame"],
             "source_audio_enabled": clip["source_audio_enabled"], "audio_link_id": clip["audio_link_id"],
             "global_start_frame": clip["output_start_frame"], "global_end_frame": clip["output_end_frame"],
             "guide_frame_count": guide_frames, "contribution_start_frame": 0,

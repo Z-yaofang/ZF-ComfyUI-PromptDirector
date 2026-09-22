@@ -222,7 +222,7 @@ def test_entry_matches_actual_original_vhs_frames_info_audio_and_resize(tmp_path
         picture, frames, audio, info = EXECUTION.decode_segment(value, context, store, *size, loader=loader.load_video)
         asset = next(asset for asset in source["assets"] if asset["asset_id"] == row["video_asset_id"])
         expected, count, original_audio, original_info = loader.load_video(video=store.resolve(asset["source_handle"]).relative_to(store.input_root).as_posix(), force_rate=fps,
-            custom_width=size[0], custom_height=size[1], skip_first_frames=round(row["source_start_seconds"] * fps),
+            custom_width=size[0], custom_height=size[1], skip_first_frames=row["load_start_frame"],
             frame_load_cap=row["frame_count"], select_every_nth=1, format="None")
         assert torch.equal(frames, expected)
         assert count == len(frames) == row["frame_count"]
@@ -233,17 +233,6 @@ def test_entry_matches_actual_original_vhs_frames_info_audio_and_resize(tmp_path
             assert torch.equal(audio["waveform"], original_audio["waveform"])
         else:
             assert audio is None
-
-
-def test_non_grid_source_cut_is_rejected_not_rounded(tmp_path):
-    value = plan((8,))
-    row = copy.deepcopy(value["segments"][0])
-    row["source_start_seconds"] += .01
-    context = {"segment": row, "fps": 30}
-    class Store:
-        canonical = staticmethod(FIXTURE.CONTRACT.normalize_project)
-    with pytest.raises(ValueError, match="切点不在同一网格"):
-        EXECUTION.decode_segment(value, context, Store(), loader=lambda **kwargs: pytest.fail("must not load"))
 
 
 def test_actual_frame_difference_is_visible_in_nodes_and_end(tmp_path, monkeypatch):

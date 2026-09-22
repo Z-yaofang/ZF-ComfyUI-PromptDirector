@@ -143,10 +143,7 @@ def decode_segment(plan, context, store, width=None, height=None, loader=None):
     if canonical["validation"]["errors"]:
         raise AnimatePlanError(canonical["validation"]["errors"])
     fps = context["fps"]
-    endpoints = [row["source_start_seconds"] * fps, row["source_end_seconds"] * fps]
-    if any(abs(value - round(value)) > 1e-6 for value in endpoints):
-        raise ValueError("原流帧率与素材切点不在同一网格；请在素材台按原流帧率选择切点，系统不会移动切点")
-    start, end = (round(value) for value in endpoints)
+    start, end = row["load_start_frame"], row["load_end_frame"]
     if end - start != row["frame_count"]:
         raise ValueError("Animate 源切点与计划帧数不一致")
     dimensions = [0 if value is None else value for value in (width, height)]

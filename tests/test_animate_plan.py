@@ -171,12 +171,37 @@ def test_source_fps_then_project_clock_only_when_original_clock_unlinked():
 
 
 @pytest.mark.parametrize("key", ["source_in_seconds", "source_out_seconds"])
-def test_off_grid_cut_fails_without_rounding_user_selection(key):
+def test_off_grid_cut_keeps_user_seconds_and_maps_only_the_vhs_frame_window(key):
     source = project(300)
     source["video_track"][0][key] = .123 if key == "source_in_seconds" else 9.123
     value = PLAN.build_plan(source, fps=30)
-    assert "source_grid_conflict" in codes(value)
+    assert "source_grid_conflict" not in codes(value)
     assert value["media_project"]["video_track"][0][key] == source["video_track"][0][key]
+    row = value["segments"][0]
+    assert row["load_start_frame"] == round(source["video_track"][0]["source_in_seconds"] * 30)
+    assert row["load_end_frame"] == round(source["video_track"][0]["source_out_seconds"] * 30)
+    assert row["frame_count"] == row["load_end_frame"] - row["load_start_frame"]
+
+
+def test_probe_float_noise_does_not_change_rate_or_repeat_estimated_frame_warnings():
+    rate = 30.00000108303253
+    source = upstream_clips(project(356, pictures=2, audio=True, fps=rate), [(0, 114), (114, 356)])
+    for track in ("video_track", "audio_track"):
+        source[track][0].update(source_in_seconds=0, source_out_seconds=3.8)
+        source[track][1].update(source_in_seconds=3.8, source_out_seconds=11.840726)
+    source["assets"][0]["probe"].update(frame_count=355, frame_count_exact=False, vfr=None)
+    source = CONTRACT.normalize_project(source)
+    value = PLAN.build_plan(source, {**settings(), "mask_enabled": True, "mask_tasks": {
+        "clip-0": {"asset_id": "video", "source_frame": 113, "prompt": "shirt"},
+        "clip-1": {"asset_id": "video", "source_frame": 155, "prompt": "shirt"},
+    }})
+    assert value["validation"]["ready"]
+    assert value["fps"] == 30
+    assert [row["frame_count"] for row in value["segments"]] == [114, 241]
+    assert [(row["mask_frame_min"] + 1, row["mask_frame_max"] + 1) for row in value["segments"]] == [(1, 114), (115, 355)]
+    assert [row["mask_task"]["local_index"] for row in value["segments"]] == [113, 41]
+    assert "fps_resampled" not in codes(value, "warnings")
+    assert [row["code"] for row in value["validation"]["warnings"]].count("estimated_frames") == 1
 
 
 def test_mixed_fps_reports_resampling_to_original_workflow_rate():
