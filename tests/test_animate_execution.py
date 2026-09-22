@@ -87,6 +87,61 @@ def test_global_mask_gate_does_not_request_mask_path_in_motion_mode():
         gate.route(context, masks[:1], frames)
 
 
+@pytest.mark.parametrize("mask_ndim", [2, 3])
+@pytest.mark.parametrize("channels", [3, 4])
+@pytest.mark.parametrize("mask_scale", [1, 2])
+def test_mask_seed_preview_preserves_inputs_and_returns_core_image_ui(monkeypatch, mask_ndim, channels, mask_scale):
+    captured = {}
+    ui = {"images": [{"filename": "seed.png", "subfolder": "", "type": "temp"}]}
+
+    class Preview:
+        def save_images(self, images, filename_prefix):
+            captured.update(images=images, filename_prefix=filename_prefix)
+            return {"ui": ui}
+
+    monkeypatch.setitem(sys.modules, "nodes", types.SimpleNamespace(NODE_CLASS_MAPPINGS={"PreviewImage": Preview}))
+    context = {"segment": {"ordinal": 2, "mask_task": {"source_frame": 155, "prompt": "shirt"}}}
+    mask = torch.zeros(1, 24 // mask_scale, 32 // mask_scale, dtype=torch.float16)
+    mask[:, 2:8, 4:10] = .8
+    if mask_ndim == 2:
+        mask = mask[0]
+    reference = torch.full((1, 24, 32, channels), .2, dtype=torch.float16)
+    old_mask, old_reference = mask.clone(), reference.clone()
+    output = MASKING.ZVAnimateMaskSeed().validate(context, mask, reference)
+    assert output["result"][0] is mask and output["ui"] is ui
+    assert torch.equal(mask, old_mask) and torch.equal(reference, old_reference)
+    assert MASKING.ZVAnimateMaskSeed.INPUT_TYPES()["optional"]["reference_image"] == ("IMAGE",)
+    assert not getattr(MASKING.ZVAnimateMaskSeed, "OUTPUT_NODE", False)
+    comparison = captured["images"]
+    assert comparison.shape == (1, 24, 96, 3)
+    assert comparison.device.type == "cpu" and comparison.dtype == torch.float32
+    assert captured["filename_prefix"] == "Animate-mask-seed-2"
+    original, overlay, binary = comparison.split(32, dim=2)
+    assert torch.equal(original, reference[..., :3].float())
+    displayed_seed = mask.reshape(1, 24 // mask_scale, 32 // mask_scale, 1).float()
+    displayed_seed = displayed_seed.repeat_interleave(mask_scale, dim=1).repeat_interleave(mask_scale, dim=2)
+    alpha = displayed_seed * .6
+    expected = original * (1 - alpha)
+    expected[..., 1:2] += alpha
+    assert torch.equal(overlay, expected)
+    assert torch.equal(binary, (displayed_seed > .5).float().expand(-1, -1, -1, 3))
+
+
+def test_mask_seed_without_reference_does_not_load_preview_backend(monkeypatch):
+    monkeypatch.setitem(sys.modules, "nodes", types.SimpleNamespace(NODE_CLASS_MAPPINGS={}))
+    context = {"segment": {"ordinal": 1, "mask_task": {"source_frame": 0, "prompt": "shirt"}}}
+    mask = torch.ones(1, 24, 32)
+    result = MASKING.ZVAnimateMaskSeed().validate(context, mask)
+    assert isinstance(result, tuple) and len(result) == 1 and result[0] is mask
+
+
+@pytest.mark.parametrize("shape", [(2, 24, 32, 3), (1, 24, 32, 2), (24, 32, 3)])
+def test_mask_seed_preview_requires_single_rgb_or_rgba_reference_frame(shape):
+    context = {"segment": {"ordinal": 1, "mask_task": {"source_frame": 0, "prompt": "shirt"}}}
+    with pytest.raises(ValueError, match="单张 RGB 或 RGBA 参考帧"):
+        MASKING.ZVAnimateMaskSeed().validate(context, torch.ones(1, 24, 32), torch.ones(shape))
+
+
 class FakeEncoder:
     def __init__(self):
         self.frames, self.audio = {}, {}

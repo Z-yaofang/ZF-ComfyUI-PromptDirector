@@ -27,7 +27,9 @@ ComfyUI 必须提供原生 `StartLoop`、`EndLoop`，且 `EndLoop` 支持 `termi
 
 首段和硬切不输入过渡图像；承接读取上一段已裁回成品的尾 21 帧，交给 Plus 原本的 `transition_video` 输入。21 帧不是额外叠化长度，合并时不再扣除一次。
 
-原文件不改。新增副本中的循环内单段保存、预览节点暂设为 Mute，避免原生循环边界错误；独立的旧素材预览也暂设为 Mute，防止无关旧文件缺失阻断运行。节点和参数仍在。素材原接线、遮罩原接线与暂改模式分别记录于 `extra.zv_animate_once.original_links`、`original_mask_links` 和 `original_modes`。
+原文件不改。新增副本中的旧单段保存和无关旧素材预览暂设为 Mute，防止重复保存及旧文件缺失阻断运行。节点和参数仍在。素材原接线、遮罩原接线与暂改模式分别记录于 `extra.zv_animate_once.original_links`、`original_mask_links` 和 `original_modes`。
+
+遮罩开启时保留两处观察：种子检查节点显示参考帧原图、绿色覆盖和黑白种子（从左到右），`#284` 播放实际送入 Plus 的遮罩背景视频。两处随当前段更新，不改变遮罩；关闭总开关时不会执行 SAM/SeC。旧 `#515` 不单独开启，避免独立预览根绕过总开关。若种子预览已漏选，检查目标词/参考帧；若种子正确而背景视频漏选，再检查 SeC 追踪和后处理。
 
 原显存清理节点继续启用，其输出接入 EndLoop 原生 `terminations` 支路，确保每轮执行，不关闭其清理行为，也不增加自定义占位依赖口。
 
@@ -50,3 +52,5 @@ ComfyUI 必须提供原生 `StartLoop`、`EndLoop`，且 `EndLoop` 支持 `termi
 `tools/add_animate_once.py` 接受原工作流 JSON 和一个尚不存在的输出路径，拒绝覆盖任何已有文件。新增素材台默认为空；旧节点的原有控件值完整保留。
 
 已有一次成片工作流如出现 `Start Loop ... reaches ... without passing through End Loop ...`，可用 `tools/add_animate_once.py 输入.json 输出.json --repair-loop` 修复视频输出支路。修复副本保留已填素材、切点、遮罩参数和节点启停状态，并规范 EndLoop 的动态端口名称。
+
+已有副本恢复遮罩观察可用 `tools/add_animate_once.py 输入.json 输出.json --restore-mask-previews`。它补接种子参考图、恢复 `#284` 并将其输入接到遮罩总开关后，保留已有素材、模型参数与翻译设置，同时确保视频预览输出在循环内结束。

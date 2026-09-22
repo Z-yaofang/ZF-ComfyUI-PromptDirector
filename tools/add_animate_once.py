@@ -111,6 +111,50 @@ def repair_loop_outputs(workflow):
     return editor.finish()
 
 
+def _enable_mask_previews(editor, ids):
+    seed = editor.nodes[ids["mask_seed"]]
+    if not any(port["name"] == "reference_image" for port in seed["inputs"]):
+        seed["inputs"].append({"name": "reference_image", "type": "IMAGE", "link": None, "shape": 7})
+    seed["title"] = "参考帧遮罩：原图 / 叠加 / 黑白种子 → SeC"
+    seed["size"] = [max(seed["size"][0], 460), max(seed["size"][1], 340)]
+    link = editor.incoming(seed["id"], "reference_image")
+    if link is None or link[1] != 523:
+        editor.wire(523, "IMAGE", seed["id"], "reference_image", "IMAGE", replace=True)
+    if 284 in editor.nodes:
+        preview = editor.nodes[284]
+        if preview["type"] != "VHS_VideoCombine":
+            raise WorkflowBuildError("#284 不再是原遮罩背景视频预览，请检查接线")
+        preview["mode"] = 0
+        link = editor.incoming(284, "images")
+        if link is None or link[1] != ids["mask_gate"] or link[2] != 1:
+            editor.wire(ids["mask_gate"], "bg_images", 284, "images", "IMAGE", replace=True)
+    # The old preview is an independent output root: enabling it bypasses the mask gate.
+    if editor.nodes.get(515, {}).get("type") == "ImageAndMaskPreview":
+        editor.nodes[515]["mode"] = 2
+
+
+def restore_mask_previews(workflow):
+    editor = Editor(repair_loop_outputs(workflow))
+    ids = editor.workflow["extra"]["zv_animate_once"]["new_node_ids"]
+    for key, kind in (("mask_seed", "ZVAnimateMaskSeed"), ("mask_gate", "ZVAnimateMaskGate")):
+        if editor.nodes.get(ids.get(key), {}).get("type") != kind:
+            raise WorkflowBuildError("工作流缺少一次成片的遮罩接入点")
+    _enable_mask_previews(editor, ids)
+    _close_video_outputs(editor, ids["start"], ids["end"])
+    note = editor.nodes.get(ids.get("note"))
+    text = "遮罩预览已恢复：种子检查节点显示原参考帧、绿色覆盖和黑白种子；#284 显示实际送入 Plus 的遮罩背景视频，每段更新。关闭遮罩总开关时两处均不执行遮罩计算。旧 #515 保持停用，避免绕过总开关。"
+    if note is not None and text not in note["widgets_values"][0]:
+        note["widgets_values"][0] += "\n\n" + text
+    if note is not None:
+        seed = editor.nodes[ids["mask_seed"]]
+        note["pos"][1] = max(note["pos"][1], seed["pos"][1] + seed["size"][1] + 50)
+        for group in editor.workflow.get("groups", []):
+            if group.get("title") == "附加：Animate 原流一次成片（下方原工作流保留）":
+                bounds = group["bounding"]
+                bounds[3] = max(bounds[3], note["pos"][1] + note["size"][1] + 40 - bounds[1])
+    return editor.finish()
+
+
 def _check_source(editor):
     expected = {
         197: ("SetNode", "SP图像"), 203: ("SetNode", "SP帧计数"),
@@ -226,7 +270,7 @@ def build(workflow, *, output_types=OUTPUT_TYPES):
                   size=[460, 300], widget_inputs={"filename_prefix", "format", "format.codec", "codec"}),
         make_node(ids["report"], "PreviewAny", "实际帧数与原声音频报告", [x + 2450, y],
                   [("source", "*")], [("STRING", "STRING")], size=[1570, 510]),
-        make_node(ids["note"], "Note", "使用与原流保留说明", [x, y + 1190], [], [],
+        make_node(ids["note"], "Note", "使用与原流保留说明", [x, y + 1450], [], [],
                   values=[""], size=[4150, 250]),
         make_node(ids["mask_frame"], "ZVAnimateMaskFrame", "逐段遮罩：源帧 → 原流前补帧索引", [x + 1250, y + 1020],
                   [("segment_context", "ZV_ANIMATE_CONTEXT"), ("frames", "IMAGE"), ("front_padding", "INT")],
@@ -298,6 +342,8 @@ def build(workflow, *, output_types=OUTPUT_TYPES):
             raise WorkflowBuildError(f"输出节点 #{identifier} 还参与生成，不能作为预览静默关闭")
         original_modes[str(identifier)] = node.get("mode", 0)
         node["mode"] = 2
+    _enable_mask_previews(editor, ids)
+    original_modes.pop("284", None)
     _close_video_outputs(editor, ids["start"], ids["end"])
     muted_ids = "、".join(original_modes) or "无"
     editor.nodes[ids["note"]]["widgets_values"] = [
@@ -309,6 +355,8 @@ def build(workflow, *, output_types=OUTPUT_TYPES):
         "开启：各段填写原视频源帧号和遮罩目标词，由原 SAM/SeC 管道处理。参考帧以素材台源帧读数为准，"
         "内部先转为当前段索引，再加原 #712 前补帧；Plus 的 21 帧承接发生在后面，不计入此索引。"
         "#304/#461 的旧全局常量不再控制一次成片。原手绘旁路保留原状态；开启手绘后仍是共享输入，需自行确认各段适用。\n\n"
+        "种子检查节点显示原参考帧、绿色覆盖和黑白种子；#284 显示实际送入 Plus 的遮罩背景视频，每段更新。"
+        "两处预览随遮罩总开关按需执行；旧 #515 保持停用，避免绕过总开关。\n\n"
         f"一次成片副本暂时关闭旧单段保存/预览（含独立旧素材预览，mode=2）：{muted_ids}。"
         "这些节点仍保留；原模式、素材接线和遮罩接线记录在 extra.zv_animate_once，原文件未改。\n\n"
         "原显存清理节点与循环内视频输出旁接 EndLoop 原生终止支路。重新开启旧视频预览时，每段预览完成后再进入下一段。\n\n"
@@ -320,7 +368,7 @@ def build(workflow, *, output_types=OUTPUT_TYPES):
     result.setdefault("groups", []).append({
         "id": max((group.get("id", 0) for group in result["groups"]), default=0) + 1,
         "title": "附加：Animate 原流一次成片（下方原工作流保留）",
-        "bounding": [x - 30, y - 70, 4250, 1540], "color": "#287b82", "font_size": 32, "flags": {},
+        "bounding": [x - 30, y - 70, 4250, 1820], "color": "#287b82", "font_size": 32, "flags": {},
     })
     result.setdefault("extra", {})["zv_animate_once"] = {
         "version": 2, "new_node_ids": ids, "original_links": original_links, "original_mask_links": mask_links,
@@ -339,13 +387,18 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("source", type=Path)
     parser.add_argument("output", type=Path)
-    parser.add_argument("--repair-loop", action="store_true", help="修复已有一次成片工作流的视频输出循环边界，保留素材及节点启停状态")
+    action = parser.add_mutually_exclusive_group()
+    action.add_argument("--repair-loop", action="store_true", help="修复已有一次成片工作流的视频输出循环边界，保留素材及节点启停状态")
+    action.add_argument("--restore-mask-previews", action="store_true", help="恢复已有一次成片工作流的种子和遮罩背景预览，保留遮罩总开关和循环边界")
     args = parser.parse_args(argv)
     try:
         if args.source.resolve() == args.output.resolve() or args.output.exists():
             raise WorkflowBuildError("必须另存为不存在的新文件；不覆盖原工作流")
         source = json.loads(args.source.read_text(encoding="utf-8-sig"))
-        result = repair_loop_outputs(source) if args.repair_loop else build(source)
+        if args.restore_mask_previews:
+            result = restore_mask_previews(source)
+        else:
+            result = repair_loop_outputs(source) if args.repair_loop else build(source)
         args.output.parent.mkdir(parents=True, exist_ok=True)
         with args.output.open("x", encoding="utf-8", newline="\n") as handle:
             json.dump(result, handle, ensure_ascii=False, indent=2)

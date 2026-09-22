@@ -184,7 +184,8 @@ def test_preserves_every_original_node_widget_position_group_and_nonentry_link(s
     preserved_links = {row[0]: row for row in result["links"]}
     replaced = {row[2] for row in (*BUILDER.REPLACEMENTS, *BUILDER.MASK_REPLACEMENTS)}
     for link in source["links"]:
-        if link[0] not in replaced:
+        mask_preview_image = link[3] == 284 and before[284]["inputs"][link[4]]["name"] == "images"
+        if link[0] not in replaced and not mask_preview_image:
             assert preserved_links[link[0]] == link
     assert metadata["original_links"] == [next(row for row in source["links"] if row[0] == identifier)
                                           for identifier in (241, 248, 249, 250, 268, 1227)]
@@ -255,6 +256,7 @@ def test_mask_gate_controls_both_plus_inputs_and_cleanup_while_seed_indices_matc
     assert input_source(result, 835, "text") == (ids["mask_frame"], "mask_prompt")
     assert input_source(result, 367, "input_mask") == (ids["mask_seed"], "validated_seed")
     assert input_source(result, ids["mask_seed"], "mask") == (504, "MASKS")
+    assert input_source(result, ids["mask_seed"], "reference_image") == (523, "IMAGE")
     assert input_source(result, 19, "MASK") == (ids["mask_gate"], "mask")
     assert input_source(result, 40, "IMAGE") == input_source(result, 834, "anything") == (ids["mask_gate"], "bg_images")
     prompt = resolved_prompt(result)
@@ -453,3 +455,66 @@ def test_active_outputs_never_read_old_media_loaders(source):
         assert node["class_type"] not in BUILDER.MATERIAL_LOADER_TYPES, identifier
         pending.extend(value[0] for value in node["inputs"].values()
                        if isinstance(value, list) and len(value) == 2 and str(value[0]) in prompt)
+
+
+def with_mask_previews():
+    editor = BUILDER.Editor(small_source())
+    editor.add(BUILDER.make_node(284, "VHS_VideoCombine", "遮罩背景预览", [300, 500],
+                               [("images", "IMAGE")], [("Filenames", "VHS_FILENAMES")],
+                               values={"save_output": False, "filename_prefix": "original-mask"}))
+    editor.add(BUILDER.make_node(515, "ImageAndMaskPreview", "旧种子预览", [0, 500],
+                               [("image", "IMAGE"), ("mask", "MASK")], [("composite", "IMAGE")]))
+    editor.wire(371, "images", 284, "images", "IMAGE")
+    editor.wire(523, "IMAGE", 515, "image", "IMAGE")
+    editor.wire(513, "masks", 515, "mask", "MASK")
+    return editor.finish()
+
+
+def assert_safe_mask_previews(workflow):
+    ids = workflow["extra"]["zv_animate_once"]["new_node_ids"]
+    nodes = nodes_by_id(workflow)
+    assert nodes[284]["mode"] == 0
+    assert nodes[515]["mode"] == 2
+    assert input_source(workflow, 284, "images") == (ids["mask_gate"], "bg_images")
+    assert input_source(workflow, ids["mask_seed"], "reference_image") == (523, "IMAGE")
+    assert any(link[1] == 284 and link[3] == ids["end"] for link in workflow["links"])
+    # Only the lazy gate may pull in the mask path, even with video preview enabled.
+    prompt = resolved_prompt(workflow)
+    pending = [key for key, node in prompt.items() if node["class_type"] in BUILDER.OUTPUT_TYPES | {"SaveVideo"}]
+    reached = set()
+    while pending:
+        key = pending.pop()
+        if key in reached:
+            continue
+        reached.add(key)
+        for name, value in prompt[key]["inputs"].items():
+            if key == str(ids["mask_gate"]) and name in {"mask", "bg_images"}:
+                continue
+            if isinstance(value, list) and len(value) == 2 and str(value[0]) in prompt:
+                pending.append(value[0])
+    assert reached.isdisjoint({"367", "513", "523", "515", str(ids["mask_seed"])})
+
+
+def test_new_workflow_keeps_mask_previews_behind_global_gate():
+    workflow = BUILDER.build(with_mask_previews())
+    assert_safe_mask_previews(workflow)
+    validate_native_loop(workflow)
+
+
+def test_restore_mask_previews_preserves_materials_parameters_and_loop():
+    editor = BUILDER.Editor(BUILDER.build(with_mask_previews()))
+    ids = editor.workflow["extra"]["zv_animate_once"]["new_node_ids"]
+    editor.nodes[284]["mode"] = 2
+    editor.wire(371, "images", 284, "images", "IMAGE", replace=True)
+    editor.nodes[ids["desk"]]["widgets_values"] = ["user material data"]
+    old = editor.finish()
+    before = copy.deepcopy(old)
+    result = BUILDER.restore_mask_previews(old)
+    assert old == before
+    for identifier, node in nodes_by_id(old).items():
+        if identifier not in {284, 515, ids["mask_seed"], ids["note"], ids["end"]}:
+            assert logic_without_link_metadata(nodes_by_id(result)[identifier]) == logic_without_link_metadata(node)
+    assert nodes_by_id(result)[284]["widgets_values"] == nodes_by_id(old)[284]["widgets_values"]
+    assert_safe_mask_previews(result)
+    assert BUILDER.restore_mask_previews(result) == result
+    validate_native_loop(result)

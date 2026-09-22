@@ -35,14 +35,15 @@ class ZVAnimateMaskFrame:
 class ZVAnimateMaskSeed:
     @classmethod
     def INPUT_TYPES(cls):
-        return {"required": {"segment_context": ("ZV_ANIMATE_CONTEXT",), "mask": ("MASK",)}}
+        return {"required": {"segment_context": ("ZV_ANIMATE_CONTEXT",), "mask": ("MASK",)},
+                "optional": {"reference_image": ("IMAGE",)}}
 
     RETURN_TYPES = ("MASK",)
     RETURN_NAMES = ("validated_seed",)
     FUNCTION = "validate"
     CATEGORY = "ZV/视频创作/Animate"
 
-    def validate(self, segment_context, mask):
+    def validate(self, segment_context, mask, reference_image=None):
         row = segment_context["segment"]
         task = row["mask_task"]
         label = f"第 {row['ordinal']} 段（源帧 {task['source_frame'] + 1}，目标：{task['prompt']}）"
@@ -50,6 +51,26 @@ class ZVAnimateMaskSeed:
             raise ValueError(f"{label}：SeC 需要单帧种子遮罩，请关闭 SAM 独立遮罩输出或先合并")
         if not torch.isfinite(mask).all().item() or not (mask > .5).any().item():
             raise ValueError(f"{label}：参考帧未得到有效遮罩。请修改目标词、换参考帧或修补遮罩，再运行。")
+        if reference_image is not None:
+            if (reference_image.ndim != 4 or len(reference_image) != 1
+                    or reference_image.shape[-1] not in (3, 4)):
+                raise ValueError(f"{label}：遮罩预览需要单张 RGB 或 RGBA 参考帧")
+            import nodes
+            preview = nodes.NODE_CLASS_MAPPINGS.get("PreviewImage")
+            if preview is None:
+                raise ValueError("Animate 遮罩预览需要 ComfyUI 的 PreviewImage 节点")
+            image = reference_image[..., :3].detach().to(device="cpu", dtype=torch.float32)
+            seed = mask.detach().reshape(1, 1, *mask.shape[-2:]).to(device="cpu", dtype=torch.float32)
+            if tuple(seed.shape[-2:]) != tuple(image.shape[1:3]):
+                seed = torch.nn.functional.interpolate(seed, size=image.shape[1:3], mode="nearest")
+            seed = seed.permute(0, 2, 3, 1)
+            alpha = seed.clamp(0, 1) * .6
+            overlay = image * (1 - alpha)
+            overlay[..., 1:2] += alpha
+            binary = (seed > .5).to(dtype=image.dtype).expand(-1, -1, -1, 3)
+            comparison = torch.cat((image, overlay, binary), dim=2)
+            result = preview().save_images(comparison, filename_prefix=f"Animate-mask-seed-{row['ordinal']}")
+            return {"ui": result["ui"], "result": (mask,)}
         return (mask,)
 
 

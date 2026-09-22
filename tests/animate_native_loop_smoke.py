@@ -103,13 +103,13 @@ class OriginalMaskDetect:
     @classmethod
     def INPUT_TYPES(cls):
         return {"required": {"context": ("ZV_ANIMATE_CONTEXT",), "source": ("IMAGE",), "index": ("INT",), "text": ("STRING",)}}
-    RETURN_TYPES = ("MASK",)
+    RETURN_TYPES = ("MASK", "IMAGE")
     FUNCTION = "detect"
     def detect(self, context, source, index, text):
         assert STATE["mask_enabled"], "disabled mask branch was executed"
         assert index == 2 and text == f"target {context['index']}"
         STATE["mask_calls"].append(context["index"])
-        return (torch.ones(1, source.shape[1], source.shape[2]),)
+        return torch.ones(1, source.shape[1], source.shape[2]), source[index:index + 1]
 
 
 class OriginalMaskTrack:
@@ -120,6 +120,7 @@ class OriginalMaskTrack:
     FUNCTION = "track"
     def track(self, source, seed):
         assert STATE["mask_enabled"], "disabled tracking branch was executed"
+        STATE["track_calls"].append(len(source))
         return seed.repeat(len(source), 1, 1), source
 
 
@@ -151,12 +152,20 @@ class Capture:
 class Preview(VIDEO_COMBINE):
     def combine_video(self, **kwargs):
         result = super().combine_video(**kwargs)
+        if kwargs["images"] is None:
+            assert kwargs["filename_prefix"] == "mask-preview" and not STATE["mask_enabled"]
+            assert result == ((False, []),), "disabled mask preview must return harmless empty filenames"
+            STATE["mask_preview_skips"] += 1
+            return result
         files = result["result"][0][1]
         video_files = [Path(path) for path in files if Path(path).suffix == ".mp4"]
         assert len(video_files) == 1
         with av.open(str(video_files[0])) as encoded:
             assert sum(1 for _ in encoded.decode(video=0)) == len(kwargs["images"])
-        STATE["previews"].append((len(STATE["generated"]) - 1, kwargs["filename_prefix"]))
+        if kwargs["filename_prefix"] == "mask-preview":
+            STATE["mask_previews"].append(len(kwargs["images"]))
+        else:
+            STATE["previews"].append((len(STATE["generated"]) - 1, kwargs["filename_prefix"]))
         return result
 
 
@@ -183,7 +192,7 @@ def graph():
         "entry": {"class_type": "ZVAnimateExecutionEntry", "inputs": {"animate_plan": ["plan", 0], "iteration_index": ["start", 0], "previous_result": ["start", 4]}},
         "mask-frame": {"class_type": "ZVAnimateMaskFrame", "inputs": {"segment_context": ["entry", 0], "frames": ["entry", 1], "front_padding": 0}},
         "mask-detect": {"class_type": "AnimateSmokeMaskDetect", "inputs": {"context": ["entry", 0], "source": ["entry", 1], "index": ["mask-frame", 0], "text": ["mask-frame", 1]}},
-        "mask-seed": {"class_type": "ZVAnimateMaskSeed", "inputs": {"segment_context": ["entry", 0], "mask": ["mask-detect", 0]}},
+        "mask-seed": {"class_type": "ZVAnimateMaskSeed", "inputs": {"segment_context": ["entry", 0], "mask": ["mask-detect", 0], "reference_image": ["mask-detect", 1]}},
         "mask-track": {"class_type": "AnimateSmokeMaskTrack", "inputs": {"source": ["entry", 1], "seed": ["mask-seed", 0]}},
         "mask-gate": {"class_type": "ZVAnimateMaskGate", "inputs": {"segment_context": ["entry", 0], "mask": ["mask-track", 0], "bg_images": ["mask-track", 1]}},
         "body": {"class_type": "AnimateSmokeBody", "inputs": {"context": ["entry", 0], "source": ["entry", 1], "transition": ["entry", 6], "picture": ["entry", 5], "mask": ["mask-gate", 0], "background": ["mask-gate", 1]}},
@@ -203,6 +212,9 @@ def graph():
             "pingpong": False, "save_output": False, "pix_fmt": "yuv420p", "crf": 19,
             "save_metadata": True, "trim_to_audio": False}}
         value["close"]["inputs"][f"terminations.termination{index + 3}"] = [name, 0]
+    value["mask-preview"] = copy.deepcopy(value["preview-1"])
+    value["mask-preview"]["inputs"].update(images=["mask-gate", 1], filename_prefix="mask-preview")
+    value["close"]["inputs"]["terminations.termination6"] = ["mask-preview", 0]
     return value
 
 
@@ -235,16 +247,18 @@ def main():
             tasks = {row["clip_id"]: {"asset_id": row["asset_id"], "prompt": f"target {i}",
                                      "source_frame": round(row["source_in_seconds"] * assets[row["asset_id"]]["probe"]["fps"]) + 1} for i, row in enumerate(source["video_track"])}
             config = {"schema_version": 1, "seam_mode": mode, "mask_enabled": enabled, "mask_tasks": tasks}
-            STATE.update(mode=mode, mask_enabled=enabled, mask_calls=[], generated=[], transitions=[], cleanup=[], previews=[], plan=PLAN.build_plan(source, config, fps=24))
+            STATE.update(mode=mode, mask_enabled=enabled, mask_calls=[], track_calls=[], generated=[], transitions=[],
+                         cleanup=[], previews=[], mask_previews=[], mask_preview_skips=0, plan=PLAN.build_plan(source, config, fps=24))
             prompt = graph()
             if not evidence:
                 unclosed = copy.deepcopy(prompt)
-                for index in (4, 5):
+                for index in (4, 5, 6):
                     del unclosed["close"]["inputs"][f"terminations.termination{index}"]
                 rejected = asyncio.run(execution.validate_prompt("unclosed-previews", unclosed, None))
                 errors = json.dumps(rejected, ensure_ascii=False)
                 assert not rejected[0] and "without passing through End Loop" in errors, rejected
                 assert "preview-1" in errors and "preview-2" in errors, rejected
+                assert "mask-preview" in errors, rejected
             validation = asyncio.run(execution.validate_prompt(mode, prompt, None))
             assert validation[0], validation
             runner = execution.PromptExecutor(Server(), cache_type=False, cache_args={"ram": 0, "ram_inactive": 0})
@@ -254,9 +268,16 @@ def main():
             assert count == 46 and "24→23（-1）" in report and "8→7（-1）" in report
             assert len(STATE["generated"]) == 3
             assert STATE["mask_calls"] == ([0, 1, 2] if enabled else [])
+            assert STATE["track_calls"] == ([24, 8, 16] if enabled else [])
             assert sorted(STATE["cleanup"]) == [(i, j) for i in range(3) for j in range(1, 5)]
             assert sorted(STATE["previews"]) == [(i, f"preview-{j}") for i in range(3) for j in range(1, 3)]
-            assert len(list(temp_root.glob("*.mp4"))) == 6
+            assert STATE["mask_previews"] == ([24, 8, 16] if enabled else [])
+            assert STATE["mask_preview_skips"] == (0 if enabled else 3)
+            seed_previews = [image for output in runner.history_result["outputs"].values()
+                             for image in output.get("images", []) if image["filename"].startswith("Animate-mask-seed-")]
+            assert len(seed_previews) == (3 if enabled else 0), seed_previews
+            assert all((temp_root / image["subfolder"] / image["filename"]).is_file() for image in seed_previews)
+            assert len(list(temp_root.glob("*.mp4"))) == (9 if enabled else 6)
             saved = list(output_root.glob("final_*.mp4"))
             assert len(saved) == 1, saved
             with av.open(str(saved[0])) as encoded:
@@ -270,7 +291,8 @@ def main():
                 assert [frame.pts * frame.time_base for frame in encoded.decode(video=0)] == [Fraction(i, 24) for i in range(46)]
             evidence.append({"mode": mode, "mask_enabled": enabled, "mask_calls": STATE["mask_calls"], "native_iterations": 3, "actual_frames": count,
                 "transition_counts": STATE["transitions"], "cleanup_calls": len(STATE["cleanup"]),
-                "vhs_preview_calls": len(STATE["previews"]), "final_saves": len(saved),
+                "vhs_preview_calls": len(STATE["previews"]), "mask_preview_videos": len(STATE["mask_previews"]),
+                "mask_preview_skips": STATE["mask_preview_skips"], "seed_preview_images": len(seed_previews), "final_saves": len(saved),
                 "disk_completed_count": result["completed_count"], "frame_deltas": [-1, -1, 0]})
     print(json.dumps({"passed": True, "native_executor": str(Path(execution.__file__)), "results": evidence}, ensure_ascii=False))
 
