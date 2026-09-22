@@ -10,6 +10,7 @@ import subprocess
 import types
 
 import av
+import numpy as np
 import pytest
 import torch
 
@@ -233,6 +234,69 @@ def test_entry_matches_actual_original_vhs_frames_info_audio_and_resize(tmp_path
             assert torch.equal(audio["waveform"], original_audio["waveform"])
         else:
             assert audio is None
+
+
+def test_near_integer_source_rate_preserves_every_native_frame_across_cuts(tmp_path, monkeypatch):
+    store, source = MEDIA.imported_project(tmp_path)
+    import folder_paths
+    monkeypatch.setattr(folder_paths, "input_directory", str(store.input_root))
+    path, handle, name = store.allocate("near-30-fps.mp4")
+    source_fps = Fraction(30000001, 1000000)
+    with av.open(str(path), "w") as container:
+        stream = container.add_stream("libx264rgb", rate=source_fps)
+        stream.width, stream.height, stream.pix_fmt = 32, 24, "rgb24"
+        stream.options = {"crf": "0", "preset": "ultrafast"}
+        for index in range(355):
+            pixels = np.empty((24, 32, 3), dtype=np.uint8)
+            pixels[:] = (index % 256, index // 256, 100)
+            frame = av.VideoFrame.from_ndarray(pixels, format="rgb24")
+            frame.pts, frame.time_base = index, 1 / source_fps
+            for packet in stream.encode(frame):
+                container.mux(packet)
+        for packet in stream.encode(None):
+            container.mux(packet)
+    asset = store.finish_import(path, handle, name)
+    assert 30 < asset["probe"]["fps"] < 30.00001
+    source["assets"].append(asset)
+    cuts = (0, 3.8, float(355 / source_fps))
+    source["video_track"] = [dict(clip_id=f"near-{index}", asset_id=asset["asset_id"],
+        timeline_in_seconds=start, source_in_seconds=start, source_out_seconds=end,
+        source_audio_enabled=False, audio_link_id=None)
+        for index, (start, end) in enumerate(zip(cuts, cuts[1:]))]
+    source["audio_track"] = []
+    settings = {**FIXTURE.settings("hard_cut"), "mask_enabled": True, "mask_tasks": {
+        f"near-{index}": {"asset_id": asset["asset_id"], "source_frame": frame, "prompt": "target"}
+        for index, frame in enumerate((113, 155))}}
+    value = PLAN.build_plan(source, settings, fps=30)
+    assert value["validation"]["ready"]
+    assert [row["frame_count"] for row in value["segments"]] == [114, 241]
+    loader = original_vhs()
+    inputs = dict(video=path.relative_to(store.input_root).as_posix(), custom_width=0,
+        custom_height=0, select_every_nth=1, format="None")
+    native, count, _audio, _info = loader.load_video(**inputs, force_rate=0,
+        frame_load_cap=0, skip_first_frames=0)
+    assert count == len(native) == 355
+    assert torch.unique(native[:, 0, 0], dim=0).shape[0] == 355
+    # The original forced-30 path drops a real frame, including on the second read.
+    forced_first, _count, _audio, _info = loader.load_video(**inputs, force_rate=30,
+        frame_load_cap=114, skip_first_frames=0)
+    forced_tail, forced_count, _audio, _info = loader.load_video(**inputs, force_rate=30,
+        frame_load_cap=241, skip_first_frames=114)
+    assert forced_count == 240
+    assert torch.equal(forced_first, torch.cat((native[:1], native[2:115])))
+    assert torch.equal(forced_tail, native[115:])
+    decoded = []
+    for index in range(2):
+        context = EXECUTION.segment_context(value, index)
+        _picture, frames, audio, _info = EXECUTION.decode_segment(value, context, store, loader=loader.load_video)
+        assert audio is None
+        local_index, text = MASKING.ZVAnimateMaskFrame().align(context, frames, 0)
+        assert local_index == (113, 41)[index] and text == "target"
+        decoded.append(frames)
+    assert [len(frames) for frames in decoded] == [114, 241]
+    assert torch.equal(decoded[0][0], native[0])
+    assert torch.equal(decoded[1][0], native[114])
+    assert torch.equal(torch.cat(decoded), native)
 
 
 def test_actual_frame_difference_is_visible_in_nodes_and_end(tmp_path, monkeypatch):

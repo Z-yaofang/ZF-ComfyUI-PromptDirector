@@ -41,6 +41,10 @@ def _rate(value):
     return float(integer) if abs(rate - integer) <= 1e-4 else rate
 
 
+def same_frame_rate(source, target):
+    return source is not None and math.isclose(_rate(source), _rate(target), rel_tol=1e-6, abs_tol=1e-6)
+
+
 def _settings(value):
     if value is None:
         value = {}
@@ -159,7 +163,7 @@ def build_plan(media_project, settings=None, fps=None):
     for index, clip in enumerate(clips):
         if clip["frame_count"] < 1:
             errors.append(_issue(f"/video_track/{index}", "empty_clip", "视频裁剪范围不足一个目标帧"))
-        if clip["source_fps"] is not None and not math.isclose(_rate(clip["source_fps"]), fps, rel_tol=1e-6, abs_tol=1e-6):
+        if clip["source_fps"] is not None and not same_frame_rate(clip["source_fps"], fps):
             warnings.append(_issue(f"/video_track/{index}", "fps_resampled", f"{clip['name']} 源帧率 {clip['source_fps']:g}，将按 {fps} fps 重采样；分段和成片帧数以重采样后的 {clip['frame_count']} 帧为准"))
     if any(row["origin"] == "standalone" and row["enabled"] for row in project["audio_track"]):
         warnings.append(_issue("/audio_track", "standalone_audio_unused", "Animate 仅保留每个视频配对的原声，独立音轨不参与本次拼接"))

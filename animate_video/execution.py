@@ -16,7 +16,7 @@ from ..media_evidence.outlet import SAMPLE_RATE, build_outlet_plan
 from ..media_evidence.outlet_decode import execute_outlet
 from ..media_evidence.presets import builtin
 from .assembly import encode_video_chunk
-from .plan import AnimatePlanError, normalize_plan
+from .plan import AnimatePlanError, normalize_plan, same_frame_rate
 
 
 DIRECTORY = "zv_animate_segments"
@@ -152,8 +152,10 @@ def decode_segment(plan, context, store, width=None, height=None, loader=None):
     video_asset = next(asset for asset in canonical["assets"] if asset["asset_id"] == clip["asset_id"])
     # Use a Comfy input-relative path, retaining the native loader's path boundary checks.
     video_name = store.resolve(video_asset["source_handle"]).relative_to(store.input_root).as_posix()
+    # VHS resampling can drop a real frame even for 30.000001 -> 30 fps.
+    force_rate = 0 if same_frame_rate(video_asset["probe"].get("fps"), fps) else fps
     frames, count, audio, info = (loader or _vhs_load)(
-        video=video_name, force_rate=fps,
+        video=video_name, force_rate=force_rate,
         custom_width=dimensions[0], custom_height=dimensions[1], frame_load_cap=row["frame_count"],
         skip_first_frames=start, select_every_nth=1, format="None")
     if count != row["frame_count"] or len(frames) != row["frame_count"]:
