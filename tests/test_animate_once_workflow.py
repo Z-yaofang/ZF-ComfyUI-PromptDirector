@@ -174,7 +174,12 @@ def test_preserves_every_original_node_widget_position_group_and_nonentry_link(s
     assert (desk["pos"][0] + view["offset"][0]) * view["scale"] == pytest.approx(70)
     assert (desk["pos"][1] + view["offset"][1]) * view["scale"] == pytest.approx(90)
     for identifier, node in before.items():
-        assert logic_without_link_metadata(after[identifier]) == logic_without_link_metadata(node)
+        expected = logic_without_link_metadata(node)
+        if identifier in (78, 109) and after[identifier].get("mode", 0) == 2:
+            for field in ("widgets_values", "widgets_values_named"):
+                if isinstance(expected.get(field), dict):
+                    expected[field].pop("videopreview", None)
+        assert logic_without_link_metadata(after[identifier]) == expected
         if str(identifier) in metadata["original_modes"]:
             assert node["type"] in BUILDER.OUTPUT_TYPES
             assert node.get("mode", 0) == metadata["original_modes"][str(identifier)] == 0
@@ -211,6 +216,7 @@ def test_reuses_original_fps_size_and_final_crop_without_rebuilding_preprocess(s
         "ZVUniversalMediaEvidenceDesk", "ZVAnimateSegmentDesk", "StartLoop", "ZVAnimateExecutionEntry",
         "ZVAnimateSegmentRecorder", "EndLoop", "ZVAnimateExecutionEnd", "SaveVideo", "PreviewAny", "Note",
         "ZVAnimateMaskFrame", "ZVAnimateMaskSeed", "ZVAnimateMaskGate",
+        "ZVAnimateFinalComparison",
     }
 
 
@@ -231,6 +237,8 @@ def test_empty_new_desk_fixed_choices_loop_cache_and_previous_result_wiring(sour
         assert input_source(result, ids["end"], name) == (ids["recorder"], "run_result")
     assert input_source(result, ids["finish"], "run_result") == (ids["end"], "outputs")
     assert input_source(result, ids["report"], "source") == (ids["finish"], "report")
+    assert nodes[ids["report"]]["mode"] == 2
+    assert nodes[ids["save"]]["mode"] == 0
     assert input_source(result, ids["recorder"], "source_audio") == (ids["entry"], "source_audio")
     assert "少 1 帧" in nodes[ids["note"]]["widgets_values"][0]
 
@@ -390,24 +398,108 @@ def with_bypassed_video_outputs():
     return editor.finish()
 
 
-def test_reenabled_video_outputs_remain_inside_native_loop():
+def with_rgthree_pose_switch():
+    editor = BUILDER.Editor(small_source())
+    editor.add(BUILDER.make_node(644, "SDPoseDrawKeypoints", "原姿态绘制", [0, 0],
+                                 [("keypoints", "POSE_KEYPOINT")], [("IMAGE", "IMAGE")]))
+    editor.add(BUILDER.make_node(554, "Any Switch (rgthree)", "原姿态切换", [0, 0],
+                                 [("any_02", "IMAGE")], [("输出", "IMAGE")]))
+    editor.wire(644, "IMAGE", 554, "any_02", "IMAGE")
+    editor.wire(554, "输出", 789, "pose_images", "IMAGE", replace=True)
+    return editor.finish()
+
+
+def test_dynamic_pose_switch_is_explicitly_anchored_inside_loop():
+    result = BUILDER.build(with_rgthree_pose_switch())
+    ids = result["extra"]["zv_animate_once"]["new_node_ids"]
+    port = result["extra"]["zv_animate_once"]["pose_termination"]
+    assert port.startswith("terminations.termination")
+    assert input_source(result, ids["end"], port) == (644, "IMAGE")
+    repaired = BUILDER.repair_loop_outputs(result)
+    assert input_source(repaired, ids["end"], repaired["extra"]["zv_animate_once"]["pose_termination"]) == (644, "IMAGE")
+    assert BUILDER.repair_loop_outputs(repaired) == repaired
+
+
+def test_final_save_visible_by_old_outputs_without_stale_video_preview():
+    source = with_bypassed_video_outputs()
+    source["groups"].append({"id": 10, "title": "浏览效果", "bounding": [-7992, 4425, 2033, 1699]})
+    for identifier in (78, 109):
+        node = nodes_by_id(source)[identifier]
+        node["mode"] = 0
+        node["widgets_values"] = {"filename_prefix": f"old-{identifier}", "videopreview": {"filename": "second.mp4"}}
+        node["widgets_values_named"] = {"filename_prefix": f"old-{identifier}", "videopreview": {"filename": "second.mp4"}}
+    original = copy.deepcopy(source)
+
+    result = BUILDER.build(source)
+    ids = result["extra"]["zv_animate_once"]["new_node_ids"]
+    nodes = nodes_by_id(result)
+    assert source == original
+    assert nodes[ids["save"]]["pos"] == [-5891, 4500]
+    assert nodes[ids["save"]]["size"] == [460, 600]
+    assert nodes[ids["save"]]["title"] == f"完整成片保存（来自 #{ids['finish']}）"
+    assert input_source(result, ids["save"], "video") == (ids["finish"], "video")
+    assert input_source(result, ids["comparison"], "video") == (ids["save"], "video")
+    assert {port["name"] for port in nodes[ids["comparison"]]["inputs"]} == {"animate_plan", "video"}
+    assert input_source(result, ids["comparison_save"], "video") == (ids["comparison"], "comparison_video")
+    assert nodes[ids["comparison_save"]]["pos"][0] > nodes[ids["save"]]["pos"][0]
+    for identifier in (78, 109):
+        assert nodes[identifier]["mode"] == 2
+        assert nodes[identifier]["widgets_values"] == {"filename_prefix": f"old-{identifier}"}
+        assert nodes[identifier]["widgets_values_named"] == {"filename_prefix": f"old-{identifier}"}
+
+    repaired = BUILDER.repair_loop_outputs(result)
+    assert nodes_by_id(repaired)[ids["save"]] == nodes[ids["save"]]
+    assert BUILDER.repair_loop_outputs(repaired) == repaired
+
+
+def test_repair_adds_post_loop_comparison_without_mutating_legacy_copy():
+    editor = BUILDER.Editor(BUILDER.build(small_source()))
+    ids = editor.workflow["extra"]["zv_animate_once"]["new_node_ids"]
+    editor.remove_nodes((ids.pop("comparison"), ids.pop("comparison_save")))
+    legacy = editor.finish()
+    original = copy.deepcopy(legacy)
+    repaired = BUILDER.repair_loop_outputs(legacy)
+    assert legacy == original
+    repaired_ids = repaired["extra"]["zv_animate_once"]["new_node_ids"]
+    assert input_source(repaired, repaired_ids["comparison"], "video") == (repaired_ids["save"], "video")
+    assert {port["name"] for port in nodes_by_id(repaired)[repaired_ids["comparison"]]["inputs"]} == {"animate_plan", "video"}
+    assert input_source(repaired, repaired_ids["comparison_save"], "video") == (repaired_ids["comparison"], "comparison_video")
+    assert BUILDER.repair_loop_outputs(repaired) == repaired
+
+
+def test_repair_removes_old_comparison_edge_back_to_loop():
+    editor = BUILDER.Editor(BUILDER.build(small_source()))
+    ids = editor.workflow["extra"]["zv_animate_once"]["new_node_ids"]
+    compare = editor.nodes[ids["comparison"]]
+    compare["inputs"].insert(1, {"name": "run_result", "type": "ZV_ANIMATE_RUN", "link": None})
+    for link in editor.links:
+        if link[3] == ids["comparison"] and link[4] >= 1:
+            link[4] += 1
+    editor.wire(ids["end"], "outputs", ids["comparison"], "run_result", "ZV_ANIMATE_RUN")
+    draft = editor.finish()
+    repaired = BUILDER.repair_loop_outputs(draft)
+    assert {port["name"] for port in nodes_by_id(repaired)[ids["comparison"]]["inputs"]} == {"animate_plan", "video"}
+    assert input_source(repaired, ids["comparison"], "video") == (ids["save"], "video")
+    assert not any(link[1] == ids["end"] and link[3] == ids["comparison"] for link in repaired["links"])
+    assert BUILDER.repair_loop_outputs(repaired) == repaired
+
+
+def test_old_video_outputs_are_muted_and_not_loop_roots():
     result = BUILDER.build(with_bypassed_video_outputs())
     ids = result["extra"]["zv_animate_once"]["new_node_ids"]
     nodes = nodes_by_id(result)
     for identifier in (78, 109):
         assert nodes[identifier]["mode"] == 4
-        nodes[identifier]["mode"] = 0
-        assert any(link[1] == identifier and link[3] == ids["end"] for link in result["links"])
+        assert not any(link[1] == identifier and link[3] == ids["end"] for link in result["links"])
+    assert nodes[ids["report"]]["mode"] == 2
     validate_native_loop(result)
 
 
-def test_repair_closes_reported_escape_and_preserves_user_edits():
+def test_repair_mutes_reported_escape_and_preserves_user_edits():
     editor = BUILDER.Editor(BUILDER.build(with_bypassed_video_outputs()))
     ids = editor.workflow["extra"]["zv_animate_once"]["new_node_ids"]
     for identifier in (78, 109):
         editor.nodes[identifier]["mode"] = 0
-        for link in editor.outgoing(identifier, "Filenames"):
-            editor.disconnect(link[0])
     for port in editor.nodes[ids["end"]]["inputs"]:
         port["name"] = port["name"].removeprefix("terminations.")
     editor.nodes[ids["end"]]["inputs"].append({"name": "terminations.termination0", "type": "*", "link": None})
@@ -416,7 +508,7 @@ def test_repair_closes_reported_escape_and_preserves_user_edits():
     broken = editor.finish()
     broken["links"].reverse()
     original = copy.deepcopy(broken)
-    # This is the same host failure reported for the two re-enabled outputs.
+    # These re-enabled legacy previews are independent output roots again.
     with pytest.raises(Exception, match="reaches 109, 78 without passing through End Loop"):
         validate_native_loop(broken)
     repaired = BUILDER.repair_loop_outputs(broken)
@@ -424,9 +516,11 @@ def test_repair_closes_reported_escape_and_preserves_user_edits():
     before, after = nodes_by_id(broken), nodes_by_id(repaired)
     assert before.keys() == after.keys()
     for identifier in before:
-        assert before[identifier]["mode"] == after[identifier]["mode"]
-        if identifier != ids["end"]:
+        if identifier not in (78, 109):
+            assert before[identifier]["mode"] == after[identifier]["mode"]
+        if identifier not in (ids["end"], ids["note"]):
             assert logic_without_link_metadata(before[identifier]) == logic_without_link_metadata(after[identifier])
+    assert after[78]["mode"] == after[109]["mode"] == 2
     ports = after[ids["end"]]["inputs"]
     assert len({port["name"] for port in ports}) == len(ports)
     assert all(port["name"].startswith("terminations.") for port in ports if port["name"].startswith("termination"))
@@ -473,11 +567,11 @@ def with_mask_previews():
 def assert_safe_mask_previews(workflow):
     ids = workflow["extra"]["zv_animate_once"]["new_node_ids"]
     nodes = nodes_by_id(workflow)
-    assert nodes[284]["mode"] == 0
+    assert nodes[284]["mode"] == 2
     assert nodes[515]["mode"] == 2
     assert input_source(workflow, 284, "images") == (ids["mask_gate"], "bg_images")
     assert input_source(workflow, ids["mask_seed"], "reference_image") == (523, "IMAGE")
-    assert any(link[1] == 284 and link[3] == ids["end"] for link in workflow["links"])
+    assert not any(link[1] == 284 and link[3] == ids["end"] for link in workflow["links"])
     # Only the lazy gate may pull in the mask path, even with video preview enabled.
     prompt = resolved_prompt(workflow)
     pending = [key for key, node in prompt.items() if node["class_type"] in BUILDER.OUTPUT_TYPES | {"SaveVideo"}]

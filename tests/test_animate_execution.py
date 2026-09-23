@@ -73,16 +73,31 @@ def test_mask_index_uses_local_source_and_actual_front_padding_not_transition(mo
             MASKING.ZVAnimateMaskSeed().validate(context, torch.zeros_like(white))
 
 
-def test_global_mask_gate_does_not_request_mask_path_in_motion_mode():
+def test_global_mask_gate_does_not_request_mask_path_in_motion_mode(monkeypatch):
     gate = MASKING.ZVAnimateMaskGate()
     context = EXECUTION.segment_context(plan(), 0)
     assert gate.check_lazy_status(context) == []
-    assert gate.route(context) == (None, None)
+    assert gate.route(context) == {"ui": {"gifs": []}, "result": (None, None)}
     context["mask_enabled"] = True
     assert gate.check_lazy_status(context) == ["mask", "bg_images"]
     frames, masks = numbered(8), torch.ones(8, 24, 32)
     assert gate.check_lazy_status(context, masks) == ["bg_images"]
-    assert gate.route(context, masks, frames) == (masks, frames)
+    calls = []
+    ui = {"gifs": [{"filename": "mask.mp4", "type": "temp"}]}
+
+    class Preview:
+        def combine_video(self, **kwargs):
+            calls.append(kwargs)
+            return {"ui": ui}
+
+    monkeypatch.setitem(sys.modules, "nodes", types.SimpleNamespace(NODE_CLASS_MAPPINGS={"VHS_VideoCombine": Preview}))
+    shown = gate.route(context, masks, frames)
+    assert shown["result"] == (masks, frames) and shown["ui"] is ui
+    assert len(calls) == 1 and calls[0]["images"] is frames
+    assert {key: value for key, value in calls[0].items() if key != "images"} == {
+        "frame_rate": 30, "loop_count": 0, "filename_prefix": "Animate-mask-bg-segment-1",
+        "format": "video/h264-mp4", "pingpong": False, "save_output": False}
+    assert not getattr(MASKING.ZVAnimateMaskGate, "OUTPUT_NODE", False)
     with pytest.raises(ValueError, match="帧数/尺寸"):
         gate.route(context, masks[:1], frames)
 
@@ -363,7 +378,9 @@ def test_actual_frame_difference_is_visible_in_nodes_and_end(tmp_path, monkeypat
         run, report = NODES.ZVAnimateSegmentRecorder().record(context, torch.full((count, 24, 32, 3), .2 + .3 * index), previous_result=run)
         assert "⚠ 帧数差异" in report
         assert f"实际 {count} 帧" in report
-    video, count, report = NODES.ZVAnimateExecutionEnd().finish(value, [run])
+    output = NODES.ZVAnimateExecutionEnd().finish(value, [run])
+    video, count, report = output["result"]
+    assert output["ui"] == {"text": [report]}
     assert count == 13
     assert "8→7（-1）" in report and "5→6（+1）" in report
     assert video.get_components().images.shape[0] == 13

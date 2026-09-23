@@ -68,7 +68,7 @@ def _descendants(children, start):
     return found
 
 
-def _close_video_outputs(editor, start_id, end_id):
+def _mute_loop_outputs(editor, start_id, end_id, save_id, output_types=OUTPUT_TYPES):
     end = editor.nodes[end_id]
     incoming = {link[4]: link for link in editor.links if link[3] == end_id}
     inputs, termination_count = [], 0
@@ -76,6 +76,10 @@ def _close_video_outputs(editor, start_id, end_id):
         link = incoming.get(slot)
         if port["name"].startswith("termination"):
             if link is None:
+                continue
+            if (editor.nodes[link[1]]["type"] == "VHS_VideoCombine"
+                    and editor.nodes[link[1]].get("mode", 0) == 0):
+                editor.disconnect(link[0])
                 continue
             port = {**port, "name": f"terminations.termination{termination_count}"}
             termination_count += 1
@@ -85,28 +89,194 @@ def _close_video_outputs(editor, start_id, end_id):
     end["inputs"] = inputs
 
     children = _children(editor)
-    children[end_id] = set()
     loop_nodes = _descendants(children, start_id)
-    connected = {link[1] for link in incoming.values()}
+    muted = {}
     for identifier in sorted(loop_nodes):
         node = editor.nodes[identifier]
-        if node["type"] != "VHS_VideoCombine" or identifier in connected:
+        if identifier == save_id or node["type"] not in output_types or node["type"] == "PurgeVRAM_UTK" or node.get("mode", 0) != 0:
             continue
-        if termination_count >= 50:
-            raise WorkflowBuildError("循环输出支路超过 EndLoop 原生终止支路数量上限")
-        port = f"terminations.termination{termination_count}"
-        end["inputs"].append({"name": port, "type": "*", "link": None, "shape": 7})
-        editor.wire(identifier, "Filenames", end_id, port, "*")
-        termination_count += 1
+        muted[str(identifier)] = node.get("mode", 0)
+        node["mode"] = 2
+    return muted
+
+
+def _compact_loop_terminations(editor, end_id, recorder_id):
+    """Drop loop-end dependencies already guaranteed by the recorded result.
+
+    Draft workflows can retain terminations to bypassed Purge/preview nodes.
+    The API converter resolves those bypasses to live, expensive ancestors of
+    the sampler.  Requesting them again after recording is unnecessary and can
+    pull evicted results back through the original graph.  Preserve any active
+    Purge side effect and independent termination; the pose anchor is restored
+    separately because rgthree's dynamic input evades loop validation.
+    """
+    end = editor.nodes[end_id]
+    children = _children(editor)
+    dropped = []
+    kept = []
+    for port in end["inputs"]:
+        if not port["name"].startswith("terminations.termination"):
+            kept.append(port)
+            continue
+        link = editor.incoming(end_id, port["name"])
+        if link is None:
+            continue
+        source = editor.nodes[link[1]]
+        redundant = (source.get("mode", 0) != 0 or
+                     (source["id"] in (178, 789, 984) and
+                      recorder_id in _descendants(children, source["id"])))
+        if redundant and source["id"] != 644:
+            dropped.append(source["id"])
+            editor.disconnect(link[0])
+            continue
+        renamed = {**port, "name": f"terminations.termination{sum(item['name'].startswith('terminations.termination') for item in kept)}"}
+        link[4] = len(kept)
+        kept.append(renamed)
+    end["inputs"] = kept
+    return dropped
+
+
+def _anchor_dynamic_pose_in_loop(editor, end_id):
+    """Keep the selected rgthree pose input in Comfy's validated loop body.
+
+    rgthree's Any Switch accepts dynamic ``any_02`` but does not declare it in
+    INPUT_TYPES. Comfy's native loop validator therefore misses this edge when
+    the old pose-video output is muted. A normal EndLoop termination supplies
+    the missing dependency without changing the switch or its image output.
+    """
+    switch = editor.nodes.get(554, {})
+    pose = editor.nodes.get(644, {})
+    if not switch and not pose:
+        # Reduced synthetic workflows in the test suite do not have this
+        # original pose branch.
+        return None
+    link = editor.incoming(554, "any_02")
+    if (switch.get("type") != "Any Switch (rgthree)"
+            or pose.get("type") != "SDPoseDrawKeypoints"
+            or pose.get("mode", 0) != 0
+            or link is None or link[1:3] != [644, 0]):
+        raise WorkflowBuildError("原 #554 姿态动态切换输入已改变，不能确认循环依赖；请复核接线")
+    end = editor.nodes[end_id]
+    for existing in editor.links:
+        if existing[1] == 644 and existing[3] == end_id:
+            return next(port["name"] for port in end["inputs"]
+                        if port.get("link") == existing[0])
+    count = sum(port["name"].startswith("terminations.termination")
+                for port in end["inputs"])
+    if count >= 50:
+        raise WorkflowBuildError("循环终止支路已达上限，无法固定姿态分支依赖")
+    port = f"terminations.termination{count}"
+    end["inputs"].append({"name": port, "type": "*", "link": None, "shape": 7})
+    editor.wire(644, "IMAGE", end_id, port, "*")
+    return port
+
+
+def _show_final_save_by_old_outputs(editor, save_id, finish_id):
+    save = editor.nodes[save_id]
+    if save["type"] != "SaveVideo":
+        raise WorkflowBuildError("一次成片最终保存节点不是 SaveVideo")
+    preview_group = next((group for group in editor.workflow.get("groups", [])
+                          if group.get("title") == "浏览效果"), None)
+    if preview_group is not None:
+        gx, gy, gw, _ = preview_group["bounding"]
+        save["pos"] = [round(gx + gw + 68), round(gy + 75)]
+        save["size"] = [min(save["size"][0], 460), max(save["size"][1], 600)]
+    save["title"] = f"完整成片保存（来自 #{finish_id}）"
+    for identifier in (78, 109):
+        node = editor.nodes.get(identifier)
+        if node is None or node["type"] != "VHS_VideoCombine" or node.get("mode", 0) != 2:
+            continue
+        for field in ("widgets_values", "widgets_values_named"):
+            values = node.get(field)
+            if isinstance(values, dict):
+                values.pop("videopreview", None)
+
+
+def _ensure_final_comparison(editor, ids):
+    """Add the second, post-loop save without reviving the old #109 output root."""
+    compare_id, compare_save_id = ids.get("comparison"), ids.get("comparison_save")
+    if (compare_id is None) != (compare_save_id is None):
+        raise WorkflowBuildError("完整对照节点记录不完整")
+    save = editor.nodes[ids["save"]]
+    sx, sy = save["pos"]
+    if compare_id is None:
+        compare_id, compare_save_id = editor.allocate(), editor.allocate()
+        ids["comparison"], ids["comparison_save"] = compare_id, compare_save_id
+        editor.add(make_node(compare_id, "ZVAnimateFinalComparison", "完整成片与原视频对照（左右/上下自动）",
+                             [sx + 520, sy - 300],
+                             [("animate_plan", "ZV_ANIMATE_PLAN"), ("video", "VIDEO")],
+                             [("comparison_video", "VIDEO"), ("report", "STRING")], size=[460, 260]))
+        editor.add(make_node(compare_save_id, "SaveVideo", "完整对照保存（原视频 + 成片）",
+                             [sx + 520, sy],
+                             [("video", "VIDEO"), ("filename_prefix", "STRING"),
+                              ("format", "COMFY_DYNAMICCOMBO_V3"),
+                              ("format.codec", "COMFY_DYNAMICCOMBO_V3"),
+                              ("codec", "COMFY_DYNAMICCOMBO_V3")],
+                             [("video", "VIDEO")], values=["Animate/compare", "auto", "auto", "auto"],
+                             named_values={"filename_prefix": "Animate/compare", "format": "auto",
+                                           "format.codec": "auto", "codec": "auto"},
+                             size=[460, 600],
+                             widget_inputs={"filename_prefix", "format", "format.codec", "codec"}))
+    elif (editor.nodes.get(compare_id, {}).get("type") != "ZVAnimateFinalComparison"
+          or editor.nodes.get(compare_save_id, {}).get("type") != "SaveVideo"):
+        raise WorkflowBuildError("完整对照节点类型已改变，不能自动重接")
+    # An older draft also fetched EndLoop.run_result here.  The completed VIDEO
+    # already identifies its validated on-disk manifest; a second loop edge is
+    # unnecessary and could pull an evicted loop body back into execution.
+    old_ports = editor.nodes[compare_id]["inputs"]
+    old_slot = next((index for index, port in enumerate(old_ports)
+                     if port["name"] == "run_result"), None)
+    if old_slot is not None:
+        for link in list(editor.links):
+            if link[3] == compare_id and link[4] == old_slot:
+                editor.disconnect(link[0])
+        old_ports.pop(old_slot)
+        for link in editor.links:
+            if link[3] == compare_id and link[4] > old_slot:
+                link[4] -= 1
+    expected = (
+        (ids["plan"], "animate_plan", compare_id, "animate_plan", "ZV_ANIMATE_PLAN"),
+        (ids["save"], "video", compare_id, "video", "VIDEO"),
+        (compare_id, "comparison_video", compare_save_id, "video", "VIDEO"),
+    )
+    for source, output, target, input_name, type_ in expected:
+        current = editor.incoming(target, input_name)
+        if current is None:
+            editor.wire(source, output, target, input_name, type_)
+        elif current[1:3] != [source, next(index for index, item in enumerate(editor.nodes[source]["outputs"])
+                                               if item["name"] == output)]:
+            raise WorkflowBuildError(f"完整对照 {target}.{input_name} 接线已被修改，请手动复核")
+    return compare_id, compare_save_id
 
 
 def repair_loop_outputs(workflow):
     editor = Editor(workflow)
-    ids = workflow.get("extra", {}).get("zv_animate_once", {}).get("new_node_ids", {})
+    ids = editor.workflow.get("extra", {}).get("zv_animate_once", {}).get("new_node_ids", {})
     for key, kind in (("start", "StartLoop"), ("end", "EndLoop")):
         if editor.nodes.get(ids.get(key), {}).get("type") != kind:
             raise WorkflowBuildError("工作流缺少一次成片的原生循环接入点")
-    _close_video_outputs(editor, ids["start"], ids["end"])
+    muted = _mute_loop_outputs(editor, ids["start"], ids["end"], ids["save"])
+    dropped = _compact_loop_terminations(editor, ids["end"], ids["recorder"])
+    pose_port = _anchor_dynamic_pose_in_loop(editor, ids["end"])
+    metadata = editor.workflow["extra"]["zv_animate_once"]
+    original_modes = metadata.setdefault("original_modes", {})
+    for key, mode in muted.items():
+        if int(key) not in ids.values():
+            original_modes.setdefault(key, mode)
+    _show_final_save_by_old_outputs(editor, ids["save"], ids["finish"])
+    _ensure_final_comparison(editor, ids)
+    metadata["pose_termination"] = pose_port
+    metadata["pruned_redundant_terminations"] = sorted(
+        set(metadata.get("pruned_redundant_terminations", [])) | set(dropped))
+    metadata["version"] = 5
+    note = editor.nodes.get(ids.get("note"))
+    text = "循环相关的旧视频输出与独立报告已静音；遮罩背景视频由必经的遮罩开关显示，最终帧数报告由合并节点显示。"
+    if note is not None:
+        note["widgets_values"][0] = note["widgets_values"][0].replace(
+            "原显存清理节点和姿态分支接 EndLoop 原生终止支路。",
+            "原显存清理节点保持原有启停；已绕过的旧终止支路移除，姿态分支保留必要的循环依赖。")
+        if text not in note["widgets_values"][0]:
+            note["widgets_values"][0] += "\n\n" + text
     editor.links.sort(key=lambda link: link[0])
     return editor.finish()
 
@@ -124,11 +294,11 @@ def _enable_mask_previews(editor, ids):
         preview = editor.nodes[284]
         if preview["type"] != "VHS_VideoCombine":
             raise WorkflowBuildError("#284 不再是原遮罩背景视频预览，请检查接线")
-        preview["mode"] = 0
+        preview["mode"] = 2
         link = editor.incoming(284, "images")
         if link is None or link[1] != ids["mask_gate"] or link[2] != 1:
             editor.wire(ids["mask_gate"], "bg_images", 284, "images", "IMAGE", replace=True)
-    # The old preview is an independent output root: enabling it bypasses the mask gate.
+    # The old preview is an independent output root: the gate now emits its UI.
     if editor.nodes.get(515, {}).get("type") == "ImageAndMaskPreview":
         editor.nodes[515]["mode"] = 2
 
@@ -140,9 +310,9 @@ def restore_mask_previews(workflow):
         if editor.nodes.get(ids.get(key), {}).get("type") != kind:
             raise WorkflowBuildError("工作流缺少一次成片的遮罩接入点")
     _enable_mask_previews(editor, ids)
-    _close_video_outputs(editor, ids["start"], ids["end"])
+    _mute_loop_outputs(editor, ids["start"], ids["end"], ids["save"])
     note = editor.nodes.get(ids.get("note"))
-    text = "遮罩预览已恢复：种子检查节点显示原参考帧、绿色覆盖和黑白种子；#284 显示实际送入 Plus 的遮罩背景视频，每段更新。关闭遮罩总开关时两处均不执行遮罩计算。旧 #515 保持停用，避免绕过总开关。"
+    text = "遮罩预览已恢复：种子检查节点显示原参考帧、绿色覆盖和黑白种子；遮罩开关节点显示实际送入 Plus 的背景视频，每段更新。关闭总开关时不执行遮罩计算。旧 #284/#515 保持停用，避免独立输出再次拉起循环。"
     if note is not None and text not in note["widgets_values"][0]:
         note["widgets_values"][0] += "\n\n" + text
     if note is not None:
@@ -343,8 +513,11 @@ def build(workflow, *, output_types=OUTPUT_TYPES):
         original_modes[str(identifier)] = node.get("mode", 0)
         node["mode"] = 2
     _enable_mask_previews(editor, ids)
-    original_modes.pop("284", None)
-    _close_video_outputs(editor, ids["start"], ids["end"])
+    _mute_loop_outputs(editor, ids["start"], ids["end"], ids["save"], output_types)
+    dropped = _compact_loop_terminations(editor, ids["end"], ids["recorder"])
+    pose_port = _anchor_dynamic_pose_in_loop(editor, ids["end"])
+    _show_final_save_by_old_outputs(editor, ids["save"], ids["finish"])
+    _ensure_final_comparison(editor, ids)
     muted_ids = "、".join(original_modes) or "无"
     editor.nodes[ids["note"]]["widgets_values"] = [
         "原工作流的节点、位置、参数、4n+1 前补与裁回、姿态/人脸/背景/遮罩处理和采样链全部保留。"
@@ -355,11 +528,12 @@ def build(workflow, *, output_types=OUTPUT_TYPES):
         "开启：各段填写原视频源帧号和遮罩目标词，由原 SAM/SeC 管道处理。参考帧以素材台源帧读数为准，"
         "内部先转为当前段索引，再加原 #712 前补帧；Plus 的 21 帧承接发生在后面，不计入此索引。"
         "#304/#461 的旧全局常量不再控制一次成片。原手绘旁路保留原状态；开启手绘后仍是共享输入，需自行确认各段适用。\n\n"
-        "种子检查节点显示原参考帧、绿色覆盖和黑白种子；#284 显示实际送入 Plus 的遮罩背景视频，每段更新。"
-        "两处预览随遮罩总开关按需执行；旧 #515 保持停用，避免绕过总开关。\n\n"
+        "种子检查节点显示原参考帧、绿色覆盖和黑白种子；遮罩开关节点显示实际送入 Plus 的背景视频，每段更新。"
+        "两处预览随遮罩总开关按需执行；旧 #284/#515 保持停用，避免独立输出重复启动循环。\n\n"
         f"一次成片副本暂时关闭旧单段保存/预览（含独立旧素材预览，mode=2）：{muted_ids}。"
         "这些节点仍保留；原模式、素材接线和遮罩接线记录在 extra.zv_animate_once，原文件未改。\n\n"
-        "原显存清理节点与循环内视频输出旁接 EndLoop 原生终止支路。重新开启旧视频预览时，每段预览完成后再进入下一段。\n\n"
+        "原显存清理节点保持原有启停；已绕过的旧终止支路移除，姿态分支保留必要的循环依赖。循环内旧视频输出和独立报告已静音；最终报告在合并节点显示。\n\n"
+        "旧 #109 是逐段对照，保持静音；循环之后分别保存真实完整成片、以及完整原素材与成片的左右/上下对照。\n\n"
         "硬切不传上一段画面；21 帧承接传上一段已裁回成品的尾帧，由原 Plus 处理。"
         "当前 Plus 承接路径可能使每段少 1 帧；不改 Plus，不另行补帧，按实际成品合并并报告帧数差异。"
         "这不是云端 GPU 质量验收。"
@@ -371,9 +545,11 @@ def build(workflow, *, output_types=OUTPUT_TYPES):
         "bounding": [x - 30, y - 70, 4250, 1820], "color": "#287b82", "font_size": 32, "flags": {},
     })
     result.setdefault("extra", {})["zv_animate_once"] = {
-        "version": 2, "new_node_ids": ids, "original_links": original_links, "original_mask_links": mask_links,
+        "version": 5, "new_node_ids": ids, "original_links": original_links, "original_mask_links": mask_links,
         "original_modes": original_modes, "output_types": sorted(output_types),
         "purge_terminations": purge_terminations,
+        "pruned_redundant_terminations": dropped,
+        "pose_termination": pose_port,
         "original_view": result["extra"].get("ds"),
         "frame_contract": "Original padding/crop and Plus unchanged; report actual output lengths, never synthesize missing frames.",
     }
@@ -388,8 +564,8 @@ def main(argv=None):
     parser.add_argument("source", type=Path)
     parser.add_argument("output", type=Path)
     action = parser.add_mutually_exclusive_group()
-    action.add_argument("--repair-loop", action="store_true", help="修复已有一次成片工作流的视频输出循环边界，保留素材及节点启停状态")
-    action.add_argument("--restore-mask-previews", action="store_true", help="恢复已有一次成片工作流的种子和遮罩背景预览，保留遮罩总开关和循环边界")
+    action.add_argument("--repair-loop", action="store_true", help="静音已有副本的循环相关独立输出，保留素材和模型参数")
+    action.add_argument("--restore-mask-previews", action="store_true", help="恢复必经遮罩开关的预览，保留素材和模型参数")
     args = parser.parse_args(argv)
     try:
         if args.source.resolve() == args.output.resolve() or args.output.exists():

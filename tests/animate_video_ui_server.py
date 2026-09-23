@@ -53,7 +53,7 @@ async def main():
 
     @routes.get("/scripts/app.js")
     async def app_stub(_request):
-        return web.Response(text="export const app={registerExtension(){}};", content_type="text/javascript")
+        return web.Response(text="export const app={extensions:[],registerExtension(value){this.extensions.push(value)}};", content_type="text/javascript")
 
     @routes.get("/web/{file}")
     async def file(request):
@@ -68,13 +68,21 @@ async def main():
 
     @routes.get("/")
     async def index(_request):
-        return web.Response(content_type="text/html", text="""<!doctype html><meta charset="utf-8"><body style="margin:0;padding:15px;background:#0a121b"><main id="host" style="height:760px;width:1150px"></main><script type="module">
+        return web.Response(content_type="text/html", text="""<!doctype html><meta charset="utf-8"><body style="margin:0;padding:15px;background:#0a121b"><main id="host" style="height:760px;width:1150px"></main><div id="preview-host"></div><script type="module">
 import {attachAnimateDesk} from '/web/animate_video.js';
 import {defaultSettings} from '/web/animate_video_core.mjs';
+import {app} from '/scripts/app.js';
 window.sourceNode={id:1,widgets:[{name:'project_data',value:JSON.stringify(SOURCE)}],inputs:[]};
 window.fpsNode={id:3,type:'FloatConstant',widgets:[{name:'value',value:30}],inputs:[]};
 window.desk={id:2,widgets:[{name:'segment_data',value:JSON.stringify(defaultSettings())}],inputs:[{name:'media_project'},{name:'fps',link:1}],size:[1100,720],setSize(){},graph:{setDirtyCanvas(){}},getInputNode(index){return index===1?fpsNode:sourceNode;},addDOMWidget(name,type,element){document.getElementById('host').append(element);return {};}};
 attachAnimateDesk(desk);
+const previews=app.extensions.find(row=>row.name==='ZV.AnimateRunPreviews');
+class GateNode{constructor(){this.size=[410,180]}addDOMWidget(name,type,element){document.getElementById('preview-host').append(element);return {}}setSize(value){this.size=value}}
+class EndNode{constructor(){this.size=[380,240]}addDOMWidget(name,type,element){document.getElementById('preview-host').append(element);return {}}setSize(value){this.size=value}}
+await previews.beforeRegisterNodeDef(GateNode,{name:'ZVAnimateMaskGate'});
+await previews.beforeRegisterNodeDef(EndNode,{name:'ZVAnimateExecutionEnd'});
+window.gateNode=new GateNode();gateNode.onNodeCreated();
+window.endNode=new EndNode();endNode.onNodeCreated();
 </script>""".replace("SOURCE", json.dumps(source, ensure_ascii=False)))
 
     app = web.Application(client_max_size=8 * 1024 * 1024)

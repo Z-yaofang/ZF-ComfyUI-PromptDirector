@@ -27,6 +27,7 @@ from .long_video.masks import (
 )
 from .long_video.execution_nodes import ZVLongVideoExecutionEnd, ZVLongVideoExecutionEntry, ZVLongVideoExecutionSetup, ZVLongVideoSegmentRecorder
 from .animate_video.nodes import ZVAnimateSegmentDesk, ZVAnimateExecutionEntry, ZVAnimateSegmentRecorder, ZVAnimateExecutionEnd
+from .animate_video.comparison import ZVAnimateFinalComparison
 from .animate_video.masking import ZVAnimateMaskFrame, ZVAnimateMaskSeed, ZVAnimateMaskGate
 from .media_evidence.node import ZVUniversalMediaEvidenceDesk
 from .media_evidence.outlet_nodes import ZVPictureOutlet, ZVVideoOutlet, ZVAudioOutlet, ZVTimelineAudioOutlet, ZVProcessingWindowOutlet
@@ -1589,6 +1590,7 @@ NODE_CLASS_MAPPINGS = {
     "ZVAnimateExecutionEntry": ZVAnimateExecutionEntry,
     "ZVAnimateSegmentRecorder": ZVAnimateSegmentRecorder,
     "ZVAnimateExecutionEnd": ZVAnimateExecutionEnd,
+    "ZVAnimateFinalComparison": ZVAnimateFinalComparison,
     "ZVAnimateMaskFrame": ZVAnimateMaskFrame,
     "ZVAnimateMaskSeed": ZVAnimateMaskSeed,
     "ZVAnimateMaskGate": ZVAnimateMaskGate,
@@ -1638,6 +1640,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ZVAnimateExecutionEntry": "ZV Animate 当前段素材",
     "ZVAnimateSegmentRecorder": "ZV Animate 原流成品收集",
     "ZVAnimateExecutionEnd": "ZV Animate 一次成片",
+    "ZVAnimateFinalComparison": "ZV Animate 完整原片/成片对照",
     "ZVAnimateMaskFrame": "ZV Animate 遮罩帧对齐",
     "ZVAnimateMaskSeed": "ZV Animate 遮罩种子检查",
     "ZVAnimateMaskGate": "ZV Animate 遮罩管道开关",

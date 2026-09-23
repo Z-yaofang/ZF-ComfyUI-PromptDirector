@@ -1,11 +1,16 @@
 """A finite outer loop around the user's original Animate workflow."""
 
 import json
+import logging
+from collections import OrderedDict
+from datetime import datetime, timezone
+from pathlib import Path
+from threading import RLock
 
 from ..media_evidence.runtime import get_store
 from .plan import default_settings
 from .server import prepare_plan
-from .execution import complete_run, decode_segment, load_guide, persist_segment, ready_plan, segment_context
+from .execution import DIRECTORY, _artifact, _hash, complete_run, decode_segment, load_guide, load_run, persist_segment, ready_plan, segment_context
 from .assembly import assemble_video
 
 
@@ -22,6 +27,88 @@ def _previous(value):
             raise ValueError("Animate 循环请关闭 accumulate，只传递上一段运行记录")
         return value[0]
     return value
+
+
+_RECORDED_SEGMENTS = OrderedDict()
+_RECORDED_SEGMENTS_LOCK = RLock()
+_RECORDED_SEGMENTS_LIMIT = 4096
+
+
+def _record_key(context, previous_result):
+    """Scope a disk-backed result to one native-loop iteration in one prompt."""
+    try:
+        from comfy_execution.utils import get_executing_context
+        execution_context = get_executing_context()
+    except Exception:
+        execution_context = None
+    if (execution_context is None or not execution_context.prompt_id
+            or "plan_fingerprint" not in context or "index" not in context):
+        return None
+    previous = _previous(previous_result)
+    if previous is not None and not isinstance(previous, dict):
+        return None
+    predecessor = None if previous is None else (
+        previous.get("run_id"), previous.get("completed_count"), previous.get("manifest_sha256")
+    )
+    return (execution_context.prompt_id, execution_context.node_id,
+            context["plan_fingerprint"], context["index"], predecessor)
+
+
+def _recorded_result(context, previous_result, root):
+    key = _record_key(context, previous_result)
+    if key is None:
+        return None
+    with _RECORDED_SEGMENTS_LOCK:
+        stored = _RECORDED_SEGMENTS.get(key)
+    if stored is None:
+        return None
+    result, report = stored
+    try:
+        directory, manifest = load_run(root, result, context["plan_fingerprint"], context["index"] + 1)
+        last = manifest["segments"][-1]
+        path = _artifact(directory, last["file"])
+        if not path.is_file() or _hash(path) != last["sha256"]:
+            raise ValueError("Animate 已录制分段文件变化")
+    except (OSError, ValueError, KeyError, TypeError):
+        with _RECORDED_SEGMENTS_LOCK:
+            _RECORDED_SEGMENTS.pop(key, None)
+        return None
+    with _RECORDED_SEGMENTS_LOCK:
+        _RECORDED_SEGMENTS.move_to_end(key)
+    return result, report
+
+
+def _remember_recorded_result(context, previous_result, result, report):
+    key = _record_key(context, previous_result)
+    if key is None:
+        return
+    with _RECORDED_SEGMENTS_LOCK:
+        _RECORDED_SEGMENTS[key] = (result, report)
+        _RECORDED_SEGMENTS.move_to_end(key)
+        while len(_RECORDED_SEGMENTS) > _RECORDED_SEGMENTS_LIMIT:
+            _RECORDED_SEGMENTS.popitem(last=False)
+
+
+def _log_recorded_segment(result, context, root):
+    execution_context = None
+    try:
+        from comfy_execution.utils import get_executing_context
+        execution_context = get_executing_context()
+    except Exception:
+        pass
+    try:
+        ordinal = context["index"] + 1
+        run_dir = Path(root).resolve() / DIRECTORY / result["run_id"]
+        logging.getLogger(__name__).info(
+            "Animate segment recorded time_utc=%s prompt_id=%s node_id=%s run_id=%s segment=%s/%s path=%s manifest=%s",
+            datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
+            getattr(execution_context, "prompt_id", None),
+            getattr(execution_context, "node_id", None),
+            result["run_id"], ordinal, context["segment_count"],
+            run_dir / f"segment-{ordinal:04d}.mp4", run_dir / "manifest.json",
+        )
+    except Exception:
+        pass
 
 
 class ZVAnimateSegmentDesk:
@@ -80,7 +167,7 @@ class ZVAnimateExecutionEntry:
 class ZVAnimateSegmentRecorder:
     @classmethod
     def INPUT_TYPES(cls):
-        return {"required": {"segment_context": ("ZV_ANIMATE_CONTEXT",), "frames": ("IMAGE",)},
+        return {"required": {"segment_context": ("ZV_ANIMATE_CONTEXT",), "frames": ("IMAGE", {"lazy": True})},
             "optional": {"source_audio": ("AUDIO",), "previous_result": ("ZV_ANIMATE_RUN", {"forceInput": True})}}
 
     RETURN_TYPES = ("ZV_ANIMATE_RUN", "STRING")
@@ -92,8 +179,24 @@ class ZVAnimateSegmentRecorder:
     def IS_CHANGED(cls, **_kwargs):
         return float("nan")
 
-    def record(self, segment_context, frames, source_audio=None, previous_result=None):
-        result = persist_segment(segment_context, frames, source_audio, _previous(previous_result), _temp_root())
+    def check_lazy_status(self, segment_context, frames=None, source_audio=None, previous_result=None):
+        if _recorded_result(segment_context, previous_result, _temp_root()) is not None:
+            return []
+        return ["frames"] if frames is None else []
+
+    def record(self, segment_context, frames=None, source_audio=None, previous_result=None):
+        root = _temp_root()
+        previous = _recorded_result(segment_context, previous_result, root)
+        if previous is not None:
+            logging.getLogger(__name__).info(
+                "Animate segment reused from validated disk record segment=%s/%s prompt_node=%s",
+                segment_context["index"] + 1, segment_context["segment_count"], _record_key(segment_context, previous_result),
+            )
+            return previous
+        if frames is None:
+            raise ValueError("Animate 录制节点缺少原流最终画面")
+        result = persist_segment(segment_context, frames, source_audio, _previous(previous_result), root)
+        _log_recorded_segment(result, segment_context, root)
         row = result["last_segment"]
         report = f"第 {segment_context['index'] + 1} 段：计划 {row['expected_frame_count']} 帧，原流实际 {row['frames']} 帧，差值 {row['frame_delta']:+d}；已原样落盘，未补/裁视频。"
         if row["frame_delta"]:
@@ -105,6 +208,7 @@ class ZVAnimateSegmentRecorder:
             report += " 本段未启用原声，按实际视频时长输出静音轨。"
         elif fit["trimmed_tail_samples"] or fit["padded_silence_samples"]:
             report += f" 原声尾裁 {fit['trimmed_tail_samples']} 采样，尾补静音 {fit['padded_silence_samples']} 采样（44100 Hz）。"
+        _remember_recorded_result(segment_context, previous_result, result, report)
         return result, report
 
 
@@ -141,4 +245,4 @@ class ZVAnimateExecutionEnd:
         rates = sorted({row["audio_fit"]["source_sample_rate"] for row in manifest["segments"]} - {None, 44100})
         if rates:
             report += f" 原声 {', '.join(str(rate) for rate in rates)} Hz→44100 Hz，未变速。"
-        return video, count, report
+        return {"ui": {"text": [report]}, "result": (video, count, report)}

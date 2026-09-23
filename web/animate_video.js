@@ -82,3 +82,31 @@ export function attachAnimateDesk(node) {
 }
 
 app.registerExtension({name:"ZV.AnimateVideo",async beforeRegisterNodeDef(type,data){if(data.name!=="ZVAnimateSegmentDesk")return;for(const hook of ["onNodeCreated","onConfigure"]){const prior=type.prototype[hook];type.prototype[hook]=function(){prior?.apply(this,arguments);setTimeout(()=>{if(hook==="onConfigure"&&this.zvAnimate)this.zvAnimate.restore();else attachAnimateDesk(this);},0);};}}});
+
+app.registerExtension({name:"ZV.AnimateRunPreviews",async beforeRegisterNodeDef(type,data){
+    if(!["ZVAnimateMaskGate","ZVAnimateExecutionEnd"].includes(data.name))return;
+    const isMask=data.name==="ZVAnimateMaskGate";
+    const created=type.prototype.onNodeCreated;
+    type.prototype.onNodeCreated=function(){
+        created?.apply(this,arguments);
+        const element=el(isMask?"video":"textarea");
+        element.style.width="100%";element.style.boxSizing="border-box";
+        if(isMask){element.controls=true;element.muted=true;element.loop=true;element.playsInline=true;element.style.minHeight="200px";this.zvMaskVideo=element;}
+        else{element.readOnly=true;element.style.height="130px";element.style.resize="vertical";element.style.background="#101c25";element.style.color="#d8e6ee";this.zvFinalReport=element;}
+        const widget=this.addDOMWidget(isMask?"mask_background_video":"final_report","preview",element,{serialize:false,hideOnZoom:false,getMinHeight:()=>isMask?240:140,getMaxHeight:()=>isMask?460:250});
+        widget.serialize=false;
+        this.setSize?.([Math.max(this.size?.[0]??0,isMask?500:470),Math.max(this.size?.[1]??0,isMask?390:300)]);
+    };
+    const executed=type.prototype.onExecuted;
+    type.prototype.onExecuted=function(message){
+        executed?.apply(this,arguments);
+        if(isMask){
+            const preview=message?.gifs?.[0];
+            if(!this.zvMaskVideo)return;
+            if(!preview){this.zvMaskVideo.removeAttribute("src");this.zvMaskVideo.load();return;}
+            const params=new URLSearchParams({filename:preview.filename,subfolder:preview.subfolder??"",type:preview.type??"temp"});
+            this.zvMaskVideo.src=api.apiURL(`/view?${params}`);
+            this.zvMaskVideo.load();
+        }else if(this.zvFinalReport){this.zvFinalReport.value=message?.text?.[0]??"";}
+    };
+}});

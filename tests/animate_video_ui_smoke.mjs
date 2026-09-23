@@ -12,6 +12,11 @@ try{
     const page=await browser.newPage({viewport:{width:1240,height:800}}),errors=[];page.on("pageerror",error=>errors.push(error.message));
     await page.goto(url);await page.waitForFunction(()=>desk.zvAnimate.getPlan()?.segments.length===3);
     const pane=page.locator(".zv-animate"),plan=()=>page.evaluate(()=>desk.zvAnimate.getPlan());
+    assert.equal(await page.locator('#preview-host video').count(),1);assert.equal(await page.locator('#preview-host textarea').count(),1);checks+=2;
+    await page.evaluate(()=>{gateNode.onExecuted({gifs:[{filename:'segment-1.mp4',subfolder:'',type:'temp'}]});endNode.onExecuted({text:['实际 42 帧']});});
+    assert.match(await page.locator('#preview-host video').getAttribute('src'),/\/view\?.*segment-1\.mp4/);
+    assert.equal(await page.locator('#preview-host textarea').inputValue(),'实际 42 帧');checks+=2;
+    await page.evaluate(()=>gateNode.onExecuted({}));assert.equal(await page.locator('#preview-host video').getAttribute('src'),null);checks++;
     const original=await page.evaluate(()=>sourceNode.widgets[0].value);
     assert.equal(await pane.locator("select").count(),1);assert.equal(await pane.locator("button,input,textarea,.playhead,.edge").count(),1);checks+=2;
     assert.equal(await pane.locator(".pair").count(),3);assert.equal(await pane.locator(".clip").count(),3);checks+=2;

@@ -93,9 +93,19 @@ class ZVAnimateMaskGate:
 
     def route(self, segment_context, mask=None, bg_images=None):
         if not segment_context["mask_enabled"]:
-            return None, None
+            return {"ui": {"gifs": []}, "result": (None, None)}
         if mask is None or bg_images is None:
             raise ValueError(f"第 {segment_context['index'] + 1} 段：遮罩管道缺少遮罩或背景图像，请检查原流接线")
         if mask.ndim != 3 or bg_images.ndim != 4 or tuple(mask.shape) != tuple(bg_images.shape[:3]):
             raise ValueError(f"第 {segment_context['index'] + 1} 段：遮罩帧数/尺寸与原流背景图像不一致")
-        return mask, bg_images
+        import nodes
+        preview = nodes.NODE_CLASS_MAPPINGS.get("VHS_VideoCombine")
+        if preview is None:
+            raise ValueError("Animate 遮罩背景预览需要 VideoHelperSuite 的 VHS_VideoCombine 节点")
+        ordinal = segment_context["segment"]["ordinal"]
+        result = preview().combine_video(
+            images=bg_images, frame_rate=segment_context["fps"], loop_count=0,
+            filename_prefix=f"Animate-mask-bg-segment-{ordinal}", format="video/h264-mp4",
+            pingpong=False, save_output=False,
+        )
+        return {"ui": result["ui"], "result": (mask, bg_images)}

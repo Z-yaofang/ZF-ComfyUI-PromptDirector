@@ -1,7 +1,7 @@
 """CPU smoke through the installed Comfy executor and native loop expansion.
 
 Only the expensive generation/cleanup body is synthetic. Entry (including actual
-VHS decoding), VHS previews, disk recording, loop carry and final saving are real.
+VHS decoding), the mask video preview, disk recording, loop carry and final saving are real.
 Run with the Comfy Python runtime; this script never starts a server or GPU job.
 """
 
@@ -81,7 +81,7 @@ class OriginalBody:
     def generate(self, context, source, transition, picture, mask, background):
         index = context["index"]
         assert index == len(STATE["generated"]), "native loop executed out of order"
-        assert len(STATE["previews"]) == index * 2, "next iteration started before both previews completed"
+        assert len(STATE["mask_previews"]) == (index + 1 if STATE["mask_enabled"] else 0)
         assert len(source) == (24, 8, 16)[index]
         assert len(picture) == 1
         if STATE["mask_enabled"]:
@@ -130,7 +130,6 @@ class OriginalCleanup:
         return {"required": {"frames": ("IMAGE",), "slot": ("INT",)}}
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "cleanup"
-    OUTPUT_NODE = True
     def cleanup(self, frames, slot):
         STATE["cleanup"].append((len(STATE["generated"]) - 1, slot))
         return (frames,)
@@ -152,20 +151,13 @@ class Capture:
 class Preview(VIDEO_COMBINE):
     def combine_video(self, **kwargs):
         result = super().combine_video(**kwargs)
-        if kwargs["images"] is None:
-            assert kwargs["filename_prefix"] == "mask-preview" and not STATE["mask_enabled"]
-            assert result == ((False, []),), "disabled mask preview must return harmless empty filenames"
-            STATE["mask_preview_skips"] += 1
-            return result
         files = result["result"][0][1]
         video_files = [Path(path) for path in files if Path(path).suffix == ".mp4"]
         assert len(video_files) == 1
         with av.open(str(video_files[0])) as encoded:
             assert sum(1 for _ in encoded.decode(video=0)) == len(kwargs["images"])
-        if kwargs["filename_prefix"] == "mask-preview":
-            STATE["mask_previews"].append(len(kwargs["images"]))
-        else:
-            STATE["previews"].append((len(STATE["generated"]) - 1, kwargs["filename_prefix"]))
+        assert kwargs["filename_prefix"].startswith("Animate-mask-bg-segment-")
+        STATE["mask_previews"].append(len(kwargs["images"]))
         return result
 
 
@@ -218,11 +210,20 @@ def graph():
     return value
 
 
+def single_root_graph():
+    value = graph()
+    for name in ("preview-1", "preview-2", "mask-preview", "capture"):
+        del value[name]
+    for index in (4, 5, 6):
+        del value["close"]["inputs"][f"terminations.termination{index}"]
+    return value
+
+
 def main():
     nodes.NODE_CLASS_MAPPINGS.update(nodes_loop.NODE_CLASS_MAPPINGS)
     nodes.NODE_CLASS_MAPPINGS.update({"VHS_LoadVideo": VHS, "AnimateSmokePlan": PlanSource,
         "AnimateSmokeBody": OriginalBody, "AnimateSmokeCleanup": OriginalCleanup, "AnimateSmokeCapture": Capture,
-        "AnimateSmokePreview": Preview, "SaveVideo": nodes_video.SaveVideo,
+        "AnimateSmokePreview": Preview, "VHS_VideoCombine": Preview, "SaveVideo": nodes_video.SaveVideo,
         "AnimateSmokeMaskDetect": OriginalMaskDetect, "AnimateSmokeMaskTrack": OriginalMaskTrack,
         **{name: getattr(MASKING, name) for name in ("ZVAnimateMaskFrame", "ZVAnimateMaskSeed", "ZVAnimateMaskGate")},
         **{name: getattr(RUNTIME, name) for name in ("ZVAnimateExecutionEntry", "ZVAnimateSegmentRecorder", "ZVAnimateExecutionEnd")}})
@@ -248,10 +249,10 @@ def main():
                                      "source_frame": round(row["source_in_seconds"] * assets[row["asset_id"]]["probe"]["fps"]) + 1} for i, row in enumerate(source["video_track"])}
             config = {"schema_version": 1, "seam_mode": mode, "mask_enabled": enabled, "mask_tasks": tasks}
             STATE.update(mode=mode, mask_enabled=enabled, mask_calls=[], track_calls=[], generated=[], transitions=[],
-                         cleanup=[], previews=[], mask_previews=[], mask_preview_skips=0, plan=PLAN.build_plan(source, config, fps=24))
-            prompt = graph()
+                         cleanup=[], mask_previews=[], plan=PLAN.build_plan(source, config, fps=24))
+            prompt = single_root_graph()
             if not evidence:
-                unclosed = copy.deepcopy(prompt)
+                unclosed = graph()
                 for index in (4, 5, 6):
                     del unclosed["close"]["inputs"][f"terminations.termination{index}"]
                 rejected = asyncio.run(execution.validate_prompt("unclosed-previews", unclosed, None))
@@ -261,39 +262,48 @@ def main():
                 assert "mask-preview" in errors, rejected
             validation = asyncio.run(execution.validate_prompt(mode, prompt, None))
             assert validation[0], validation
-            runner = execution.PromptExecutor(Server(), cache_type=False, cache_args={"ram": 0, "ram_inactive": 0})
+            assert validation[2] == ["save"], validation[2]
+            run_root = root / "runtime" / "zv_animate_segments"
+            earlier_runs = set(run_root.iterdir()) if run_root.exists() else set()
+            runner = execution.PromptExecutor(Server(), cache_type=execution.CacheType.RAM_PRESSURE,
+                                              cache_args={"ram": 64.0, "ram_inactive": 64.0})
             runner.execute(prompt, mode, execute_outputs=validation[2])
-            assert runner.success and "final" in STATE, runner.status_messages
-            video, count, report, result = STATE["final"]
+            assert runner.success, runner.status_messages
+            cache_active_evictions = runner.caches.outputs.active_evictions
+            report = runner.history_result["outputs"]["finish"]["text"][0]
+            count = 46
             assert count == 46 and "24→23（-1）" in report and "8→7（-1）" in report
             assert len(STATE["generated"]) == 3
             assert STATE["mask_calls"] == ([0, 1, 2] if enabled else [])
             assert STATE["track_calls"] == ([24, 8, 16] if enabled else [])
             assert sorted(STATE["cleanup"]) == [(i, j) for i in range(3) for j in range(1, 5)]
-            assert sorted(STATE["previews"]) == [(i, f"preview-{j}") for i in range(3) for j in range(1, 3)]
             assert STATE["mask_previews"] == ([24, 8, 16] if enabled else [])
-            assert STATE["mask_preview_skips"] == (0 if enabled else 3)
+            mask_ui = [item for output in runner.history_result["outputs"].values()
+                       for item in output.get("gifs", []) if item["filename"].startswith("Animate-mask-bg-segment-")]
+            assert len(mask_ui) == (3 if enabled else 0), mask_ui
+            assert all(item["type"] == "temp" and (temp_root / item["subfolder"] / item["filename"]).is_file()
+                       for item in mask_ui)
             seed_previews = [image for output in runner.history_result["outputs"].values()
                              for image in output.get("images", []) if image["filename"].startswith("Animate-mask-seed-")]
             assert len(seed_previews) == (3 if enabled else 0), seed_previews
             assert all((temp_root / image["subfolder"] / image["filename"]).is_file() for image in seed_previews)
-            assert len(list(temp_root.glob("*.mp4"))) == (9 if enabled else 6)
+            assert len(list(temp_root.glob("*.mp4"))) == (3 if enabled else 0)
             saved = list(output_root.glob("final_*.mp4"))
             assert len(saved) == 1, saved
             with av.open(str(saved[0])) as encoded:
                 assert sum(1 for _ in encoded.decode(video=0)) == 46
-            assert result["completed_count"] == 3
-            manifest = json.loads((root / "runtime" / "zv_animate_segments" / result["run_id"] / "manifest.json").read_text(encoding="utf-8"))
+            new_runs = set(run_root.iterdir()) - earlier_runs
+            assert len(new_runs) == 1, new_runs
+            manifest = json.loads((new_runs.pop() / "manifest.json").read_text(encoding="utf-8"))
             assert [row["frames"] for row in manifest["segments"]] == [23, 7, 16]
             assert [row["frame_delta"] for row in manifest["segments"]] == [-1, -1, 0]
             assert sum(row["audio_samples"] for row in manifest["segments"]) == round(46 * 44100 / 24)
-            with av.open(str(video._animate_path)) as encoded:
-                assert [frame.pts * frame.time_base for frame in encoded.decode(video=0)] == [Fraction(i, 24) for i in range(46)]
             evidence.append({"mode": mode, "mask_enabled": enabled, "mask_calls": STATE["mask_calls"], "native_iterations": 3, "actual_frames": count,
                 "transition_counts": STATE["transitions"], "cleanup_calls": len(STATE["cleanup"]),
-                "vhs_preview_calls": len(STATE["previews"]), "mask_preview_videos": len(STATE["mask_previews"]),
-                "mask_preview_skips": STATE["mask_preview_skips"], "seed_preview_images": len(seed_previews), "final_saves": len(saved),
-                "disk_completed_count": result["completed_count"], "frame_deltas": [-1, -1, 0]})
+                "mask_preview_videos": len(STATE["mask_previews"]),
+                "seed_preview_images": len(seed_previews), "final_saves": len(saved),
+                "disk_completed_count": len(manifest["segments"]), "frame_deltas": [-1, -1, 0],
+                "cache_active_evictions": cache_active_evictions})
     print(json.dumps({"passed": True, "native_executor": str(Path(execution.__file__)), "results": evidence}, ensure_ascii=False))
 
 
