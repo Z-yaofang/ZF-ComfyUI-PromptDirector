@@ -51,6 +51,8 @@ ComfyUI 必须提供原生 `StartLoop`、`EndLoop`，且 `EndLoop` 支持 `termi
 
 2026-09-24 本地另用原模型链完整跑通两段硬切＋遮罩开启的任务：录制日志各段恰好一次，分别为 114、241 帧；最终保存节点得到 355 帧、30 fps 的真实成片和 355 帧左右对照，二者均有一条 44.1 kHz 双声道音轨。该结果证明这一份素材与参数的执行、合并、双保存链路可用，不代表所有分段/模型配置或遮罩画面质量均已验收，更不等于云端已部署。
 
+云端更新并重启后，先在 `/object_info` 确认 `ZVUniversalMediaEvidenceDesk`、`ZVAnimateSegmentDesk`、`ZVAnimateExecutionEnd`、`ZVAnimateFinalComparison` 均已注册，再确认浏览器无本插件模块资源 404 或 `Error loading extension`，新建与已保存的素材台都能显示。完整对照节点仅在实际制作对照时需要 OpenCV；插件启动和其它节点注册不依赖它。云端完整运行仍需原流的 VHS、SAM/SeC、Plus 和模型环境，应用低步数/低分辨率副本实测，不以节点出现代替成片验收。
+
 ## 生成副本
 
 `tools/add_animate_once.py` 接受原工作流 JSON 和一个尚不存在的输出路径，拒绝覆盖任何已有文件。新增素材台默认为空；旧节点的原有控件值完整保留。

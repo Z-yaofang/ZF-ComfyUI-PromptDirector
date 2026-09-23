@@ -9,6 +9,7 @@ from pathlib import Path
 import shutil
 import sys
 import types
+from unittest.mock import patch
 
 import av
 import numpy as np
@@ -31,6 +32,16 @@ spec = importlib.util.spec_from_file_location("animate_comparison_plan_fixtures"
 FIXTURE = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = FIXTURE
 spec.loader.exec_module(FIXTURE)
+
+
+def test_comparison_node_import_does_not_require_opencv():
+    """A cloud host without VHS/OpenCV must still register the other nodes."""
+    module_name = PACKAGE + ".animate_video.comparison_cloud_probe"
+    spec = importlib.util.spec_from_file_location(module_name, ROOT / "animate_video" / "comparison.py")
+    probe = importlib.util.module_from_spec(spec)
+    with patch.dict(sys.modules, {"cv2": None}):
+        spec.loader.exec_module(probe)
+    assert probe.ZVAnimateFinalComparison.RETURN_TYPES == ("VIDEO", "STRING")
 
 
 def _source_movie(path, width, height, levels):

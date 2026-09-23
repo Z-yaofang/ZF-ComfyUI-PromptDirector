@@ -8,10 +8,10 @@ second batch of full-resolution images in memory.
 
 from contextlib import closing
 from fractions import Fraction
+from functools import lru_cache
 from pathlib import Path
 
 import av
-import cv2
 import numpy as np
 
 from ..media_evidence.runtime import get_store
@@ -20,8 +20,19 @@ from .execution import _hash, _run_dir, complete_run, ready_plan
 from .plan import same_frame_rate
 
 
+@lru_cache(maxsize=1)
+def _opencv():
+    """Keep OpenCV optional at plugin registration time on cloud hosts."""
+    try:
+        import cv2
+    except ImportError as exc:
+        raise RuntimeError("Animate 完整对照需要 OpenCV；请在运行环境安装 opencv-python") from exc
+    return cv2
+
+
 def _source_frames(path, start, count, source_rate, target_rate):
     """Match VHS_LoadVideo's OpenCV frame selection without making an IMAGE batch."""
+    cv2 = _opencv()
     capture = cv2.VideoCapture(str(path))
     try:
         if not capture.isOpened() or not capture.grab():
@@ -57,6 +68,7 @@ def _source_frames(path, start, count, source_rate, target_rate):
 
 def _fit_source(frame, width, height):
     """Fit source into the fixed generated canvas, preserving its aspect ratio."""
+    cv2 = _opencv()
     source_height, source_width = frame.shape[:2]
     scale = min(width / source_width, height / source_height)
     fitted_width = max(1, min(width, round(source_width * scale)))
