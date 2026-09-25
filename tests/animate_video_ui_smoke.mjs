@@ -12,6 +12,8 @@ try{
     const page=await browser.newPage({viewport:{width:1240,height:800}}),errors=[];page.on("pageerror",error=>errors.push(error.message));
     await page.goto(url);await page.waitForFunction(()=>desk.zvAnimate.getPlan()?.segments.length===3);
     const pane=page.locator(".zv-animate"),plan=()=>page.evaluate(()=>desk.zvAnimate.getPlan());
+    assert.match(await pane.locator('.status').textContent(),/输入片段合计 610 帧 \/ 20\.333 秒（当前素材时长，不是上限）/);
+    assert.match(await pane.locator('.status').textContent(),/Animate 无 15 秒单段或总长限制/);checks+=2;
     assert.equal(await page.locator('#preview-host video').count(),1);assert.equal(await page.locator('#preview-host textarea').count(),1);checks+=2;
     await page.evaluate(()=>{gateNode.onExecuted({gifs:[{filename:'segment-1.mp4',subfolder:'',type:'temp'}]});endNode.onExecuted({text:['实际 42 帧']});});
     assert.match(await page.locator('#preview-host video').getAttribute('src'),/\/view\?.*segment-1\.mp4/);

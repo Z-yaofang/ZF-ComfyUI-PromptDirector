@@ -56,7 +56,7 @@ export function attachAnimateDesk(node) {
             rail.append(column);
         }
         if(focusName){const next=[...rail.querySelectorAll('input')].find(item=>item.getAttribute('aria-label')===focusName);next?.focus({preventScroll:true});if(selection)next?.setSelectionRange(...selection);}
-        note([`${plan.segments.length} 段 · 输入片段合计 ${plan.target_frame_count} 帧 / ${(plan.target_frame_count/plan.fps).toFixed(3)} 秒`,...plan.validation.errors.map(row=>row.message),...plan.validation.warnings.map(row=>row.message)].join("\n"),!plan.validation.ready);
+        note([`${plan.segments.length} 段 · 输入片段合计 ${plan.target_frame_count} 帧 / ${(plan.target_frame_count/plan.fps).toFixed(3)} 秒（当前素材时长，不是上限）`,"Animate 无 15 秒单段或总长限制；逐段执行，仍受素材文件和设备资源约束。",...plan.validation.errors.map(row=>row.message),...plan.validation.warnings.map(row=>row.message)].join("\n"),!plan.validation.ready);
     }
     async function refresh(){
         const run=++token;node.zvAnimate.plan=null;let source;

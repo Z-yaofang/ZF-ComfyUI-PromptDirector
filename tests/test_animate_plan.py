@@ -63,6 +63,22 @@ def codes(plan, severity="errors"):
     return {row["code"] for row in plan["validation"][severity]}
 
 
+@pytest.mark.parametrize("frames", [471, 900, 21000])
+@pytest.mark.parametrize("split", [False, True])
+def test_animate_has_no_h3_single_segment_or_total_15_second_limit(frames, split):
+    source = project(frames, pictures=2 if split else 1)
+    # A saved H3 preset/window must not impose its generation cap on Animate.
+    source["processing_preset"] = CONTRACT.builtin("builtin.minimax-h3.single")
+    source["processing_window"] = {"start_seconds": 0, "end_seconds": 15, "fps": 24}
+    if split:
+        source = upstream_clips(source, [(0, frames // 2), (frames // 2, frames)])
+    value = PLAN.build_plan(source)
+    assert value["validation"]["ready"]
+    assert value["target_frame_count"] == frames
+    assert sum(row["frame_count"] for row in value["segments"]) == frames
+    assert len(value["segments"]) == (2 if split else 1)
+
+
 @pytest.mark.parametrize("count", [3, 4, 5])
 def test_global_mask_mode_binds_reference_and_words_to_clips_after_reorder(count):
     source = upstream_clips(project(40 * count, pictures=count), [(i * 40, (i + 1) * 40) for i in range(count)])
