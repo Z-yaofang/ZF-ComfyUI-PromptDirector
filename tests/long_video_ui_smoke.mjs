@@ -112,9 +112,31 @@ try{
     await page.waitForFunction(()=>desk.zvLong.getPlan()?.mode==="generation_manual"&&desk.zvLong.getPlan()?.target_frame_count===209);
     assert.deepEqual(await page.evaluate(()=>desk.zvLong.getSettings().segments),autoSegments);
     assert.deepEqual(await page.evaluate(()=>desk.zvLong.getPlan().segments.map(({segment_id,start_frame,end_frame})=>({segment_id,start_frame,end_frame}))),autoSegments);
+
+    let failedPlans=0,failedInterviews=0;
+    const rejectPlan=route=>{failedPlans++;return route.fulfill({status:400,contentType:"application/json",body:JSON.stringify({errors:[{message:"模拟素材服务失败"}]})});};
+    const rejectInterview=route=>{failedInterviews++;return route.fulfill({status:400,contentType:"application/json",body:JSON.stringify({errors:[{message:"模拟采访服务失败"}]})});};
+    await page.route("**/zf-prompt-director/long-video/plan",rejectPlan);
+    await page.route("**/zf-prompt-director/long-video/interview",rejectInterview);
+    await page.evaluate(()=>{const source=JSON.parse(sourceNode.widgets[0].value);source.assets[0].name+=" changed";sourceNode.widgets[0].value=JSON.stringify(source);});
+    await page.waitForFunction(()=>document.querySelector("#desk .status")?.textContent?.includes("模拟素材服务失败")&&document.querySelector("#interview .status")?.textContent?.includes("模拟采访服务失败"));
+    await page.waitForTimeout(3900);
+    assert.deepEqual([failedPlans,failedInterviews],[1,1],"an unchanged failed input must not be polled again");
+    await pane.getByRole("button",{name:"获取素材台三轨",exact:true}).click();
+    await form.getByRole("button",{name:"检测并对齐全部分段",exact:true}).click();
+    await page.waitForTimeout(3900);
+    assert.deepEqual([failedPlans,failedInterviews],[2,2],"manual retries must be allowed without restarting the failed poll");
+    await page.evaluate(()=>{const source=JSON.parse(sourceNode.widgets[0].value);source.assets[0].name+=" again";sourceNode.widgets[0].value=JSON.stringify(source);});
+    await page.waitForTimeout(2200);
+    assert.deepEqual([failedPlans,failedInterviews],[3,3],"changed source data must trigger a new attempt");
+    await page.unroute("**/zf-prompt-director/long-video/plan",rejectPlan);
+    await page.unroute("**/zf-prompt-director/long-video/interview",rejectInterview);
+    await page.evaluate(async()=>{await desk.zvLong.refresh(true);await interview.zvLong.refresh(true);});
+    assert.equal(await page.evaluate(()=>desk.zvLong.getPlan()?.validation.ready),true);
+    assert.equal(await page.evaluate(()=>interview.zvLong.result?.ready),true);
     assert.deepEqual(errors,[]);
     if(process.argv[5]){await mkdir(process.argv[5],{recursive:true});await page.screenshot({path:process.argv[5]+"/long-video-ui.png",fullPage:true});}
     line=pane.getByRole("slider",{name:"黄色播放头"});box=await line.boundingBox();assert(box);await page.mouse.move(box.x+box.width/2,box.y+16);await page.mouse.down();await page.evaluate(()=>desk.onRemoved());await page.mouse.up();await page.waitForTimeout(30);
     assert.deepEqual(errors,[]);
-    console.log("LONG_VIDEO_UI_OK: draggable playhead under scroll/zoom, deferred redraw, cancel/removal cleanup, split selection, H3 frame hint, planning, undo, coverage, reroute dimensions, exact inspector, scope migration, stale callback guard, auto-to-manual plan migration, reload");
+    console.log("LONG_VIDEO_UI_OK: draggable playhead under scroll/zoom, deferred redraw, cancel/removal cleanup, split selection, H3 frame hint, planning, undo, coverage, reroute dimensions, exact inspector, scope migration, stale callback guard, auto-to-manual plan migration, failed-request polling, manual retry, reload");
 }finally{try{await browser?.close();}finally{await server?.stop();}}

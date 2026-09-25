@@ -62,13 +62,15 @@ function attachDesk(node){
         const run=++token;let input;
         try{input=readDesk(node);}catch(e){plan=null;note(e.message,true);renderTimeline();return;}
         const captured=JSON.stringify(settings),sourceText=JSON.stringify(input.project);
+        // Remember attempted input even when the server rejects it; explicit refresh can still retry.
+        upstreamText=sourceText;
         note(reload?"正在获取素材台三条轨道…":"正在检查分段覆盖范围…");
         try{
             const result=await request("plan",{media_project:input.project,settings:{...settings,refresh_sources:reload}});
             if(disposed||run!==token||captured!==JSON.stringify(settings)||sourceText!==JSON.stringify(readDesk(node).project))return;
             plan=result.plan;settings={...settings,source_snapshot:clone(plan.media_project),source_fingerprint:plan.source_fingerprint,refresh_sources:false};
             if(!settings.segments.length&&plan.segments.length)settings.segments=plan.segments.map(({segment_id,start_frame,end_frame})=>({segment_id,start_frame,end_frame}));
-            save(settings);upstreamText=sourceText;node.zvLong.plan=plan;node.zvLong.settings=clone(settings);
+            save(settings);node.zvLong.plan=plan;node.zvLong.settings=clone(settings);
             note([`${plan.segments.length} 段 · 目标 ${plan.target_frame_count} 帧 / ${(plan.target_frame_count/plan.fps).toFixed(3)} 秒`,...plan.validation.errors.map(x=>x.message),...plan.validation.warnings.map(x=>x.message)].join("\n"),!plan.validation.ready);
             renderControls();renderTimeline();root.dispatchEvent(new CustomEvent("zv-segment-change"));
         }catch(e){if(!disposed&&run===token)note(e.message,true);}
@@ -188,10 +190,12 @@ function attachInterview(node){
     async function refresh(align=false){
         const run=++token,captured=JSON.stringify(state);let input,settings;
         try{input=source();settings=input.desk.zvLong.getSettings();const capturedSource=JSON.stringify([input.project,settings]);
+            // A failed attempt must not be replayed on every poll with unchanged source data.
+            lastSource=capturedSource;
             const response=await request("interview",{media_project:input.project,settings,state,align});
             if(disposed||run!==token||captured!==JSON.stringify(state)||capturedSource!==JSON.stringify([source().project,source().desk.zvLong.getSettings()]))return;
             const previousIds=(result?.segments??[]).map(row=>row.segment_id),previousIndex=previousIds.indexOf(active);
-            result=response;state=response.state;save(state);lastSource=capturedSource;node.zvLong.result=result;
+            result=response;state=response.state;save(state);node.zvLong.result=result;
             const nextIds=(result?.segments??[]).map(row=>row.segment_id);let scopeChanged=false;
             if(active!=="global"&&!nextIds.includes(active)){active=nextIds[Math.min(Math.max(previousIndex,0),Math.max(0,nextIds.length-1))]??"global";scopeChanged=true;}
             status.textContent=response.report;status.classList.toggle("error",!response.ready);

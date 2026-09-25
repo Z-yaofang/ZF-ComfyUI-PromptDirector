@@ -13,7 +13,7 @@ def prepare_plan(value):
     store = get_store()
     project = canonical_task_project(value["media_project"], store)
     settings = dict(value["settings"])
-    if settings.get("source_snapshot") is not None:
+    if settings.get("source_snapshot") is not None and settings.get("refresh_sources") is not True:
         settings["source_snapshot"] = canonical_task_project(settings["source_snapshot"], store)
     return build_segment_plan(project, settings)
 

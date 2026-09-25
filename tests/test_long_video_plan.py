@@ -342,6 +342,54 @@ class NormalizeStore:
         return CONTRACT.normalize_project(value)
 
 
+def test_refresh_sources_skips_unavailable_old_snapshot_in_api_and_node(monkeypatch):
+    class ExpiredSnapshotStore(NormalizeStore):
+        def canonical(self, value):
+            canonical = super().canonical(value)
+            if any(row["asset_id"] == "expired" for row in canonical["assets"]):
+                canonical["validation"] = {
+                    "ready": False,
+                    "errors": [{"path": "/assets/0", "code": "source_unavailable", "message": "old file missing"}],
+                    "warnings": [],
+                }
+            return canonical
+
+    old = project()
+    old["assets"][0]["asset_id"] = "expired"
+    old["video_track"][0]["asset_id"] = "expired"
+    stale_settings = settings(source_snapshot=old, source_fingerprint=PLAN.project_fingerprint(old))
+    server = importlib.import_module(SPEC.name + ".server")
+    runtime = importlib.import_module(PACKAGE + ".media_evidence.runtime")
+    store = ExpiredSnapshotStore()
+    monkeypatch.setattr(server, "get_store", lambda: store)
+    monkeypatch.setattr(runtime, "get_store", lambda: store)
+
+    with pytest.raises(PLAN.SegmentPlanError) as caught:
+        server.prepare_plan({"media_project": project(), "settings": stale_settings})
+    assert caught.value.issues[0]["code"] == "source_unavailable"
+
+    refresh_settings = {**stale_settings, "refresh_sources": True}
+    refreshed = server.prepare_plan({"media_project": project(), "settings": refresh_settings})
+    assert refreshed["validation"]["ready"]
+    assert not refreshed["stale"]
+    assert {row["asset_id"] for row in refreshed["media_project"]["assets"]} == {"video", "picture"}
+
+    missing_current = project()
+    missing_current["validation"] = {
+        "ready": False,
+        "errors": [{"path": "/assets/0", "code": "source_unavailable", "message": "current file missing"}],
+        "warnings": [],
+    }
+    with pytest.raises(PLAN.SegmentPlanError) as caught:
+        server.prepare_plan({"media_project": missing_current, "settings": refresh_settings})
+    assert caught.value.issues[0]["code"] == "source_unavailable"
+
+    node_module = importlib.import_module(SPEC.name + ".plan_node")
+    node_plan, report = node_module.ZVLongVideoSegmentDesk().build(project(), json.dumps(refresh_settings))
+    assert node_plan["validation"]["ready"]
+    assert "可执行" in report
+
+
 def test_canonical_project_preserves_referenced_source_error_and_ignores_unused_pool_error():
     referenced = project(240)
     referenced["validation"] = {"ready": False, "errors": [{

@@ -28,7 +28,7 @@ class ZVLongVideoSegmentDesk:
                 }])
             from ..media_evidence.runtime import get_store
             project = canonical_task_project(media_project, get_store())
-            if settings.get("source_snapshot") is not None:
+            if settings.get("source_snapshot") is not None and settings.get("refresh_sources") is not True:
                 settings["source_snapshot"] = canonical_task_project(settings["source_snapshot"], get_store())
             plan = build_segment_plan(project, settings)
         except (json.JSONDecodeError, ProjectError, SegmentPlanError, TypeError, UnicodeError) as error:
