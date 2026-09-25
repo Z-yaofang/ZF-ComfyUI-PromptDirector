@@ -27,6 +27,8 @@
 .zf-med-empty {color:#8e9db3;padding:20px 12px;grid-column:1/-1;text-align:center;align-self:center}
 .zf-med-screen {position:relative;flex:1;min-height:100px;background:#0c1119;display:flex;align-items:center;justify-content:center;overflow:hidden}
 .zf-med-screen img,.zf-med-screen video {width:100%;height:100%;object-fit:contain;position:absolute}
+.zf-med-screen .zf-med-exact-frame {z-index:1}
+.zf-med-screen .zf-med-exact-state {z-index:2}
 .zf-med-screen canvas {width:100%;height:110px}
 .zf-med-monitor .zf-med-controls {padding:7px}
 .zf-med-monitor-mode {color:#ffd268;white-space:nowrap;margin-right:10px}

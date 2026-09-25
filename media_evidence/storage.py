@@ -16,6 +16,7 @@ from .contract import SOURCE_MESSAGES, normalize_project, problem, source_messag
 
 MAX_UPLOAD = 512 * 1024 * 1024
 MAX_FILES_BYTES = 8 * 1024 * 1024 * 1024
+MAX_FRAME_PREVIEW_BYTES = 32 * 1024 * 1024
 HANDLE = re.compile(r"originals/[a-f0-9]{32}\.(png|jpg|jpeg|webp|bmp|mp4|mov|mkv|webm|avi|wav|mp3|m4a|flac|ogg)")
 FORMATS = {"mp4": "mov", "mov": "mov", "m4a": "mov", "mkv": "matroska", "webm": "matroska", "avi": "avi", "wav": "wav", "mp3": "mp3", "flac": "flac", "ogg": "ogg"}
 MAX_VERIFIED_SOURCES = 256
@@ -231,6 +232,55 @@ class MediaStore:
             if failed:
                 raise MediaError("capture_cleanup", "截图事务结束，但本次新文件未能全部清理；已有素材保留，请稍后检查本地素材目录", asset_committed=record_remains)
 
+    def frame_preview(self, source_handle, source_seconds):
+        """Decode one original-video frame without importing it or creating a cache asset.
+
+        The worker selects the last decoded frame at the requested source time,
+        allowing only half a stream timestamp tick for PTS rounding. Its
+        returned frame_seconds is relative to the video's first timestamp,
+        independent of any preview proxy. Persistent screenshots remain strict.
+        """
+        if type(source_seconds) not in (str, int, float):
+            raise MediaError("frame_time", "预览帧时间必须是有限数值")
+        try:
+            seconds = float(source_seconds)
+        except (ValueError, OverflowError):
+            raise MediaError("frame_time", "预览帧时间必须是有限数值") from None
+        if not math.isfinite(seconds):
+            raise MediaError("frame_time", "预览帧时间必须是有限数值")
+        asset = self.record(source_handle)
+        if asset["kind"] != "video":
+            raise MediaError("frame_video", "预览帧只接受已注册的原视频")
+        duration = asset["probe"]["duration_seconds"]
+        if not 0 <= seconds < duration:
+            raise MediaError("frame_time", "预览帧时间超出原视频范围")
+
+        temporary = self.safe(self.root / "cache" / (uuid.uuid4().hex + ".frame.png"))
+        owned = False
+        try:
+            with temporary.open("xb"):
+                owned = True
+            result = self.worker("frame_preview", self.resolve(source_handle), temporary, source_seconds=seconds)
+            # Detect a changed or removed source before returning pixels from it.
+            self.record(source_handle)
+            frame_seconds = result["frame_seconds"]
+            tolerance = result.get("timestamp_tolerance_seconds", 0)
+            if (type(tolerance) not in (int, float) or not math.isfinite(tolerance)
+                    or not 0 <= tolerance <= 0.5 / asset["probe"]["fps"] + 1e-9):
+                raise MediaError("frame_failed", "预览帧时间戳精度无效")
+            if type(frame_seconds) not in (int, float) or not math.isfinite(frame_seconds) or not 0 <= frame_seconds <= seconds + tolerance + 1e-9:
+                raise MediaError("frame_failed", "预览帧时间戳无效")
+            with temporary.open("rb") as frame_file:
+                data = frame_file.read(MAX_FRAME_PREVIEW_BYTES + 1)
+            if len(data) > MAX_FRAME_PREVIEW_BYTES:
+                raise MediaError("frame_limit", "预览帧超过 32 MiB 上限")
+            if not data.startswith(b"\x89PNG\r\n\x1a\n"):
+                raise MediaError("frame_failed", "预览帧解码结果不是 PNG")
+            return data, frame_seconds
+        finally:
+            if owned and remove_owned_files([temporary]):
+                raise MediaError("frame_cleanup", "预览帧临时文件未能清理")
+
     def _load_record(self, handle, path):
         target = self.safe(self.root / "cache" / (path.stem + ".json"))
         try:
@@ -332,7 +382,10 @@ class MediaStore:
         if variant == "thumbnail" and asset["kind"] == "audio":
             raise MediaError("no_video", "Audio sources have no thumbnail")
         suffix = {"thumbnail": ".jpg", "proxy": ".mp4", "audio": ".m4a", "peaks": ".json"}[variant]
-        key = hashlib.sha256((handle + variant + "v1").encode()).hexdigest()
+        # Proxy v2 keeps every source frame and its relative presentation time.
+        # Do not reuse the old 12 fps cache for frame-accurate timeline playback.
+        cache_version = "v2" if variant == "proxy" else "v1"
+        key = hashlib.sha256((handle + variant + cache_version).encode()).hexdigest()
         target = self.safe(self.root / "cache" / (key + suffix))
         # Shared cache lock ensures two requests never expose a partially written preview.
         with self.cache_lock:
@@ -345,13 +398,17 @@ class MediaStore:
                 elif variant == "thumbnail":
                     self.worker("thumbnail", source, temporary)
                 else:
-                    self.encode(source, temporary, variant)
+                    # Full-frame previews can take materially longer than the
+                    # former 12 fps previews on long sources. Keep a finite cap.
+                    duration = float(asset["probe"].get("duration_seconds") or 0)
+                    timeout = min(1800, max(90, math.ceil(duration * 2))) if variant == "proxy" else 90
+                    self.encode(source, temporary, variant, timeout=timeout)
                 temporary.replace(target)
             finally:
                 temporary.unlink(missing_ok=True)
         return target
 
-    def encode(self, source, target, variant):
+    def encode(self, source, target, variant, timeout=90):
         executable = self.ffmpeg or shutil.which("ffmpeg")
         if not executable:
             try:
@@ -360,16 +417,25 @@ class MediaStore:
             except ImportError:
                 raise MediaError("ffmpeg_missing", "FFmpeg is unavailable for preview generation") from None
         args = [executable, "-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-threads", "1", "-protocol_whitelist", "file,pipe", "-f", FORMATS[source.suffix[1:]], "-i", str(source)]
-        args += (["-map", "0:v:0", "-an", "-vf", "scale=480:270:force_original_aspect_ratio=decrease:force_divisible_by=2,fps=12", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28", "-pix_fmt", "yuv420p"] if variant == "proxy" else ["-map", "0:a:0", "-vn", "-c:a", "aac", "-b:a", "96k"])
+        if variant == "proxy":
+            args += [
+                "-map", "0:v:0", "-an",
+                "-vf", "scale=480:480:force_original_aspect_ratio=decrease:force_divisible_by=2,setpts=PTS-STARTPTS",
+                "-vsync", "0", "-enc_time_base:v", "-1",
+                "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
+                "-pix_fmt", "yuv420p", "-g", "30", "-video_track_timescale", "1000000",
+            ]
+        else:
+            args += ["-map", "0:a:0", "-vn", "-c:a", "aac", "-b:a", "96k"]
         args += ["-threads", "1", "-movflags", "+faststart", str(target)]
         if not self.jobs.acquire(blocking=False):
             raise MediaError("busy", "Two media operations are already running; retry shortly")
         try:
-            completed = subprocess.run(args, capture_output=True, timeout=90, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            completed = subprocess.run(args, capture_output=True, timeout=timeout, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
             if completed.returncode:
                 raise MediaError("preview_failed", "Could not encode the preview")
         except subprocess.TimeoutExpired:
-            raise MediaError("preview_timeout", "Preview generation exceeded 90 seconds") from None
+            raise MediaError("preview_timeout", "Preview generation exceeded its time limit") from None
         except OSError:
             raise MediaError("ffmpeg_missing", "FFmpeg could not be started") from None
         finally:

@@ -55,7 +55,7 @@ def test_original_not_proxy_or_thumbnail(neutral):
     import av
     store,assets=neutral;source=assets['video'][0];shot=store.capture_frame(**request_for(source))
     with av.open(str(store.preview(source['source_handle'],'proxy'))) as container:
-        stream=container.streams.video[0];assert float(stream.average_rate)==12
+        stream=container.streams.video[0];assert float(stream.average_rate)==24
         frame=next(container.decode(stream));assert (frame.width,frame.height)!=(32,24)
     from PIL import Image
     with Image.open(store.preview(source['source_handle'],'thumbnail')) as image:

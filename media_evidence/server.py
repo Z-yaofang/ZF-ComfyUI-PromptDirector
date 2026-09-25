@@ -144,3 +144,21 @@ def register_media_routes(routes, get_store, get_preset_library):
         variant = request.query.get("variant", "original")
         path = await asyncio.to_thread(store.preview, request.query.get("source", ""), variant)
         return web.FileResponse(path, headers={"Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff"})
+
+    @routes.get("/zf-media-evidence/frame")
+    @endpoint
+    async def frame(request, store):
+        if len(request.query) != 2 or set(request.query) != {"source", "seconds"}:
+            raise MediaError("frame_fields", "预览帧请求需要 source 和 seconds")
+        data, frame_seconds = await asyncio.to_thread(
+            store.frame_preview, request.query["source"], request.query["seconds"]
+        )
+        return web.Response(
+            body=data,
+            content_type="image/png",
+            headers={
+                "Cache-Control": "no-store",
+                "X-Content-Type-Options": "nosniff",
+                "X-ZF-Frame-Seconds": f"{frame_seconds:.9f}",
+            },
+        )

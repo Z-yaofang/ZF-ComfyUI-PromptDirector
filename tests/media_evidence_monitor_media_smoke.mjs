@@ -50,7 +50,13 @@ try {
     await page.waitForFunction(()=>realPlayers.filter(p=>p.getAttribute('src')&&p.tagName==='AUDIO').every(p=>!p.paused&&p.currentTime>1.1));
     assert.deepEqual(await sounding(),['mp3','original']);assert((await players()).filter(p=>p.tag==='AUDIO').every(p=>p.volume===.4));checks++;
     if(process.argv[6])await page.locator('.zf-med').screenshot({path:process.argv[6]});
-    await page.getByRole('button',{name:'原声：开',exact:true}).click();assert.deepEqual(await sounding(),['mp3']);checks++;
+    await page.locator('[data-id="voiced-clip"]').click();
+    await page.getByRole('button',{name:'解绑音频',exact:true}).click();
+    await page.locator('[data-id="original"]').click();
+    await page.getByRole('button',{name:'开 / 关音频',exact:true}).click();
+    await page.getByRole('button',{name:'播放时间线',exact:true}).click();
+    await page.waitForFunction(()=>realPlayers.some(p=>p.dataset.timelineClip==='mp3'&&p.getAttribute('src')&&!p.paused&&p.currentTime>5.2));
+    assert.deepEqual(await sounding(),['mp3']);checks++;
     await restore(6.8);await page.getByRole('button',{name:'播放时间线',exact:true}).click();
     await page.waitForFunction(()=>deskNode.properties.zf_media_desk_view.playhead>7.05);assert.deepEqual(await sounding(),['original']);checks++;
     await page.waitForFunction(()=>deskNode.properties.zf_media_desk_view.playhead===8);assert.deepEqual(await players(),[]);assert.equal(await page.locator('.zf-med-black').textContent(),'无画面');checks++;

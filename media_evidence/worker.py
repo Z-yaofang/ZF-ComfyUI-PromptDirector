@@ -13,7 +13,7 @@ MAX_DURATION = 3600
 def run(operation, filename, output, source_seconds=None):
     path = Path(filename)
     ext = path.suffix[1:].lower()
-    if operation == "screenshot" and (ext not in FORMATS or ext in {"wav", "mp3", "m4a", "flac", "ogg"}):
+    if operation in {"screenshot", "frame_preview"} and (ext not in FORMATS or ext in {"wav", "mp3", "m4a", "flac", "ogg"}):
         raise ValueError("capture_video")
     facts = dict(size_bytes=path.stat().st_size, duration_seconds=None, width=None, height=None, fps=None, frame_count=None, frame_count_exact=False, vfr=None, has_audio=False, sample_rate=None, channels=None, codec="")
     if ext in PICTURES:
@@ -53,12 +53,17 @@ def run(operation, filename, output, source_seconds=None):
             if not w or not h or w*h > MAX_PIXELS or max(w, h) > 16384 or not 0 < rate <= 1000:
                 raise ValueError("video_limit")
             facts.update(width=w, height=h, fps=rate, frame_count=video.frames or round(duration*rate))
-        if operation == "screenshot":
+        if operation in {"screenshot", "frame_preview"}:
             if not video:
                 raise ValueError("capture_video")
             target = float(source_seconds)
             if not math.isfinite(target) or not 0 <= target < duration:
                 raise ValueError("capture_time")
+            # Source PTS values are stored on a discrete time base. A requested
+            # nominal frame time such as 116/30 may differ from the actual PTS
+            # by half a stream tick after rounding. Only ephemeral previews
+            # tolerate that quantization; persistent screenshots stay strict.
+            tolerance = (float(video.time_base) / 2 if operation == "frame_preview" else 1e-9)
             video.codec_context.thread_count = 1
             origin = float((video.start_time or 0) * video.time_base)
             container.seek(int((target+origin)/video.time_base), stream=video, backward=True)
@@ -67,7 +72,7 @@ def run(operation, filename, output, source_seconds=None):
                 if index >= 2000 or frame.time is None:
                     raise ValueError("capture_decode_limit")
                 at = float(frame.time)-origin
-                if at > target+1e-9:
+                if at > target+tolerance:
                     break
                 selected, selected_time = frame, max(0, at)
             if selected is None:
@@ -90,7 +95,10 @@ def run(operation, filename, output, source_seconds=None):
             if picture.width*picture.height > MAX_PIXELS or max(picture.size) > 16384:
                 raise ValueError("image_limit")
             picture.save(output, "PNG")
-            return {"frame_seconds": selected_time, "width": picture.width, "height": picture.height}
+            result = {"frame_seconds": selected_time, "width": picture.width, "height": picture.height}
+            if operation == "frame_preview":
+                result["timestamp_tolerance_seconds"] = tolerance
+            return result
         if operation == "peaks":
             if not audio:
                 return {"peaks": [], "duration_seconds": duration}

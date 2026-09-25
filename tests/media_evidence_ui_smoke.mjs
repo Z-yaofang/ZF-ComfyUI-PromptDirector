@@ -58,7 +58,7 @@ try {
         await synced();
         const expected=exact&&vfr===false?'源帧':'估算帧';
         const readout=await page.locator('.zf-med-readout').textContent(),facts=await page.locator('.zf-med-facts').textContent();
-        assert.match(readout,new RegExp(`^${expected} \\d+ / 48 · 源 24 fps`));
+        assert.match(readout,new RegExp(`^工程帧 \\d+（从 0 起） · ${expected} \\d+ / 48（从 1 起） · 源 24 fps`));
         assert(facts.includes(`总帧 48（${expected}）`)&&facts.includes('源帧率 24 fps'));
         if(vfr===true)assert(readout.includes(' · VFR'));
         if(vfr===null)assert(readout.includes('帧率稳定性未确认'));
@@ -94,7 +94,7 @@ try {
     assert.equal((await state()).assets[0].name,'stale-guard-name');checks++;
     await page.evaluate(project=>{deskNode.widgets[0].value=JSON.stringify(project);deskNode.zfMediaDesk.restore();},recoveryBefore);await synced();
     await page.unroute(normalizeRoute);
-    const failedProxy='**/zf-media-evidence/preview?*variant=proxy';let failedProxyRequests=0;
+    const failedProxy='**/zf-media-evidence/preview?*variant=proxy*';let failedProxyRequests=0;
     await page.route(failedProxy,route=>{failedProxyRequests++;return route.fulfill({status:503,contentType:'application/json',body:'{"ok":false}'});});
     await clickAsset('generated-picture');await clickAsset('generated-video');
     await page.waitForFunction(()=>document.querySelector('.zf-med-status').textContent.includes('预览解码失败'));
@@ -284,7 +284,7 @@ try {
         let pps=await snapFixture(scale);assert(Math.abs(pps-100*scale)<.01);
         await dragHeadTo(1-6/pps,pps,true);assert.equal(await headTime(),1);
         await page.waitForFunction(()=>Math.abs(document.querySelector('.zf-med-screen video').currentTime-1)<.03);
-        assert.match(await page.locator('.zf-med-readout').textContent(),/^源帧 25 \/ 48/);await page.mouse.up();checks++;
+        assert.match(await page.locator('.zf-med-readout').textContent(),/^工程帧 24（从 0 起） · 源帧 25 \/ 48（从 1 起）/);await page.mouse.up();checks++;
         pps=await snapFixture(scale);await dragHeadTo(3+6/pps,pps);assert.equal(await headTime(),3);checks++;
         pps=await snapFixture(scale);await dragHeadTo(1-8/pps,pps);assert(Math.abs(await headTime()-(1-8/pps))<1e-6);checks++;
         pps=await snapFixture(scale,{snap:false});await dragHeadTo(1-6/pps,pps);assert(Math.abs(await headTime()-(1-6/pps))<1e-6);checks++;

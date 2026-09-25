@@ -19,7 +19,7 @@ const URL_ROOT = "/zf-media-evidence";
 const style = document.createElement("link");
 style.rel = "stylesheet"; style.href = new URL("./media_evidence_desk.css", import.meta.url).href;
 document.head.append(style);
-const previewURL = (asset, variant) => api.apiURL(`${URL_ROOT}/preview?source=${encodeURIComponent(asset.source_handle)}&variant=${variant}`);
+const previewURL = (asset, variant) => api.apiURL(`${URL_ROOT}/preview?source=${encodeURIComponent(asset.source_handle)}&variant=${variant}${variant==="proxy"?"&v=2":""}`);
 const el = (tag, className, text) => {const node = document.createElement(tag); node.className = className || ""; if (text !== undefined) node.textContent = text; return node;};
 const seconds = n => Number.isFinite(n) ? n.toFixed(3) : "未知";
 const sourceFrameLabel = probe => probe.frame_count_exact === true && probe.vfr === false ? "源帧" : "估算帧";
@@ -63,6 +63,8 @@ export function attachMediaDesk(node) {
     let capturing = false, captureEpoch = 0, captureSourceId = null;
     let timelinePlaying = false, timelineBuffering = false, clockHead = 0, clockStart = 0, animationId = 0, timelineVideo = null, playbackError = "";
     const timelineAudio = new Map();
+    let exactFrameToken = 0, exactFrameKey = "", exactFrameAbort = null, exactFrameTimer = 0;
+    let exactFrameURL = null, exactFrameImage = null, exactFrameSeconds = null, exactFrameState = "";
     let presetLibrary={builtins:presets.builtins,users:[]},libraryRevision=0,presetChoices=new Map();
     const visualCache = new Map(), visualAbort = new AbortController();
     const viewSave = () => {node.properties ||= {}; node.properties.zf_media_desk_view = {...view};};
@@ -351,16 +353,25 @@ export function attachMediaDesk(node) {
         }
     }
     function selectAsset(asset) {view.asset = asset.asset_id; view.selected = null; viewSave(); renderPool(); renderTimeline(); renderInspector(); showPreview(asset);}
-    function stopPreview() {delete screen.dataset.mediaState;previewToken++; const players=[media,sound];media=null;sound=null;waveform=null;for(const player of players)if(player){player.pause();player.removeAttribute("src");player.load();}}
+    function stopPreview() {clearExactFrame();delete screen.dataset.mediaState;previewToken++; const players=[media,sound];media=null;sound=null;waveform=null;for(const player of players)if(player){player.pause();player.removeAttribute("src");player.load();}}
     function readout() {
         if(view.monitor_mode==="timeline")return;
         const asset = previewAsset;
         if (!asset) return;
         const p = asset.probe, time = media?.currentTime || 0;
+        const sourceVideo=previewMode==="video"&&media&&screen.contains(media);
+        if(sourceVideo) {
+            if(media.paused) inspectExactFrame({asset,sourceTime:Math.min(time,Math.max(0,p.duration_seconds-1e-6))},"source");
+            else {
+                if(exactFrameKey||exactFrameState||exactFrameImage)clearExactFrame();
+                if(media.readyState>=2&&!media.seeking)media.style.visibility="";
+            }
+        }
         $(".zf-med-time").textContent = `${seconds(time)} / ${seconds(p.duration_seconds || 0)} 秒`;
         $(".zf-med-seek").value = time;
         const sourceFrame = p.fps ? Math.min(p.frame_count || Infinity, edit.frame(time,p.fps)+1) : null;
-        $(".zf-med-readout").textContent = previewMode === "picture" ? `静态图片 · ${p.width} × ${p.height} · 无时长` : `${sourceFrame == null || previewMode === "audio" ? "音频" : `${sourceFrameLabel(p)} ${sourceFrame} / ${p.frame_count ?? "未知"} · 源 ${p.fps} fps${p.vfr === true ? " · VFR" : p.vfr == null ? " · 帧率稳定性未确认" : ""}`} · ${p.width && previewMode === "video" ? `${p.width} × ${p.height} · ` : ""}${p.has_audio ? "含音频" : "无音频"}${previewMode==="video" ? " · 12 fps 静音代理 + 独立原声音频" : ""}`;
+        const frameProof=previewMode!=="video"?"":media?.paused?(exactFrameState==="ready"?` · 原片实取 PTS ${seconds(exactFrameSeconds)} s`:exactFrameState==="error"?" · 原片准确帧不可用":" · 原片准确帧读取中"):" · 原帧节奏低分辨率播放，逐帧切点请暂停定位";
+        $(".zf-med-readout").textContent = previewMode === "picture" ? `静态图片 · ${p.width} × ${p.height} · 无时长` : `${sourceFrame == null || previewMode === "audio" ? "音频" : `${sourceFrameLabel(p)} ${sourceFrame} / ${p.frame_count ?? "未知"} · 源 ${p.fps} fps${p.vfr === true ? " · VFR" : p.vfr == null ? " · 帧率稳定性未确认" : ""}`} · ${p.width && previewMode === "video" ? `${p.width} × ${p.height} · ` : ""}${p.has_audio ? "含音频" : "无音频"}${previewMode==="video" ? ` · 原帧节奏低分辨率静音预览 + 独立原声音频${frameProof}` : ""}`;
         if (waveform) drawWave(waveform.canvas, waveform.peaks, time/(p.duration_seconds||1));
         $("[data-action=play]").textContent = media && !media.paused ? "暂停素材" : "播放素材";
     }
@@ -412,6 +423,60 @@ export function attachMediaDesk(node) {
         if(!record)return;
         record.released=true;record.player.pause();record.player.removeAttribute("src");record.player.load();record.player.remove();
     }
+    function clearExactFrame() {
+        ++exactFrameToken;
+        if(exactFrameTimer)clearTimeout(exactFrameTimer);
+        exactFrameTimer=0;exactFrameAbort?.abort();exactFrameAbort=null;
+        exactFrameImage?.remove();exactFrameImage=null;
+        if(exactFrameURL)URL.revokeObjectURL(exactFrameURL);
+        exactFrameURL=null;exactFrameSeconds=null;exactFrameKey="";exactFrameState="";
+        screen.querySelector(".zf-med-exact-state")?.remove();
+    }
+    function inspectExactFrame(video,mode="timeline") {
+        const sourceTime=video.sourceTime,key=`${mode}|${video.asset.source_handle}|${sourceTime.toFixed(6)}`;
+        if(key===exactFrameKey)return;
+        clearExactFrame();exactFrameKey=key;exactFrameState="loading";
+        const player=mode==="timeline"?timelineVideo?.player:media;
+        if(player)player.style.visibility="hidden";
+        const notice=el("div","zf-med-empty zf-med-exact-state","正在读取原片准确帧…");screen.append(notice);
+        const token=exactFrameToken;
+        const requestFrame=async(attempt=0)=>{
+            if(token!==exactFrameToken||disposed)return;
+            exactFrameTimer=0;
+            const controller=new AbortController();exactFrameAbort=controller;
+            let url=null;
+            try {
+                const path=`${URL_ROOT}/frame?source=${encodeURIComponent(video.asset.source_handle)}&seconds=${encodeURIComponent(sourceTime.toFixed(9))}`;
+                const response=await api.fetchApi(path,{signal:controller.signal});
+                if(response.status===429&&attempt<2) {
+                    exactFrameTimer=setTimeout(()=>requestFrame(attempt+1),450*(attempt+1));
+                    return;
+                }
+                if(!response.ok) {
+                    const data=await response.json().catch(()=>null);
+                    throw new Error(data?.error?.message||`HTTP ${response.status}`);
+                }
+                const actual=Number(response.headers.get("X-ZF-Frame-Seconds"));
+                if(!Number.isFinite(actual))throw new Error("原片解码未返回实取时间");
+                const blob=await response.blob();
+                if(!blob.size||blob.type!=="image/png")throw new Error("原片解码未返回 PNG 帧");
+                url=URL.createObjectURL(blob);
+                const image=el("img","zf-med-exact-frame");image.alt=`原片实取画面 ${seconds(actual)} 秒`;image.src=url;
+                await image.decode();
+                if(token!==exactFrameToken||disposed||view.monitor_mode!==mode||(mode==="timeline"?timelinePlaying:!media?.paused))return;
+                exactFrameURL=url;url=null;exactFrameImage=image;exactFrameSeconds=actual;exactFrameState="ready";
+                notice.remove();screen.append(image);mode==="timeline"?syncTimeline():readout();
+            } catch(error) {
+                if(error.name==="AbortError"||token!==exactFrameToken||disposed)return;
+                exactFrameState="error";notice.textContent=`原片逐帧读取失败：${error.message}。请勿用代理画面判断切点。`;
+                mode==="timeline"?syncTimeline():readout();
+            } finally {
+                if(url)URL.revokeObjectURL(url);
+                if(token===exactFrameToken)exactFrameAbort=null;
+            }
+        };
+        exactFrameTimer=setTimeout(requestFrame,220);
+    }
     function pauseTimelinePlayer(record) {
         record.playAttempt++;record.starting=false;record.player.pause();
     }
@@ -421,12 +486,12 @@ export function attachMediaDesk(node) {
         if(timelinePlaying&&!timelineBuffering)view.playhead=Math.min(edit.timelineEnd(project),clockHead+(performance.now()-clockStart)/1000);
         timelineBuffering=timelinePlaying;
         if(timelineBuffering)for(const item of activeTimelineRecords())pauseTimelinePlayer(item);
-        screen.dataset.mediaState="loading";status(message,false,true);viewSave();paintPlayhead();syncTimeline(true);
+        screen.dataset.mediaState="loading";status(message,false,true);viewSave();paintPlayhead();syncTimeline();
     }
     function timelineReady(record) {
         if(record.released||disposed)return;
         if(timelineBuffering&&activeTimelineRecords().every(item=>item.player.readyState>=3&&!item.player.seeking)) {
-            timelineBuffering=false;clockHead=view.playhead;clockStart=performance.now();delete screen.dataset.mediaState;validationStatus();syncTimeline(true);
+            timelineBuffering=false;clockHead=view.playhead;clockStart=performance.now();delete screen.dataset.mediaState;validationStatus();syncTimeline();
         } else if(!timelineBuffering&&activeTimelineRecords().every(item=>item.player.readyState>=2)) {
             delete screen.dataset.mediaState;validationStatus();
         }
@@ -438,7 +503,7 @@ export function attachMediaDesk(node) {
         viewSave();paintPlayhead();
     }
     function stopTimeline() {
-        pauseTimeline();releaseTimelinePlayer(timelineVideo);timelineVideo=null;
+        pauseTimeline();clearExactFrame();releaseTimelinePlayer(timelineVideo);timelineVideo=null;
         for(const record of timelineAudio.values())releaseTimelinePlayer(record);
         timelineAudio.clear();
     }
@@ -451,9 +516,9 @@ export function attachMediaDesk(node) {
     function createTimelinePlayer(entry, video=false) {
         const player=el(video?"video":"audio"),record={...entry,player,released:false,starting:false,playAttempt:0};
         player.dataset.timelineClip=entry.clip.clip_id;player.preload="auto";player.muted=video;player.playsInline=true;
-        if(video){player.style.visibility="hidden";screen.replaceChildren(player);}
+        if(video){clearExactFrame();player.style.visibility="hidden";screen.replaceChildren(player);}
         player.addEventListener("loadedmetadata",()=>{if(!record.released){syncTimelinePlayer(record,true);timelineReady(record);}});
-        const reveal=()=>{if(!record.released&&!player.seeking){player.style.visibility="";timelineReady(record);}};
+        const reveal=()=>{if(!record.released&&!player.seeking){player.style.visibility=timelinePlaying?"":"hidden";timelineReady(record);}};
         player.addEventListener("seeked",reveal);player.addEventListener("loadeddata",reveal);player.addEventListener("canplay",()=>timelineReady(record));
         player.addEventListener("waiting",()=>timelineWaiting(record));player.addEventListener("stalled",()=>timelineWaiting(record));
         player.addEventListener("error",()=>timelineFailure(record,player.error));
@@ -478,6 +543,7 @@ export function attachMediaDesk(node) {
         if(disposed||view.monitor_mode!=="timeline")return;
         if(timelinePlaying&&!timelineBuffering)view.playhead=Math.min(edit.timelineEnd(project),clockHead+(performance.now()-clockStart)/1000);
         const active=edit.timelineAt(project,view.playhead),video=active.video;
+        if((timelinePlaying||!video)&&(exactFrameKey||exactFrameState||exactFrameImage))clearExactFrame();
         if(timelineVideo && (timelineVideo.clip.clip_id!==video?.clip.clip_id || timelineVideo.asset.source_handle!==video?.asset.source_handle)) {releaseTimelinePlayer(timelineVideo);timelineVideo=null;}
         if(video) {
             if(!timelineVideo)timelineVideo=createTimelinePlayer(video,true);
@@ -494,22 +560,26 @@ export function attachMediaDesk(node) {
             record.player.volume=.8/Math.max(1,active.audio.length);record.player.muted=false;
         }
         for(const record of [timelineVideo,...timelineAudio.values()])if(record)syncTimelinePlayer(record,force);
+        if(timelinePlaying&&!timelineBuffering&&timelineVideo?.player.readyState>=2&&!timelineVideo.player.seeking)
+            timelineVideo.player.style.visibility="";
         $(".zf-med-monitor-mode").textContent="时间线监看";
         $(".zf-med-preview-name").textContent=video?.asset.name||"无画面";
         $(".zf-med-time").textContent=`工程 ${seconds(view.playhead)} / ${seconds(edit.timelineEnd(project))} 秒`;
         const seek=$(".zf-med-seek");seek.setAttribute("aria-label","工程播放位置");seek.max=Math.max(edit.timelineEnd(project),view.playhead,.001);seek.value=view.playhead;seek.disabled=false;
         const button=$("[data-action=play]");button.disabled=edit.timelineEnd(project)<=0;button.textContent=timelinePlaying?(timelineBuffering?"加载中（点击取消）":"暂停时间线"):"播放时间线";
+        if(video&&!timelinePlaying)inspectExactFrame(video);
         const p=video?.asset.probe,sourceFrame=p?.fps?edit.frame(video.sourceTime,p.fps)+1:null;
-        $(".zf-med-readout").textContent=`${video?`${sourceFrame==null?"视频":`${sourceFrameLabel(p)} ${sourceFrame} / ${p.frame_count??"未知"} · 源 ${p.fps} fps${p.vfr===true?" · VFR":p.vfr==null?" · 帧率稳定性未确认":""}`} · 源 ${seconds(video.sourceTime)} s` : "黑场"} · ${timelineBuffering?"加载中，工程时钟暂停":timelinePlaying?"监听":"已定位"} ${active.audio.length} 路音频`;
+        const frameProof=timelinePlaying?"播放中帧号按工程时钟估算；预览保留原帧节奏，切点请暂停定位":exactFrameState==="ready"?`原片实取 PTS ${seconds(exactFrameSeconds)} s`:exactFrameState==="error"?"原片准确帧不可用，不可据预览判定切点":"原片准确帧读取中";
+        $(".zf-med-readout").textContent=`${video?`工程帧 ${edit.frame(view.playhead,project.project_clock.fps)}（从 0 起） · ${sourceFrame==null?"视频":`${sourceFrameLabel(p)} ${sourceFrame} / ${p.frame_count??"未知"}（从 1 起） · 源 ${p.fps} fps${p.vfr===true?" · VFR":p.vfr==null?" · 帧率稳定性未确认":""}`} · 源 ${seconds(video.sourceTime)} s · ${frameProof}` : "黑场"} · ${timelineBuffering?"加载中，工程时钟暂停":timelinePlaying?"监听":"已定位"} ${active.audio.length} 路音频`;
         paintPlayhead();viewSave();
     }
     function playTimeline() {
-        if(timelinePlaying){pauseTimeline();validationStatus();syncTimeline(true);return;}
+        if(timelinePlaying){pauseTimeline();validationStatus();syncTimeline();return;}
         if(view.playhead>=edit.timelineEnd(project)){status("已到工程末尾，请先移动黄色播放头。");return;}
         if(playbackError)stopTimeline();
         playbackError="";timelineBuffering=false;delete screen.dataset.mediaState;validationStatus();clockHead=view.playhead;clockStart=performance.now();timelinePlaying=true;
         // Call every active media play() in this click's user gesture, without awaiting another player.
-        syncTimeline(true);
+        syncTimeline();
         const tick=()=>{if(!timelinePlaying||disposed)return;syncTimeline();if(view.playhead>=edit.timelineEnd(project)){pauseTimeline();syncTimeline();return;}animationId=requestAnimationFrame(tick);};
         animationId=requestAnimationFrame(tick);
     }

@@ -28,7 +28,8 @@ def cached_path(handle, variant):
         raise ValueError("Invalid source handle")
     suffix = {"thumbnail": ".jpg", "proxy": ".mp4", "audio": ".m4a", "peaks": ".json"}
     root = NEUTRAL_ROOT if handle in NEUTRAL_HANDLES else MEDIA_ROOT
-    path = root / handle if variant == "original" else root / "cache" / (hashlib.sha256((handle + variant + "v1").encode()).hexdigest() + suffix[variant])
+    cache_version = "v2" if variant == "proxy" else "v1"
+    path = root / handle if variant == "original" else root / "cache" / (hashlib.sha256((handle + variant + cache_version).encode()).hexdigest() + suffix[variant])
     path = path.resolve()
     if not path.is_relative_to(root.resolve()) or not path.is_file():
         raise ValueError("Existing cache missing; test never creates previews")

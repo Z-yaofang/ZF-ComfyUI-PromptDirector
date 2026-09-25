@@ -116,7 +116,7 @@ async def smoke(directory, paths):
                 if variant == "proxy":
                     proxy = await asyncio.to_thread(store.preview, asset["source_handle"], variant)
                     facts = await asyncio.to_thread(store.worker, "probe", proxy)
-                    assert not facts["probe"]["has_audio"] and facts["probe"]["fps"] == 12
+                    assert not facts["probe"]["has_audio"] and facts["probe"]["fps"] == 24
                 count += 1
             assert hashlib.sha256(source.read_bytes()).hexdigest() == original_hash
         p = C.empty_project(); p["assets"] = assets

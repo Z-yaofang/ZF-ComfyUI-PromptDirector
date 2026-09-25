@@ -5,6 +5,9 @@ import {createRequire} from 'node:module';
 import {readFile} from 'node:fs/promises';
 const {chromium}=createRequire(import.meta.url)(process.argv[2]||'playwright');
 const files=Object.fromEntries(await Promise.all(['media_evidence_desk.js','media_evidence_core.mjs','media_evidence_presets.mjs','media_evidence_outlets.mjs','media_processing_presets.json','media_evidence_desk.css','dom_widget_layout.mjs'].map(async name=>[name,await readFile(new URL(`../web/${name}`,import.meta.url),'utf8')])));
+const exactPng=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAIAAAB7QOjdAAAADElEQVR4nGP8zwACAAYIAQFazwZIAAAAAElFTkSuQmCC','base64');
+const exactRequests=[];
+let busyFrames=0;
 const browser=await chromium.launch({headless:true,executablePath:process.argv[3]});
 const page=await browser.newPage({viewport:{width:1240,height:1060}}),errors=[];
 page.on('pageerror',error=>errors.push(error.message));
@@ -38,6 +41,7 @@ await page.route('**/*',route=>{
         p.validation={errors:[],warnings:[]};return route.fulfill({json:{ok:true,project:p}});
     }
     if(path.endsWith('/preview'))return url.searchParams.get('variant')==='peaks'?route.fulfill({json:{peaks:[.1,.4,.8,.3]}}):route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="160" height="90"><rect width="160" height="90" fill="#295779"/></svg>'});
+    if(path.endsWith('/frame')){exactRequests.push({source:url.searchParams.get('source'),seconds:Number(url.searchParams.get('seconds'))});if(busyFrames>0){busyFrames--;return route.fulfill({status:429,json:{ok:false,error:{message:'busy'}}});}return route.fulfill({contentType:'image/png',headers:{'X-ZF-Frame-Seconds':url.searchParams.get('seconds')},body:exactPng});}
     const name=path.split('/').at(-1),body=path==='/'?html:name==='app.js'?'export const app={registerExtension(){}};':name==='api.js'?'export const api={apiURL:p=>p,fetchApi:(p,o)=>fetch(p,o)};':files[name];
     return body?route.fulfill({contentType:path==='/'?'text/html':name.endsWith('.css')?'text/css':name.endsWith('.json')?'application/json':'application/javascript',body}):route.abort();
 });
@@ -81,6 +85,21 @@ let checks=0;
 const check=label=>{checks++;console.log(`OK ${label}`);};
 try {
     await page.goto('https://monitor.test/');await page.waitForSelector('.zf-med');await reset();
+    await page.waitForFunction(()=>document.querySelector('.zf-med-exact-frame')?.naturalWidth===2);
+    assert.deepEqual(exactRequests.at(-1),{source:'silent',seconds:5});
+    assert.match(await page.locator('.zf-med-readout').textContent(),/工程帧 48（从 0 起）.*源帧 121 \/ 1440（从 1 起）.*原片实取 PTS 5\.000 s/);
+    assert.equal(await page.locator('.zf-med-screen video').evaluate(player=>player.style.visibility),'hidden');
+    check('paused timeline shows decoded original frame and disambiguates zero-based project versus one-based source frame');
+    await seek(2.1);await seek(2.2);await seek(2.3);
+    await page.waitForFunction(()=>document.querySelector('.zf-med-readout')?.textContent.includes('原片实取 PTS 5.300 s'));
+    assert.equal(await page.locator('.zf-med-exact-frame').count(),1);
+    assert.deepEqual(exactRequests.at(-1),{source:'silent',seconds:5.3});
+    check('rapid paused seeks leave only the latest original still');
+    const beforeRetry=exactRequests.length;busyFrames=1;await seek(2.4);
+    await page.waitForFunction(()=>document.querySelector('.zf-med-readout')?.textContent.includes('原片实取 PTS 5.400 s'));
+    assert.equal(busyFrames,0);assert.equal(exactRequests.length,beforeRetry+2);
+    check('temporary original-frame decoder contention retries without using the proxy frame');
+    await reset();
     const frameInput=page.getByRole('spinbutton',{name:'播放头工程帧',exact:true}),locate=page.getByRole('button',{name:'定位',exact:true});
     const projectBefore=await page.evaluate(()=>deskNode.zfMediaDesk.getProject());
     assert.equal(await frameInput.inputValue(),'48');
@@ -116,7 +135,7 @@ try {
     await reset();
     assert.equal(await page.locator('.zf-med-monitor-mode').textContent(),'时间线监看');
     let records=await live();assert.equal(records.find(s=>s.clip==='v1').time,5);assert.equal(records.find(s=>s.clip==='mp3').time,8);assert(records.every(s=>s.paused));check('seek maps both trimmed sources without playback');
-    await play();assert.deepEqual(await sounding(),['mp3']);assert((await live()).find(s=>s.clip==='v1').muted);check('silent video plus independent MP3');
+    await play();assert.equal(await page.locator('.zf-med-exact-frame').count(),0);assert.deepEqual(await sounding(),['mp3']);assert((await live()).find(s=>s.clip==='v1').muted);check('playback removes exact still and uses moving preview plus independent MP3');
     const rangeBefore=(await page.evaluate(()=>deskNode.zfMediaDesk.getProject())).processing_window;
     await page.getByLabel('当前处理预设',{exact:true}).selectOption('builtin.generic@1');await page.getByLabel('当前处理预设',{exact:true}).press('Space');await page.getByLabel('当前处理预设',{exact:true}).press('Escape');assert.deepEqual(await sounding(),['mp3']);assert.deepEqual((await page.evaluate(()=>deskNode.zfMediaDesk.getProject())).processing_window,rangeBefore);check('preset selection and its keyboard controls preserve timeline playback and processing range');
     const seeks=(await live()).map(s=>s.seeks);await step(.05);assert.deepEqual((await live()).map(s=>s.seeks),seeks);assert.equal(await head(),2.05);check('steady master clock does not seek every frame');
@@ -135,7 +154,12 @@ try {
     await reset(fixture(),5,'v2');await play();await page.getByRole('button',{name:'卸载 music.mp3',exact:true}).click();assert.deepEqual(await sounding(),['original']);check('unload independent asset releases its player');
     const old=(await snapshot()).filter(s=>s.src).length;assert(old>0);await reset();assert.deepEqual(await sounding(),[]);assert((await snapshot()).filter(s=>!s.src).every(s=>s.paused&&s.loads>0));check('restore releases old players even with reused clip IDs');
     await play();await page.locator('[data-asset-id="voiced"]').click();assert.equal(await page.locator('.zf-med-monitor-mode').textContent(),'素材预览');assert.deepEqual(await live(),[]);
+    await page.waitForFunction(()=>document.querySelector('.zf-med-exact-frame')?.naturalWidth===2);
+    assert.deepEqual(exactRequests.at(-1),{source:'voiced',seconds:0});
+    assert.match(await page.locator('.zf-med-readout').textContent(),/原片实取 PTS 0\.000 s/);
+    check('paused source preview also replaces the low-resolution player with an original decoded frame');
     const sourceHead=await head();await page.getByRole('button',{name:'播放素材',exact:true}).click();await step(1);
+    assert.equal(await page.locator('.zf-med-exact-frame').count(),0);
     records=(await snapshot()).filter(s=>s.src);assert.equal(records.filter(s=>!s.paused).length,2);assert(records.find(s=>s.tag==='VIDEO').muted);assert.equal(await head(),sourceHead);check('source preview has isolated sound and never drives project clock');
     await page.locator('.zf-med-ruler').click({position:{x:3*60,y:30}});assert.equal(await page.locator('.zf-med-monitor-mode').textContent(),'时间线监看');assert((await snapshot()).every(s=>s.paused));check('ruler changes to timeline and stops source sound');
     const selectionHead=await headSnapshot();await page.locator('[data-id="v2"]').click();assert.equal(await page.locator('.zf-med-monitor-mode').textContent(),'时间线监看');assert.deepEqual(await headSnapshot(),selectionHead);assert((await live()).some(s=>s.clip==='v1'));check('clip selection keeps the timeline preview at the fixed playhead, not the clicked clip');
