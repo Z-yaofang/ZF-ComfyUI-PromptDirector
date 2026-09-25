@@ -138,6 +138,17 @@ def test_final_can_enrich_underspecified_requests_but_not_replace_them():
     assert "Do not invent observed facts" in system
 
 
+def test_reference_final_forbids_unheard_audio_claims_and_requires_literal_sections():
+    system, _ = build("H3提示词生成", material_context_json=context("Ref2VA"))
+    assert "Visual proxy frames have no sound" in system
+    assert "do not describe or rule out music, beats, speech" in system
+    assert "Do not write N/A for an uninspected copied soundtrack" in system
+    assert "sound is never a <Subject N>" in system
+    assert "six heading lines above must each end with a colon" in system
+    assert "joined with ' + ', never commas" in system
+    assert "never write [Shot 1] At 00:00.000" in system
+
+
 @pytest.mark.parametrize("stage", R.STAGES)
 @pytest.mark.parametrize("seam,guide", [
     ("overlap", {"source_segment_id": "segment-1", "frame_count": 48, "local_end_seconds": 2.0}),
