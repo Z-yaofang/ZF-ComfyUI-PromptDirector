@@ -23,6 +23,7 @@ package = types.ModuleType(PACKAGE)
 package.__path__ = [str(ROOT)]
 sys.modules.setdefault(PACKAGE, package)
 EXECUTION = importlib.import_module(PACKAGE + ".animate_video.execution")
+ASSEMBLY = importlib.import_module(PACKAGE + ".animate_video.assembly")
 PLAN = importlib.import_module(PACKAGE + ".animate_video.plan")
 NODES = importlib.import_module(PACKAGE + ".animate_video.nodes")
 MASKING = importlib.import_module(PACKAGE + ".animate_video.masking")
@@ -394,6 +395,9 @@ def test_entry_public_slots_keep_original_vhs_four_output_contract():
     assert "fps" in NODES.ZVAnimateSegmentDesk.INPUT_TYPES()["optional"]
     assert NODES.ZVAnimateSegmentDesk.INPUT_TYPES()["optional"]["fps"][0] == "INT,FLOAT"
     assert not any(name.startswith("dependency_") for name in NODES.ZVAnimateSegmentRecorder.INPUT_TYPES()["optional"])
+    quality = NODES.ZVAnimateExecutionEnd.INPUT_TYPES()["optional"]["output_quality"]
+    assert quality[1]["default"] == ASSEMBLY.DEFAULT_OUTPUT_QUALITY
+    assert set(quality[0]) == set(ASSEMBLY.OUTPUT_QUALITY_PROFILES)
 
 
 @pytest.mark.parametrize("source_rate", [44100, 48000])

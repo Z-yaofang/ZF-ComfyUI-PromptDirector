@@ -236,6 +236,7 @@ def test_empty_new_desk_fixed_choices_loop_cache_and_previous_result_wiring(sour
     for name in ("output_value", "next_iteration_value"):
         assert input_source(result, ids["end"], name) == (ids["recorder"], "run_result")
     assert input_source(result, ids["finish"], "run_result") == (ids["end"], "outputs")
+    assert nodes[ids["finish"]]["widgets_values_named"]["output_quality"] == "兼容 · H.264 8位"
     assert input_source(result, ids["report"], "source") == (ids["finish"], "report")
     assert nodes[ids["report"]]["mode"] == 2
     assert nodes[ids["save"]]["mode"] == 0
@@ -254,6 +255,15 @@ def test_only_loop_dependent_preview_outputs_are_muted():
     assert input_source(result, metadata["new_node_ids"]["end"], "terminations.termination0") == (831, "anything")
     assert all(not port["name"].startswith("dependency")
                for port in nodes_by_id(result)[metadata["new_node_ids"]["recorder"]]["inputs"])
+
+
+def test_new_workflow_exposes_compatible_output_quality_default():
+    result = BUILDER.build(small_source())
+    finish = nodes_by_id(result)[result["extra"]["zv_animate_once"]["new_node_ids"]["finish"]]
+    assert finish["widgets_values"] == ["兼容 · H.264 8位"]
+    assert finish["widgets_values_named"]["output_quality"] == "兼容 · H.264 8位"
+    quality_port = next(port for port in finish["inputs"] if port["name"] == "output_quality")
+    assert quality_port["type"] == "COMBO" and quality_port["widget"] == {"name": "output_quality"}
 
 
 def test_mask_gate_controls_both_plus_inputs_and_cleanup_while_seed_indices_match(source):

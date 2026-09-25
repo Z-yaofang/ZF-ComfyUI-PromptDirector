@@ -11,7 +11,7 @@ from ..media_evidence.runtime import get_store
 from .plan import default_settings
 from .server import prepare_plan
 from .execution import DIRECTORY, _artifact, _hash, complete_run, decode_segment, load_guide, load_run, persist_segment, ready_plan, segment_context
-from .assembly import assemble_video
+from .assembly import DEFAULT_OUTPUT_QUALITY, OUTPUT_QUALITY_PROFILES, assemble_video
 
 
 def _temp_root():
@@ -215,7 +215,10 @@ class ZVAnimateSegmentRecorder:
 class ZVAnimateExecutionEnd:
     @classmethod
     def INPUT_TYPES(cls):
-        return {"required": {"animate_plan": ("ZV_ANIMATE_PLAN",), "run_result": ("ZV_ANIMATE_RUN",)}}
+        return {
+            "required": {"animate_plan": ("ZV_ANIMATE_PLAN",), "run_result": ("ZV_ANIMATE_RUN",)},
+            "optional": {"output_quality": (list(OUTPUT_QUALITY_PROFILES), {"default": DEFAULT_OUTPUT_QUALITY})},
+        }
 
     RETURN_TYPES = ("VIDEO", "INT", "STRING")
     RETURN_NAMES = ("video", "frame_count", "report")
@@ -226,12 +229,12 @@ class ZVAnimateExecutionEnd:
     def IS_CHANGED(cls, **_kwargs):
         return float("nan")
 
-    def finish(self, animate_plan, run_result):
+    def finish(self, animate_plan, run_result, output_quality=DEFAULT_OUTPUT_QUALITY):
         plan = ready_plan(animate_plan)
         paths, manifest = complete_run(plan, _previous(run_result), _temp_root())
-        video = assemble_video(paths, manifest, paths[0].parent / "complete.mp4", plan["fps"])
+        video = assemble_video(paths, manifest, paths[0].parent / "complete.mp4", plan["fps"], output_quality)
         count = manifest["actual_frame_count"]
-        report = f"已合成 {len(paths)} 段，计划 {plan['target_frame_count']} 帧，实际 {count} 帧 / {count / plan['fps']:.3f} 秒；原流行为未改。"
+        report = f"已合成 {len(paths)} 段，计划 {plan['target_frame_count']} 帧，实际 {count} 帧 / {count / plan['fps']:.3f} 秒；输出档：{output_quality}；原流行为未改。"
         differences = [f"第 {index + 1} 段 {row['expected_frame_count']}→{row['frames']}（{row['frame_delta']:+d}）" for index, row in enumerate(manifest["segments"]) if row["frame_delta"]]
         if differences:
             report = "⚠ 帧数差异：" + "；".join(differences) + "。" + report

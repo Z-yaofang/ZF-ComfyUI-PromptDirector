@@ -15,6 +15,7 @@ import tempfile
 
 import av
 
+OUTPUT_QUALITY = sys.argv[1] if len(sys.argv) > 1 else None
 spec = importlib.util.spec_from_file_location("animate_native_loop_smoke", Path(__file__).with_name("animate_native_loop_smoke.py"))
 smoke = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = smoke
@@ -26,7 +27,7 @@ def _frames(path):
         return sum(1 for _ in video.decode(video=0))
 
 
-def main():
+def main(output_quality=None):
     comparison = smoke.importlib.import_module(smoke.package.__name__ + ".animate_video.comparison")
     smoke.nodes.NODE_CLASS_MAPPINGS.update(smoke.nodes_loop.NODE_CLASS_MAPPINGS)
     smoke.nodes.NODE_CLASS_MAPPINGS.update({
@@ -74,6 +75,8 @@ def main():
                            plan=smoke.PLAN.build_plan(source, config, fps=24))
 
         prompt = smoke.single_root_graph()
+        if output_quality is not None:
+            prompt["finish"]["inputs"]["output_quality"] = output_quality
         prompt["save"]["inputs"]["filename_prefix"] = "complete-film"
         prompt["comparison"] = {
             "class_type": "ZVAnimateFinalComparison",
@@ -106,6 +109,12 @@ def main():
         assert len(film_files) == len(comparison_files) == 1, (film_files, comparison_files)
         assert _frames(film_files[0]) == 46
         assert _frames(comparison_files[0]) == 46
+        with av.open(str(film_files[0])) as movie:
+            stream = movie.streams.video[0]
+            assert stream.codec_context.name == ("hevc" if output_quality and "H.265" in output_quality else "h264")
+            if output_quality and "BT.709" in output_quality:
+                assert all(int(getattr(stream.codec_context, field)) == 1 for field in (
+                    "colorspace", "color_primaries", "color_trc", "color_range"))
         assert {"save", "save-comparison"}.issubset(runner.history_result["outputs"])
         print(json.dumps({
             "passed": True,
@@ -118,4 +127,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main(OUTPUT_QUALITY)

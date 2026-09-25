@@ -16,6 +16,12 @@ from comfy_api.latest import InputImpl, Types
 
 
 SAMPLE_RATE = 44100
+DEFAULT_OUTPUT_QUALITY = "兼容 · H.264 8位"
+OUTPUT_QUALITY_PROFILES = {
+    DEFAULT_OUTPUT_QUALITY: ("libx264", "yuv420p", "18", False),
+    "高画质 · H.264 BT.709": ("libx264", "yuv420p", "14", True),
+    "高画质 · H.265 10位 BT.709": ("libx265", "yuv420p10le", "18", True),
+}
 
 
 def encode_video_chunk(images, audio, fps, path):
@@ -131,11 +137,12 @@ def _remux(source_path, target, metadata):
 class AssembledVideo(InputImpl.VideoFromFile):
     """Native lazy VIDEO, with safe default SaveVideo remux and logical audio."""
 
-    def __init__(self, path, frame_count, fps, audio_samples):
+    def __init__(self, path, frame_count, fps, audio_samples, source_codec="h264"):
         self._animate_path = Path(path)
         self._animate_frames = frame_count
         self._animate_fps = Fraction(str(fps)).limit_denominator(1_000_000)
         self._animate_samples = audio_samples
+        self._animate_codec = source_codec
         super().__init__(str(path))
 
     def get_components(self):
@@ -152,6 +159,7 @@ class AssembledVideo(InputImpl.VideoFromFile):
         if (format not in {Types.VideoContainer.AUTO, Types.VideoContainer.MP4}
                 or (format == Types.VideoContainer.AUTO and not mp4_path)
                 or codec not in {Types.VideoCodec.AUTO, Types.VideoCodec.H264}
+                or (codec == Types.VideoCodec.H264 and self._animate_codec != "h264")
                 or bit_depth not in {None, 8} or crf is not None
                 or color_space is not None or preset is not None):
             return super().save_to(path, format=format, codec=codec, metadata=metadata,
@@ -170,8 +178,11 @@ class AssembledVideo(InputImpl.VideoFromFile):
             partial.unlink(missing_ok=True)
 
 
-def assemble_video(paths, manifest, output_path, fps):
+def assemble_video(paths, manifest, output_path, fps, output_quality=DEFAULT_OUTPUT_QUALITY):
     """Assemble already-trimmed contributions, retaining one decoded frame at a time."""
+    if output_quality not in OUTPUT_QUALITY_PROFILES:
+        raise ValueError(f"Animate 输出质量档位无效：{output_quality}")
+    codec, pixel_format, crf, bt709 = OUTPUT_QUALITY_PROFILES[output_quality]
     fps = Fraction(str(fps)).limit_denominator(1_000_000)
     rows = manifest["segments"]
     if not rows or len(paths) != len(rows) or Fraction(str(manifest["fps"])).limit_denominator(1_000_000) != fps or fps <= 0:
@@ -188,13 +199,25 @@ def assemble_video(paths, manifest, output_path, fps):
     video_clock = 1 / fps
     audio_clock = Fraction(1, SAMPLE_RATE)
     video_cursor = audio_cursor = 0
+    if bt709:
+        from av.video.reformatter import ColorPrimaries, ColorRange, Colorspace, ColorTrc, VideoReformatter
+        reformatter = VideoReformatter()
     try:
         with av.open(str(partial), "w", format="mp4") as output:
-            video = output.add_stream("libx264", rate=fps)
-            video.width, video.height, video.pix_fmt = width, height, "yuv420p"
+            video = output.add_stream(codec, rate=fps)
+            video.width, video.height, video.pix_fmt = width, height, pixel_format
             video.time_base = video.codec_context.time_base = video_clock
             video.codec_context.max_b_frames = 0
-            video.options = {"crf": "18", "preset": "medium", "tune": "zerolatency"}
+            video.options = {"crf": crf, "preset": "medium"}
+            if codec == "libx265":
+                video.options["x265-params"] = "log-level=error"
+            if bt709:
+                video.codec_context.colorspace = Colorspace.ITU709
+                video.codec_context.color_primaries = ColorPrimaries.BT709
+                video.codec_context.color_trc = ColorTrc.BT709
+                video.codec_context.color_range = ColorRange.MPEG
+            else:
+                video.options["tune"] = "zerolatency"
             audio = output.add_stream("aac", rate=SAMPLE_RATE, layout="stereo")
             audio.time_base = audio.codec_context.time_base = audio_clock
             for path, row in zip(paths, rows):
@@ -203,7 +226,15 @@ def assemble_video(paths, manifest, output_path, fps):
                     for frame in source.decode(video=0):
                         if frame.width != width or frame.height != height:
                             raise ValueError("Animate 分段画布不同，不能隐式缩放合并")
-                        frame = frame.reformat(format="yuv420p")
+                        if not bt709:
+                            frame = frame.reformat(format="yuv420p")
+                        else:
+                            frame = reformatter.reformat(
+                                frame, format=pixel_format,
+                                src_colorspace=Colorspace.ITU709, dst_colorspace=Colorspace.ITU709,
+                                src_color_range=ColorRange.JPEG, dst_color_range=ColorRange.MPEG,
+                                dst_color_trc=ColorTrc.BT709, dst_color_primaries=ColorPrimaries.BT709,
+                            )
                         frame.pts, frame.time_base = video_cursor, video_clock
                         # Source duration belongs to its muxer time base, NOT ours.
                         frame.duration = 1
@@ -244,4 +275,5 @@ def assemble_video(paths, manifest, output_path, fps):
         partial.replace(target)
     finally:
         partial.unlink(missing_ok=True)
-    return AssembledVideo(target, frame_count, fps, audio_samples)
+    return AssembledVideo(target, frame_count, fps, audio_samples,
+                          source_codec="hevc" if codec == "libx265" else "h264")

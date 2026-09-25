@@ -16,6 +16,8 @@ RunningHub 会将前端模块发布为带哈希的 `.js` 并改写导入地址�
 
 素材/采访功能需要近期支持 UserManager 和原生 VIDEO 的 ComfyUI，以及 Pillow、PyAV、numpy、torch、aiohttp；媒体代理还需要 FFmpeg（或 imageio_ffmpeg 提供的可执行文件）及 libx264/AAC 编码器。用户目录应可写、可持久，使用真实挂载目录；存储边界拒绝逃逸路径、符号链接及相关不安全链接。
 
+Animate 成片合成节点默认仍用原 H.264 8 位输出；新增的 BT.709 H.264 高画质档需要 PyAV 支持显式色彩转换，H.265 10 位档还需要云端 FFmpeg 包含 libx265。两档均只在执行时启用，旧工作流加载不依赖 libx265。下游 SaveVideo 保持 `auto` 才会直接封装已编码成片；显式重编码无法恢复分段缓存已量化的 8 位 RGB 精度。云端更新后应分别用短片验证可用编码器、色彩标记及播放兼容性。
+
 完整 H3 生成还需要目标工作流实际使用的 T8、VAE、模型、writer 后端及其它第三方节点。这些不是 Git clone 本插件会自动安装的内容，具体版本与 CUDA/ABI 兼容性需在云端核对。
 
 ## 建议测试顺序

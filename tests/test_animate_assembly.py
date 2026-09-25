@@ -50,6 +50,61 @@ def test_intermediate_video_preserves_rgb_pixels_without_lossy_recompression(tmp
     assert np.array_equal(restored, pixels)
 
 
+@pytest.mark.parametrize("quality,codec,pixel_format,bt709", [
+    ("兼容 · H.264 8位", "h264", "yuv420p", False),
+    ("高画质 · H.264 BT.709", "h264", "yuv420p", True),
+    ("高画质 · H.265 10位 BT.709", "hevc", "yuv420p10le", True),
+])
+def test_output_quality_profiles_preserve_clock_and_save_without_reencoding(tmp_path, quality, codec, pixel_format, bt709):
+    paths, manifest = chunks(tmp_path, 30)
+    result = ASSEMBLY.assemble_video(paths, manifest, tmp_path / "assembled.mp4", 30, quality)
+    saved = tmp_path / "saved.mp4"
+    result.save_to(str(saved), metadata={"quality": quality})
+    for path in (result._animate_path, saved):
+        ASSEMBLY._probe(str(path), 14, Fraction(30), round(14 * 44100 / 30))
+        with av.open(str(path)) as source:
+            video = source.streams.video[0]
+            assert video.codec_context.name == codec
+            assert video.codec_context.format.name == pixel_format
+            if bt709:
+                assert all(int(getattr(video.codec_context, field)) == 1 for field in (
+                    "colorspace", "color_primaries", "color_trc", "color_range"))
+                frame = next(source.decode(video=0))
+                assert all(int(getattr(frame, field)) == 1 for field in (
+                    "colorspace", "color_primaries", "color_trc", "color_range"))
+    with av.open(str(result._animate_path)) as source, av.open(str(saved)) as copy:
+        assert [bytes(packet) for packet in source.demux(video=0) if packet.dts is not None] == [
+            bytes(packet) for packet in copy.demux(video=0) if packet.dts is not None]
+    if codec == "hevc":
+        transcoded = tmp_path / "explicit-h264.mp4"
+        result.save_to(str(transcoded), codec=ASSEMBLY.Types.VideoCodec.H264)
+        with av.open(str(transcoded)) as video:
+            assert video.streams.video[0].codec_context.name == "h264"
+
+
+def test_invalid_output_quality_does_not_publish_file(tmp_path):
+    paths, manifest = chunks(tmp_path, 30)
+    target = tmp_path / "assembled.mp4"
+    with pytest.raises(ValueError, match="输出质量档位无效"):
+        ASSEMBLY.assemble_video(paths, manifest, target, 30, "unknown")
+    assert not target.exists()
+
+
+def test_bt709_profile_converts_pixels_instead_of_only_adding_tags(tmp_path):
+    frames = torch.zeros((2, 24, 32, 3))
+    frames[..., 0] = 1
+    path = tmp_path / "red.mp4"
+    ASSEMBLY.encode_video_chunk(frames, {"waveform": torch.zeros(1, 2, 2940), "sample_rate": 44100}, 30, path)
+    manifest = {"fps": 30, "shape": [24, 32, 3], "segments": [{"frames": 2, "audio_samples": 2940}]}
+    luma = []
+    for quality in ("兼容 · H.264 8位", "高画质 · H.264 BT.709"):
+        result = ASSEMBLY.assemble_video([path], manifest, tmp_path / f"{len(luma)}.mp4", 30, quality)
+        with av.open(str(result._animate_path)) as video:
+            yuv = next(video.decode(video=0)).to_ndarray(format="yuv420p")
+            luma.append(float(yuv[:24].mean()))
+    assert luma[0] - luma[1] > 12
+
+
 def inspect(path, fps, expected=14):
     fps = Fraction(str(fps)).limit_denominator(1_000_000)
     if isinstance(path, io.BytesIO):
