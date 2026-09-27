@@ -15,7 +15,7 @@ try{
     const pane=page.locator("#desk");
     assert.equal(await pane.locator(".lane").count(),4);
     assert.equal(await pane.getByLabel("段数（仅按段数生成）",{exact:true}).isDisabled(),true);
-    assert.match(await pane.getByLabel("段数（仅按段数生成）",{exact:true}).getAttribute("title"),/自动计算/);
+    assert.match(await pane.getByLabel("段数（仅按段数生成）",{exact:true}).getAttribute("title"),/视频覆盖范围计算/);
     assert.match(await pane.locator(".hint").textContent(),/8–15 秒.*5\+17k.*裁回.*1 或 5\+17k/);
     await pane.locator(".card.segment").first().click();
     const ruler= pane.locator(".ruler");
@@ -107,6 +107,13 @@ try{
     await page.waitForFunction(()=>desk.zvLong.getSettings().overlap_frames===39&&desk.zvLong.getPlan()?.effective_overlap_frames===39);
     await pane.getByLabel("段数（仅按段数生成）",{exact:true}).fill("2");await pane.getByLabel("段数（仅按段数生成）",{exact:true}).press("Tab");
     await page.waitForFunction(()=>desk.zvLong.getPlan()?.mode==="generation_count"&&desk.zvLong.getPlan()?.target_frame_count===209&&desk.zvLong.getPlan()?.segments.length===2);
+    // The 28 s fixture is valid in source-splitting mode but intentionally too
+    // long as a complete H3 reference in each generation call (limit: 15 s).
+    await page.waitForFunction(()=>interview.zvLong.result?.segments.length===2);
+    for(const ordinal of [1,2]){
+        await form.getByRole("button",{name:new RegExp(`第 ${ordinal} 段`)}).click();
+        await form.locator(".asset").filter({hasText:"source.mp4"}).getByLabel("本段参与").uncheck();
+    }
     const autoSegments=await page.evaluate(()=>desk.zvLong.getPlan().segments.map(({segment_id,start_frame,end_frame})=>({segment_id,start_frame,end_frame})));
     await mode().selectOption("generation_manual");
     await page.waitForFunction(()=>desk.zvLong.getPlan()?.mode==="generation_manual"&&desk.zvLong.getPlan()?.target_frame_count===209);
@@ -134,9 +141,15 @@ try{
     await page.evaluate(async()=>{await desk.zvLong.refresh(true);await interview.zvLong.refresh(true);});
     assert.equal(await page.evaluate(()=>desk.zvLong.getPlan()?.validation.ready),true);
     assert.equal(await page.evaluate(()=>interview.zvLong.result?.ready),true);
+    const retained=await page.evaluate(()=>desk.zvLong.getPlan().segments.map(({segment_id,start_frame,end_frame})=>({segment_id,start_frame,end_frame})));
+    await mode().selectOption("source_manual");
+    await page.waitForFunction(()=>desk.zvLong.getPlan()?.mode==="source_manual");
+    await pane.getByRole("button",{name:"改为生成时间轴",exact:true}).click();
+    await page.waitForFunction(()=>desk.zvLong.getPlan()?.mode==="generation_manual");
+    assert.deepEqual(await page.evaluate(()=>desk.zvLong.getPlan().segments.map(({segment_id,start_frame,end_frame})=>({segment_id,start_frame,end_frame}))),retained);
     assert.deepEqual(errors,[]);
     if(process.argv[5]){await mkdir(process.argv[5],{recursive:true});await page.screenshot({path:process.argv[5]+"/long-video-ui.png",fullPage:true});}
     line=pane.getByRole("slider",{name:"黄色播放头"});box=await line.boundingBox();assert(box);await page.mouse.move(box.x+box.width/2,box.y+16);await page.mouse.down();await page.evaluate(()=>desk.onRemoved());await page.mouse.up();await page.waitForTimeout(30);
     assert.deepEqual(errors,[]);
-    console.log("LONG_VIDEO_UI_OK: draggable playhead under scroll/zoom, deferred redraw, cancel/removal cleanup, split selection, H3 frame hint, planning, undo, coverage, reroute dimensions, exact inspector, scope migration, stale callback guard, auto-to-manual plan migration, failed-request polling, manual retry, reload");
+    console.log("LONG_VIDEO_UI_OK: draggable playhead under scroll/zoom, deferred redraw, cancel/removal cleanup, split selection, H3 frame hint, planning, undo, coverage, reroute dimensions, exact inspector, scope migration, stale callback guard, source-to-generation layout conversion, failed-request polling, manual retry, reload");
 }finally{try{await browser?.close();}finally{await server?.stop();}}

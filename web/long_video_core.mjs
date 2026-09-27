@@ -1,7 +1,7 @@
 export const clone = value => structuredClone(value);
 export const uid = () => crypto.randomUUID().replaceAll("-", "");
 export const frame = (seconds, fps) => Math.floor(seconds * fps + .5);
-export const defaultSettings = () => ({schema_version:1, mode:"source_auto", fps:24, segment_frames:360, overlap_frames:48, overlap_alignment:"h3_guide", segment_count:1, segments:[], range_start_frame:null, range_end_frame:null, source_snapshot:null, source_fingerprint:null, refresh_sources:false});
+export const defaultSettings = () => ({schema_version:1, mode:"generation_count", fps:24, segment_frames:360, overlap_frames:48, overlap_alignment:"h3_guide", segment_count:1, segments:[], range_start_frame:null, range_end_frame:null, source_snapshot:null, source_fingerprint:null, refresh_sources:false});
 export const emptyInterview = () => ({schema_version:1, global:{}, segments:{}, alignment:null});
 export const parse = (text, fallback) => {
     try { const value = JSON.parse(text); return value && typeof value === "object" && !Array.isArray(value) ? value : fallback(); }

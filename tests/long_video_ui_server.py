@@ -45,7 +45,7 @@ import {attachDesk,attachInterview} from '/web/long_video.js';
 import {defaultSettings,emptyInterview} from '/web/long_video_core.mjs';
 window.sourceNode={id:1,widgets:[{name:'project_data',value:JSON.stringify(SOURCE)}],inputs:[]};
 function node(id,key,value,host,inputs){return {id,widgets:[{name:key,value:JSON.stringify(value)}],properties:{},inputs:inputs.map(name=>({name})),size:[1100,750],setSize(){},graph:{setDirtyCanvas(){}},addDOMWidget(name,type,element){document.getElementById(host).append(element);return {};}};}
-window.desk=node(2,'segment_data',defaultSettings(),'desk',['media_project']);desk.getInputNode=()=>sourceNode;attachDesk(desk);
+window.desk=node(2,'segment_data',{...defaultSettings(),mode:'source_auto'},'desk',['media_project']);desk.getInputNode=()=>sourceNode;attachDesk(desk);
 window.interview=node(3,'interview_data',emptyInterview(),'interview',['segment_plan']);interview.getInputNode=()=>desk;attachInterview(interview);
 </script></body></html>""".replace("SOURCE", source))
 

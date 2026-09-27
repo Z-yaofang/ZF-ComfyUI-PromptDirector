@@ -53,6 +53,8 @@ def project(frames=672):
 
 def settings(**changes):
     value = PLAN.default_settings()
+    # The old source-clock coverage cases intentionally exercise source mode.
+    value["mode"] = "source_auto"
     value.update(changes)
     return value
 
@@ -151,6 +153,49 @@ def test_generation_count_mode_needs_no_source_video_and_one_segment_works():
     assert three["effective_overlap_frames"] == 22
     assert three["target_frame_count"] == 120 + 2 * (120 - 22)
     assert [row["overlap_frames"] for row in three["segments"]] == [0, 22, 22]
+
+
+def test_new_desk_defaults_to_generated_duration_without_video():
+    defaults = PLAN.default_settings()
+    assert defaults["mode"] == "generation_count"
+    picture_only = project(48)
+    picture_only["assets"] = [row for row in picture_only["assets"] if row["kind"] == "picture"]
+    picture_only["video_track"] = []
+    plan = PLAN.build_segment_plan(picture_only, {**defaults, "segment_count": 2})
+    assert plan["validation"]["ready"], plan["validation"]["errors"]
+    jsonschema.validate(plan, json.loads((ROOT / "schemas" / "zv-segment-plan-v1.schema.json").read_text(encoding="utf-8")))
+    assert plan["target_frame_count"] == 681
+    assert [row["output_frame_count"] for row in plan["segments"]] == [360, 321]
+    assert all(row["source_slices"]["video"] == [] for row in plan["segments"])
+    assert all(row["source_slices"]["pictures"][0]["item_id"] == "picture-item" for row in plan["segments"])
+
+
+@pytest.mark.parametrize("mode", ["generation_count", "generation_manual"])
+def test_generation_reuses_short_reference_video_in_each_segment(mode):
+    short = project(48)
+    # Its source-clock position is not the generated output-clock position.
+    short["video_track"][0]["timeline_in_seconds"] = 8
+    config = settings(mode=mode, segment_frames=180, overlap_frames=39, segment_count=2)
+    if mode == "generation_manual":
+        config["segments"] = [
+            {"segment_id": "first", "start_frame": 0, "end_frame": 180},
+            {"segment_id": "second", "start_frame": 141, "end_frame": 321},
+        ]
+    plan = PLAN.build_segment_plan(short, config)
+    assert plan["validation"]["ready"], plan["validation"]["errors"]
+    jsonschema.validate(plan, json.loads((ROOT / "schemas" / "zv-segment-plan-v1.schema.json").read_text(encoding="utf-8")))
+    assert plan["target_frame_count"] == 321 > 48
+    for segment in plan["segments"]:
+        reference = segment["source_slices"]["video"]
+        assert len(reference) == 1
+        assert reference[0]["clip_id"] == "video-clip"
+        assert reference[0]["segment_in_frame"] == 0
+        assert reference[0]["source_in_seconds"] == 0
+        assert reference[0]["source_out_seconds"] == 2
+        local = PLAN.segment_project(plan, segment["segment_id"])
+        assert local["processing_window"]["frame_count"] == 180
+        assert local["video_track"][0]["source_out_seconds"] == 2
+        assert local["video_track"][0]["timeline_in_seconds"] == 0
 
 
 def test_generation_manual_supports_dragged_windows_without_video():

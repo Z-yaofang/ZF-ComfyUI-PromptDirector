@@ -27,7 +27,7 @@ def _issue(path, code, message):
 def default_settings():
     return {
         "schema_version": 1,
-        "mode": "source_auto",
+        "mode": "generation_count",
         "fps": 24,
         "segment_frames": 360,
         "overlap_frames": 48,
@@ -339,6 +339,34 @@ def _slices(tracks, start, end, fps):
     return result
 
 
+def _generation_references(tracks):
+    """Keep source selections independent of the generated output clock.
+
+    Generation calls may use the same short reference in several segments.
+    The interview still decides which of these available clips participates in
+    each call; source_* modes retain their real timeline intersections.
+    """
+    result = {"pictures": copy.deepcopy(tracks["pictures"]), "video": [], "audio": []}
+    for kind in ("video", "audio"):
+        for clip in tracks[kind]:
+            if kind == "audio" and not clip["enabled"]:
+                continue
+            duration = clip["source_out_frame"] - clip["source_in_frame"]
+            result[kind].append({
+                "clip_id": clip["clip_id"],
+                "asset_id": clip["asset_id"],
+                "timeline_in_frame": 0,
+                "timeline_out_frame": duration,
+                "segment_in_frame": 0,
+                "segment_out_frame": duration,
+                "source_in_frame": clip["source_in_frame"],
+                "source_out_frame": clip["source_out_frame"],
+                "source_in_seconds": clip["source_in_seconds"],
+                "source_out_seconds": clip["source_out_seconds"],
+            })
+    return result
+
+
 def _coverage_errors(tracks, start, end):
     intervals = sorted((max(start, row["timeline_in_frame"]), min(end, row["timeline_out_frame"])) for row in tracks["video"] if row["timeline_out_frame"] > start and row["timeline_in_frame"] < end)
     errors = []
@@ -391,7 +419,10 @@ def _segments(windows, tracks, range_start, range_end, mode, alignment, fps, err
             "output_frame_count": max(0, contribution_end - contribution_start),
             "tail_padding_frames": max(0, end - range_end),
             "model_padding": _model_padding(frame_count, alignment),
-            "source_slices": _slices(tracks, start, min(end, range_end), fps),
+            "source_slices": (
+                _generation_references(tracks) if mode.startswith("generation")
+                else _slices(tracks, start, min(end, range_end), fps)
+            ),
         })
         previous_end = end
     return result

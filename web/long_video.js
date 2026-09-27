@@ -28,8 +28,8 @@ function attachDesk(node){
     const {root,widget,save}=mounted;
     let settings={...defaultSettings(),...parse(widget.value,defaultSettings)},plan=null,selected=null,playhead=0,scale=2,disposed=false,token=0,timer=null,upstreamText="",snap=true,activePlayheadDrag=null,timelineRenderPending=false;
     const undo=[],redo=[];
-    const controls=el("div","bar"),presets=el("div","bar"),toolbar=el("div","bar"),scroll=el("div","time-scroll"),time=el("div","time"),inspector=el("div","bar"),status=el("div","status");scroll.append(time);
-    root.append(el("p","","获取素材台的三条轨道后，在此排列分段。此处的分割、删除只影响分段台副本。"),controls,presets,toolbar,scroll,inspector,status);
+    const intro=el("p"),controls=el("div","bar"),presets=el("div","bar"),toolbar=el("div","bar"),scroll=el("div","time-scroll"),time=el("div","time"),inspector=el("div","bar"),status=el("div","status");scroll.append(time);
+    root.append(intro,controls,presets,toolbar,scroll,inspector,status);
     function note(message,error=false){status.textContent=message;status.classList.toggle("error",error);}
     function remember(){undo.push(clone(settings));if(undo.length>80)undo.shift();redo.length=0;}
     function commit(next){remember();settings=next;persist();refresh();}
@@ -76,17 +76,27 @@ function attachDesk(node){
         }catch(e){if(!disposed&&run===token)note(e.message,true);}
     }
     function renderControls(){
+        const generation=settings.mode.startsWith("generation");
+        intro.textContent=generation
+            ?"生成时间轴由每段帧数和段数决定，不受参考视频时长限制；没有视频也可用图片或文字生成。短参考视频/音频可在各段采访中分别选用。"
+            :"源视频裁切模式按真实视频长度分段，并要求视频覆盖目标范围；如需用短视频或图片生成更长成片，请改为生成时间轴。此处编辑只影响分段台副本。";
         const segmentCount=number(settings.segment_count,v=>commit({...settings,segment_count:v}),1);
         segmentCount.disabled=settings.mode!=="generation_count";
-        segmentCount.title=segmentCount.disabled?"按素材长度分段时由素材范围、每段帧数和重叠自动计算":"按段数生成的目标段数";
+        segmentCount.title=segmentCount.disabled?"当前模式不按段数自动生成；源视频裁切模式按视频覆盖范围计算":"按段数生成的目标段数，与参考视频时长无关";
+        const changeMode=v=>{
+            const next=v.endsWith("_manual")&&plan?manual(settings,plan,v):{...settings,mode:v};
+            if(v.startsWith("generation")&&!generation){next.range_start_frame=null;next.range_end_frame=null;}
+            commit(next);
+        };
         controls.replaceChildren(button("获取素材台三轨",()=>{remember();refresh(true);},true),
-            select([["source_auto","按素材长度分段"],["generation_count","按段数生成"],["source_manual","手动排列素材"],["generation_manual","手动排列生成"]],settings.mode,v=>commit(v.endsWith("_manual")&&plan?manual(settings,plan,v):{...settings,mode:v})),
+            select([["generation_count","按段数生成（视频可选）"],["generation_manual","手动排生成时间轴"],["source_auto","按长源视频裁切"],["source_manual","手动排源视频片段"]],settings.mode,changeMode),
             field("帧率",number(settings.fps,v=>commit({...settings,fps:v}),1)),
             field("每段帧数",number(settings.segment_frames,v=>commit({...settings,segment_frames:v}),1)),
             field("重叠帧数",number(settings.overlap_frames,v=>commit({...settings,overlap_frames:v}))),
             select([["h3_guide","H3 衔接帧对齐"],["exact","精确重叠 / 硬切"]],settings.overlap_alignment,v=>commit({...settings,overlap_alignment:v})),
             field("段数（仅按段数生成）",segmentCount),
             button("一键排列",()=>commit({...settings,mode:settings.mode.startsWith("generation")?"generation_count":"source_auto",segments:[]}),true),
+            ...(!generation&&plan?[button("改为生成时间轴",()=>changeMode(settings.mode==="source_manual"?"generation_manual":"generation_count"))]:[]),
             el("span","hint","H3 常用单段 8–15 秒；任务保留帧数可直接填，模型长度自动向上补到 5+17k，输出再裁回；重叠 Guide 独立按 1 或 5+17k 对齐。"));
         const snapInput=el("input");snapInput.type="checkbox";snapInput.checked=snap;snapInput.onchange=()=>snap=snapInput.checked;
         const undoButton=button("撤销",()=>{if(!undo.length)return;redo.push(clone(settings));settings=undo.pop();persist();refresh();});undoButton.disabled=!undo.length;
@@ -98,7 +108,7 @@ function attachDesk(node){
         }),button("＋ 增加分段",()=>plan&&commit(addSegment(settings,plan))),el("span","warning playhead-readout",playheadText()),el("span","grow"),field("缩放",number(scale,v=>{scale=v;renderTimeline();},1)));
     }
     function renderPresets(){
-        const builtins=[{name:"H3 长参考动作迁移",mode:"source_auto",fps:24,segment_frames:360,overlap_frames:48,overlap_alignment:"h3_guide"},{name:"H3 连续生成",mode:"generation_count",fps:24,segment_frames:124,overlap_frames:39,overlap_alignment:"h3_guide",segment_count:3},{name:"通用硬切",mode:"source_auto",fps:24,segment_frames:240,overlap_frames:0,overlap_alignment:"exact"}];
+        const builtins=[{name:"H3 连续生成（视频可选）",mode:"generation_count",fps:24,segment_frames:124,overlap_frames:39,overlap_alignment:"h3_guide",segment_count:3},{name:"H3 长参考动作迁移",mode:"source_auto",fps:24,segment_frames:360,overlap_frames:48,overlap_alignment:"h3_guide"},{name:"长源视频硬切",mode:"source_auto",fps:24,segment_frames:240,overlap_frames:0,overlap_alignment:"exact"}];
         const saved=node.properties?.zv_segment_presets??[];
         const name=el("input");name.placeholder="预设名称";
         const picker=select([["","选择预设参数"],...[...builtins,...saved].map((p,i)=>[String(i),p.name])],"",v=>{if(v!=="")commit(presetSettings(settings,[...builtins,...saved][Number(v)]));});
@@ -127,19 +137,20 @@ function attachDesk(node){
         timelineRenderPending=false;
         time.replaceChildren();inspector.replaceChildren();
         if(!plan)return;
+        const generation=settings.mode.startsWith("generation");
         const max=Math.max(plan.range_start_frame+plan.target_frame_count,...plan.segments.map(x=>x.end_frame),120);
         playhead=Math.min(playhead,max);
         time.style.width=`${84+Math.max(780,max*scale+60)}px`;
         const ruler=el("div","ruler");time.append(ruler);
         for(let f=0;f<=max;f+=Math.max(settings.fps,Math.ceil(max/20/settings.fps)*settings.fps)){const tick=el("span","tick",`${(f/settings.fps).toFixed(0)}s`);tick.style.left=`${f*scale}px`;ruler.append(tick);}
         ruler.onpointerdown=e=>{if(e.button!==0)return;playhead=Math.max(0,Math.min(max,Math.round(rulerFrame(ruler,e.clientX))));renderControls();renderTimeline();};
-        for(const [kind,title] of [["segment","分段轴"],["picture","图片"],["video","视频"],["audio","音频"]]){
+        for(const [kind,title] of [["segment","成片分段轴"],["picture",generation?"参考图片（各段可选）":"图片"],["video",generation?"参考视频（各段可选）":"视频"],["audio",generation?"参考音频（各段可选）":"音频"]]){
             const lane=el("div","lane"),titleBox=el("div","lane-title",title),del=button("删除",()=>removeSelected(kind));del.disabled=selected?.kind!==kind;titleBox.append(del);lane.append(titleBox);time.append(lane);
             const rows=kind==="segment"?plan.segments:plan.media_project[`${kind}_track`];
             rows.forEach((row,index)=>{
                 const id=row.segment_id??row.item_id??row.clip_id,asset=plan.media_project.assets.find(x=>x.asset_id===row.asset_id);
-                const start=kind==="segment"?row.start_frame:kind==="picture"?index*70/scale:frame(row.timeline_in_seconds,settings.fps);
-                const length=kind==="segment"?row.end_frame-row.start_frame:kind==="picture"?68/scale:frame(row.source_out_seconds-row.source_in_seconds,settings.fps);
+                const start=kind==="segment"?row.start_frame:kind==="picture"?index*70/scale:generation?index*170/scale:frame(row.timeline_in_seconds,settings.fps);
+                const length=kind==="segment"?row.end_frame-row.start_frame:kind==="picture"?68/scale:generation?168/scale:frame(row.source_out_seconds-row.source_in_seconds,settings.fps);
                 const card=el("div",`card ${kind}${selected?.id===id?" selected":""}`);
                 card.style.left=`${84+start*scale}px`;card.style.width=`${Math.max(24,length*scale)}px`;
                 card.append(el("strong","",kind==="segment"?`第 ${row.order} 段`:asset?.name??id),el("br"),document.createTextNode(kind==="segment"?`${row.frame_count} 帧 · ${row.overlap_frames?`重叠 ${row.overlap_frames}`:row.seam==="first"?"起点":"硬切"}`:kind==="picture"?"固定卡片":`${row.source_in_seconds.toFixed(3)}–${row.source_out_seconds.toFixed(3)}s`));

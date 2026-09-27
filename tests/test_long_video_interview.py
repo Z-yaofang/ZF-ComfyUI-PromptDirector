@@ -29,8 +29,12 @@ def source():
     return C.normalize_project(value)
 
 
+def source_settings(**changes):
+    return {**P.default_settings(), "mode": "source_auto", **changes}
+
+
 def test_align_all_then_exclude_is_physical_and_invalidates_snapshot():
-    plan = P.build_segment_plan(source(), P.default_settings())
+    plan = P.build_segment_plan(source(), source_settings())
     state = I.empty_segment_interview()
     state["global"] = {"intent": "人物模仿对应视频片段动作。", "media_roles": {"p1": ["subject_identity"], "v1": ["motion_reference"]}}
     original = copy.deepcopy(plan)
@@ -53,10 +57,10 @@ def test_align_all_then_exclude_is_physical_and_invalidates_snapshot():
 
 
 def test_timing_change_and_text_change_require_realign():
-    plan = P.build_segment_plan(source(), P.default_settings())
+    plan = P.build_segment_plan(source(), source_settings())
     aligned = I.compile_segment_interview(plan, I.empty_segment_interview(), align=True)
     assert aligned["ready"], aligned["errors"]
-    settings = {**P.default_settings(), "segment_frames": 320}
+    settings = source_settings(segment_frames=320)
     changed_plan = P.build_segment_plan(source(), settings)
     assert not I.compile_segment_interview(changed_plan, aligned["state"])["ready"]
     changed = copy.deepcopy(aligned["state"])
@@ -74,6 +78,42 @@ def test_generation_has_no_fake_media_and_roundtrip_is_stable():
     assert restored["ready"] and result["fingerprint"] == restored["fingerprint"]
 
 
+def test_three_second_reference_video_is_available_to_both_fifteen_second_calls():
+    short = source()
+    short["assets"][0]["probe"].update(duration_seconds=3, frame_count=72)
+    short["video_track"][0]["source_out_seconds"] = 3
+    plan = P.build_segment_plan(C.normalize_project(short), {
+        **P.default_settings(), "segment_count": 2,
+    })
+    assert plan["validation"]["ready"] and plan["target_frame_count"] == 681
+    state = I.empty_segment_interview()
+    state["global"] = {"intent": "保持同一人物，连续完成两段动作。"}
+    compiled = I.compile_segment_interview(plan, state, align=True)
+    assert compiled["ready"], compiled["errors"]
+    assert [row["frame_count"] for row in compiled["segments"]] == [360, 360]
+    assert [row["duration_seconds"] for row in compiled["segments"]] == [15, 15]
+    for row in compiled["segments"]:
+        assert row["reference_plan"]["routes"]["ref_videos"] == ["v1"]
+        assert row["reference_plan"]["routes"]["ref_images"] == ["p1"]
+        assert row["reference_plan"]["media_project"]["video_track"][0]["source_out_seconds"] == 3
+    execution = importlib.import_module(PACKAGE + ".long_video.execution")
+    assert execution.normalize_execution_plan(compiled)["segment_plan"]["target_frame_count"] == 681
+
+
+def test_generation_call_can_be_shorter_than_its_reference_video():
+    reference = source()
+    reference["assets"][0]["probe"].update(duration_seconds=10, frame_count=240)
+    reference["video_track"][0]["source_out_seconds"] = 10
+    plan = P.build_segment_plan(C.normalize_project(reference), {
+        **P.default_settings(), "segment_frames": 120, "segment_count": 2,
+    })
+    compiled = I.compile_segment_interview(plan, I.empty_segment_interview(), align=True)
+    assert compiled["ready"], compiled["errors"]
+    for row in compiled["segments"]:
+        assert row["duration_seconds"] == 5
+        assert row["reference_plan"]["media_project"]["video_track"][0]["source_out_seconds"] == 10
+
+
 def test_global_and_local_text_keep_both_constraints():
     combined = I.merged_interview({"must_keep": "保持躺姿", "music": "不加配乐"}, {"must_keep": "保持人物服装", "intent": "抬起右手"})
     assert combined["must_keep"] == "保持躺姿\n保持人物服装"
@@ -83,7 +123,7 @@ def test_global_and_local_text_keep_both_constraints():
 
 
 def test_segment_form_only_emits_user_text_and_material_facts():
-    plan = P.build_segment_plan(source(), P.default_settings())
+    plan = P.build_segment_plan(source(), source_settings())
     result = I.compile_segment_interview(plan, {
         **I.empty_segment_interview(),
         "global": {"intent": "人物缓慢转身。", "must_keep": "保持蓝色外套"},
@@ -103,11 +143,11 @@ def test_segment_form_only_emits_user_text_and_material_facts():
 
 
 def test_compiled_media_name_changes_execution_fingerprint_after_refresh():
-    plan = P.build_segment_plan(source(), P.default_settings())
+    plan = P.build_segment_plan(source(), source_settings())
     first = I.compile_segment_interview(plan, I.empty_segment_interview(), align=True)
     changed_source = source()
     changed_source["assets"][0]["name"] = "renamed-source.mp4"
-    changed_plan = P.build_segment_plan(changed_source, {**P.default_settings(), "refresh_sources": True})
+    changed_plan = P.build_segment_plan(changed_source, source_settings(refresh_sources=True))
     second = I.compile_segment_interview(changed_plan, first["state"])
     assert second["fingerprint"] != first["fingerprint"]
     assert not second["ready"] and any(row["code"] == "alignment_stale" for row in second["errors"])
@@ -115,7 +155,7 @@ def test_compiled_media_name_changes_execution_fingerprint_after_refresh():
 
 def test_fingerprint_ignores_asset_pool_order_and_project_clock():
     original = source()
-    plan = P.build_segment_plan(original, P.default_settings())
+    plan = P.build_segment_plan(original, source_settings())
     first = I.compile_segment_interview(plan, I.empty_segment_interview(), align=True)
     changed = source()
     changed["assets"].reverse()
@@ -127,7 +167,7 @@ def test_fingerprint_ignores_asset_pool_order_and_project_clock():
                   "fps": None, "frame_count": None, "frame_count_exact": False, "vfr": None,
                   "has_audio": False, "sample_rate": None, "channels": None, "codec": "png"},
     })
-    changed_plan = P.build_segment_plan(changed, P.default_settings())
+    changed_plan = P.build_segment_plan(changed, source_settings())
     second = I.compile_segment_interview(changed_plan, first["state"])
     assert changed_plan["revision"] == plan["revision"]
     assert second["ready"], second["errors"]
@@ -142,7 +182,7 @@ def test_rebalanced_short_source_tail_compiles_for_h3(frames):
         duration_seconds=seconds, frame_count=frames, fps=24, frame_count_exact=True,
     )
     value["video_track"][0]["source_out_seconds"] = seconds
-    plan = P.build_segment_plan(C.normalize_project(value), P.default_settings())
+    plan = P.build_segment_plan(C.normalize_project(value), source_settings())
     result = I.compile_segment_interview(plan, I.empty_segment_interview(), align=True)
     assert result["ready"], result["errors"]
     assert result["segments"][-1]["reference_plan"]["media_project"]["video_track"][0]["project_frame_count"] >= 48

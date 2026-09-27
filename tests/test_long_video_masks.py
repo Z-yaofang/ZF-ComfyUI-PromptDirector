@@ -88,6 +88,7 @@ def project(frames, has_audio=False, canvas=None):
 
 def segment_plan(frames=672, *, has_audio=False, canvas=None, **settings):
     value = PLAN.default_settings()
+    value["mode"] = "source_auto"
     value.update(settings)
     return PLAN.build_segment_plan(project(frames, has_audio, canvas), value)
 
@@ -191,7 +192,7 @@ def test_non_grid_source_seconds_are_preserved_for_vfr_sampling(monkeypatch):
     value["video_track"][0]["source_in_seconds"] = .035
     value["video_track"][0]["source_out_seconds"] = 28.035
     value["assets"][0]["probe"].update(duration_seconds=30, vfr=True)
-    plan = PLAN.build_segment_plan(CONTRACT.normalize_project(value), PLAN.default_settings())
+    plan = PLAN.build_segment_plan(CONTRACT.normalize_project(value), {**PLAN.default_settings(), "mode": "source_auto"})
     captured = {}
     def decode(project_value, clip_id):
         captured["source_in_seconds"] = project_value["video_track"][0]["source_in_seconds"]
