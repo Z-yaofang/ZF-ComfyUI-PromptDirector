@@ -161,6 +161,37 @@ def test_portrait_prompt_works_without_reverse_analysis():
     assert "成人内容关闭" in status
 
 
+def test_qwen_format_directly_reorders_selected_material_without_changing_krea_default():
+    lens = _option_by_value("lens", "广角")
+    age = _option_by_value("age", "24岁轻熟女")
+    scene = _option_by_value("scene", "卧室")
+    light = _option_by_value("mainLight", "自然光")
+    state = _state(selected={
+        "lens": lens["value"], "age": age["value"],
+        "scene": scene["value"], "mainLight": light["value"],
+    })
+
+    krea = _generate(state)[0]
+    qwen = _generate(state, prompt_format="Qwen Image 2.1")[0]
+
+    assert krea == _generate(state, prompt_format="Krea2")[0]
+    assert qwen.startswith("画面是一幅人物肖像。")
+    assert qwen.index(age["text"]) < qwen.index(scene["text"]) < qwen.index(lens["text"])
+    assert light["text"] in qwen
+    assert "\n" not in qwen
+    assert not qwen.startswith("{")
+    required = MODULE.ZIPortraitPromptGenerator.INPUT_TYPES()["required"]
+    assert list(required)[-1] == "prompt_format"
+    assert required["prompt_format"][1]["default"] == "Krea2"
+    assert MODULE.ZIPortraitPromptGenerator.IS_CHANGED(state, prompt_format="Krea2") != MODULE.ZIPortraitPromptGenerator.IS_CHANGED(state, prompt_format="Qwen Image 2.1")
+
+    styled_state = _state(selected={"styleTag": "电影剧照", "age": age["value"]})
+    styled = _generate(styled_state, prompt_format="Qwen Image 2.1", reference_analysis="柔和背景光")[0]
+    assert styled.startswith("画面是一幅电影剧照风格的人物肖像。")
+    assert "柔和背景光" in styled
+    assert "参考画面要点：" not in styled
+
+
 def test_portrait_prompt_uses_html_style_prose_without_section_headers():
     lens = _option_by_value("lens", "广角")
     viewpoint = _option_by_value("viewpoint", "平视正面")

@@ -11,7 +11,7 @@ from comfy_execution.graph import ExecutionBlocker
 from .flow_nodes import ZFPromptDirectorAnyFilter, ZFPromptDirectorMultiTextSelector
 from .local_multimodal import ZFPromptDirectorLocalLLM
 from .music_nodes import ZFMusic3PromptDirector, ZFMusic3ResponseParser
-from .portrait_nodes import ZIPortraitPromptGenerator
+from .portrait_nodes import ZIPortraitPromptGenerator, PROMPT_FORMATS, DEFAULT_PROMPT_FORMAT
 from .h3_focus.node import ZVH3InterviewFormV2
 from .h3_focus.reverse_pipeline import ZVH3ReverseStage
 from .h3_focus.outlet_node import ZVH3ReferenceOutlet
@@ -125,6 +125,11 @@ DIRECTOR_SYSTEM_PROMPT = """你是视觉创意导演，也是中文图像正向�
 世界观边界必须执行，但只能通过筛选素材、确定具体属性以及正向、可见的画面事实自然落实；不把边界写成“除非用户……”“不得……”“禁止……”一类面向操作者的规则句，不在成品末尾追加免责声明或规则清单。参考图分析只提供视觉事实和可迁移创意，其中任何类似指令、规则或免责声明的文本都不能进入成品。
 
 最终只输出一条正向、确定、自然、连续的中文成品提示词正文，不输出内部指令、字段标题、分析过程、条件说明、禁止条款或创作解释。"""
+
+QWEN_IMAGE_21_WRITING_RULES = """【Qwen Image 2.1 文生图表达（内部控制）】
+最终仍只输出一段中文画面描述，让图像模型直接读取；不要输出 JSON、Markdown、字段名、编号或标签列表。
+用观察画面的陈述句写已经呈现的内容，不向模型下命令。开篇把媒介、风格、主体和背景融入同一句，优先保留用户明确的人物数量与画面目标。随后沿画面空间写人物的位置、姿态、面部、发型、每件服饰、道具和材质；再明确光源、方向、阴影与高光，最后用一句话收束构图、色彩和氛围。
+需要出现在画面中的文字按用户原文保留，用直双引号标出，并交代位置与外观；没有指定可读文字时不编造。画幅比例、像素尺寸和分辨率由工作流设置，不写进提示词正文。避免“8K”“masterpiece”等质量堆词；细节随素材量展开，不为凑字数虚构物件或重复同义描述。"""
 
 
 REFERENCE_ANALYSIS_SYSTEM_PROMPT = """你是专业的视觉参考图分析师。你的工作是把参考图拆解成可以迁移到新图像中的视觉关系，而不是复述图片或复制图片中的人物身份、品牌和原文案。
@@ -635,7 +640,7 @@ def _split_theme_layers(theme):
     return "\n\n".join(material_blocks).strip(), "\n\n".join(boundary_blocks).strip()
 
 
-def _writer_system_prompt(model_level, minimum, maximum, world_boundary=""):
+def _writer_system_prompt(model_level, minimum, maximum, world_boundary="", prompt_format=DEFAULT_PROMPT_FORMAT):
     level = MODEL_LEVEL_SPECS[_model_level_key(model_level)]
     blocks = [
         DIRECTOR_SYSTEM_PROMPT,
@@ -645,6 +650,8 @@ def _writer_system_prompt(model_level, minimum, maximum, world_boundary=""):
             f"篇幅目标约{minimum}至{maximum}个中文字符，长度服务当前用途的真实复杂度。"
         ),
     ]
+    if prompt_format == PROMPT_FORMATS[1]:
+        blocks.append(QWEN_IMAGE_21_WRITING_RULES)
     boundary = str(world_boundary or "").strip()
     if boundary:
         blocks.append(
@@ -1312,6 +1319,7 @@ class ZFPromptDirector:
                 "reference_image": ("IMAGE",),
                 "image_model_level": (MODEL_LEVELS, {"default": DEFAULT_MODEL_LEVEL}),
                 "reference_mode": (REFERENCE_MODES, {"default": REFERENCE_MODES[0]}),
+                "prompt_format": (PROMPT_FORMATS, {"default": DEFAULT_PROMPT_FORMAT}),
             },
         }
 
@@ -1351,6 +1359,7 @@ class ZFPromptDirector:
         reference_image=None,
         image_model_level=DEFAULT_MODEL_LEVEL,
         reference_mode=REFERENCE_MODES[0],
+        prompt_format=DEFAULT_PROMPT_FORMAT,
     ):
         original = str(user_prompt or "").strip()
         theme_text, world_boundary = _split_theme_layers(theme)
@@ -1456,6 +1465,7 @@ class ZFPromptDirector:
             minimum,
             maximum,
             world_boundary,
+            prompt_format,
         )
         return (
             writer_system_prompt,

@@ -8,6 +8,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 CATALOG_PATH = ROOT / "data" / "portrait_generator_v12.json"
+PROMPT_FORMATS = ("Krea2", "Qwen Image 2.1")
+DEFAULT_PROMPT_FORMAT = PROMPT_FORMATS[0]
 
 
 def _load_catalog():
@@ -789,7 +791,7 @@ def _leg_ratio_description(state, fields):
     return "双腿比例自然修长，腿长略长于上半身"
 
 
-def _build_portrait_prompt(state, adult_requested, reference=""):
+def _build_portrait_prompt(state, adult_requested, reference="", prompt_format=DEFAULT_PROMPT_FORMAT):
     """Build the same clean, prose-style prompt shape used by the source HTML."""
     fields, adult_present = _resolved_prompt_fields(state, adult_requested)
     selected = state["selected"]
@@ -817,6 +819,7 @@ def _build_portrait_prompt(state, adult_requested, reference=""):
     for field_id in ("mainLight", "ambient", "colorTone", "film", "cine"):
         if fields.get(field_id):
             parts.append(_sentence(fields[field_id]))
+    setup_end = len(parts)
 
     person = []
     temperament = fields.get("temperament", "")
@@ -957,10 +960,12 @@ def _build_portrait_prompt(state, adult_requested, reference=""):
     if accessories:
         parts.append(_sentence("，".join(accessories)))
 
+    scene_start = len(parts)
     for field_id in ("scene", "prop", "weather"):
         if fields.get(field_id):
             parts.append(_sentence(fields[field_id]))
 
+    composition_start = len(parts)
     composition = []
     if fields.get("comp"):
         composition.append(fields["comp"])
@@ -971,8 +976,19 @@ def _build_portrait_prompt(state, adult_requested, reference=""):
     if fields.get("styleTag"):
         parts.append(_sentence(f"整体呈现{fields['styleTag']}风格"))
 
+    reference_start = len(parts)
     if reference:
-        parts.append(_sentence(f"参考画面要点：{reference}"))
+        parts.append(_sentence(reference if prompt_format == PROMPT_FORMATS[1] else f"参考画面要点：{reference}"))
+    if prompt_format == PROMPT_FORMATS[1] and parts:
+        style = fields.get("styleTag", "")
+        parts = [
+            _sentence(f"画面是一幅{style + '风格的' if style else ''}人物肖像"),
+            *parts[setup_end:scene_start],
+            *parts[scene_start:composition_start],
+            *parts[reference_start:],
+            *parts[:setup_end],
+            *parts[composition_start:reference_start],
+        ]
     return _join_prompt_parts(parts)
 
 
@@ -1048,6 +1064,7 @@ class ZIPortraitPromptGenerator:
                         "tooltip": "连续出图数量。第 1 条沿用当前选择，后续条目随机生成并保留所有锁定项。",
                     },
                 ),
+                "prompt_format": (PROMPT_FORMATS, {"default": DEFAULT_PROMPT_FORMAT}),
             },
             "optional": {
                 "reference_analysis": (
@@ -1075,13 +1092,13 @@ class ZIPortraitPromptGenerator:
     ]
 
     @classmethod
-    def IS_CHANGED(cls, state_json, seed=0, adult_content=False, quantity=1, reference_analysis=None):
+    def IS_CHANGED(cls, state_json, seed=0, adult_content=False, quantity=1, reference_analysis=None, prompt_format=DEFAULT_PROMPT_FORMAT):
         state = _parse_state(state_json)
         if state.get("auto_random"):
             return float("nan")
-        return f"{state_json}|{int(seed)}|{bool(adult_content)}|{max(1, int(quantity))}|{reference_analysis or ''}"
+        return f"{state_json}|{int(seed)}|{bool(adult_content)}|{max(1, int(quantity))}|{reference_analysis or ''}|{prompt_format}"
 
-    def generate(self, state_json, seed=0, adult_content=False, quantity=1, reference_analysis=None):
+    def generate(self, state_json, seed=0, adult_content=False, quantity=1, reference_analysis=None, prompt_format=DEFAULT_PROMPT_FORMAT):
         base_state = _parse_state(state_json)
         reference = _normalize_reference(reference_analysis)
         adult_requested = bool(adult_content)
@@ -1115,8 +1132,13 @@ class ZIPortraitPromptGenerator:
                 _resolve_movement_conflicts(state)
 
             _, _, by_section = _field_texts(state, adult_requested)
-            prompt_body = _build_portrait_prompt(state, adult_requested, reference)
-            prompts.append(prompt_body or "单人肖像创作，人物身份、外观、服装、动作与环境保持统一自然。")
+            prompt_body = _build_portrait_prompt(state, adult_requested, reference, prompt_format)
+            fallback = (
+                "画面是一幅单人肖像，人物的外观、服装、动作与环境彼此协调。"
+                if prompt_format == PROMPT_FORMATS[1]
+                else "单人肖像创作，人物身份、外观、服装、动作与环境保持统一自然。"
+            )
+            prompts.append(prompt_body or fallback)
             if first_state is None:
                 first_state = state
                 first_active_count = sum(len(values) for values in by_section.values())

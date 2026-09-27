@@ -25,6 +25,18 @@ def _load_nodes_module():
     sys.modules[module_name] = module
     assert spec.loader is not None
     stubs = {"comfy_execution": comfy_execution, "comfy_execution.graph": graph}
+    animate_package = types.ModuleType(f"{PACKAGE_NAME}.animate_video")
+    animate_package.__path__ = [str(ROOT / "animate_video")]
+    stubs[animate_package.__name__] = animate_package
+    for module_name, class_names in {
+        "nodes": ("ZVAnimateSegmentDesk", "ZVAnimateExecutionEntry", "ZVAnimateSegmentRecorder", "ZVAnimateExecutionEnd"),
+        "comparison": ("ZVAnimateFinalComparison",),
+        "masking": ("ZVAnimateMaskFrame", "ZVAnimateMaskSeed", "ZVAnimateMaskGate"),
+    }.items():
+        stub = types.ModuleType(f"{animate_package.__name__}.{module_name}")
+        for class_name in class_names:
+            setattr(stub, class_name, type(class_name, (), {}))
+        stubs[stub.__name__] = stub
     missing = object()
     previous = {name: sys.modules.get(name, missing) for name in stubs}
     sys.modules.update(stubs)
@@ -113,6 +125,21 @@ def _build(**overrides):
     }
     values.update(overrides)
     return MODULE.ZFPromptDirector().build(**values)
+
+
+def test_qwen_writing_format_changes_only_writer_instructions():
+    krea = _build()
+    qwen = _build(prompt_format="Qwen Image 2.1")
+
+    assert krea[0] == _build(prompt_format="Krea2")[0]
+    assert "Qwen Image 2.1 文生图表达" not in krea[0]
+    assert "Qwen Image 2.1 文生图表达" in qwen[0]
+    assert "只输出一段中文画面描述" in qwen[0]
+    assert len(qwen[1]) == len(krea[1]) == 1
+    assert qwen[2:] == krea[2:]
+    optional = MODULE.ZFPromptDirector.INPUT_TYPES()["optional"]
+    assert list(optional)[-1] == "prompt_format"
+    assert optional["prompt_format"][1]["default"] == "Krea2"
 
 
 def test_user_prompt_remains_highest_priority_and_world_boundary_is_silent():

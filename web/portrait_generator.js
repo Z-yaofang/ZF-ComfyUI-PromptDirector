@@ -295,6 +295,7 @@ function attachPortraitGenerator(node) {
   const seedWidget = node.widgets?.find((widget) => widget.name === "seed");
   const adultWidget = node.widgets?.find((widget) => widget.name === "adult_content");
   const quantityWidget = node.widgets?.find((widget) => widget.name === "quantity");
+  const formatWidget = node.widgets?.find((widget) => widget.name === "prompt_format");
   if (!stateWidget || !seedWidget || !adultWidget || !quantityWidget) return;
   node.properties ||= {};
   const currentQuantity = Math.max(1, Math.min(100, Math.round(Number(quantityWidget.value) || 1)));
@@ -392,7 +393,8 @@ function attachPortraitGenerator(node) {
     const resize = () => {
       const pinnedCount = all.filter(({ field }) => state.pinned[field.id] && (state.adult_content || !field.adult)).length;
       const width = Math.max(470, node.size?.[0] || 0);
-      const height = Math.max(171, Math.min(496, 138 + pinnedCount * 43));
+      const formatHeight = formatWidget ? 30 : 0;
+      const height = Math.max(171 + formatHeight, Math.min(496 + formatHeight, 138 + formatHeight + pinnedCount * 43));
       node.setSize?.([width, height]);
       markChanged();
     };
