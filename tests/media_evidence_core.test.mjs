@@ -45,6 +45,13 @@ test('split boundary activates only the next video and sound; project end ignore
     assert.equal(e.timelineAt(split,20).audio.length,1);assert.equal(e.timelineAt(split,20).audio[0].sourceTime,20);
     assert.deepEqual(e.timelineAt(split,30),{video:null,audio:[]});
 });
+test('splitting after the selected window frame keeps that frame only in the left segment',()=>{
+    const p=base(),left=p.video_track[0],selected=23/24,boundary=e.windowFrameEnd(p,selected),split=e.split(p,left.clip_id,boundary,id),right=split.video_track[1];
+    assert.equal(e.windowFrame(p,selected),23);assert.equal(boundary,1);
+    assert.equal(split.video_track[0].source_out_seconds,1);assert.equal(right.source_in_seconds,1);
+    assert.equal(e.timelineAt(split,selected).video.clip.clip_id,left.clip_id);
+    assert.equal(e.timelineAt(split,boundary).video.clip.clip_id,right.clip_id);
+});
 test('removed assets, invalid cuts and source EOF cannot leave an active picture or sound',()=>{
     const p=base();p.video_track[0].source_out_seconds=50;e.follow(p,p.video_track[0]);
     assert.deepEqual(e.timelineAt(p,31),{video:null,audio:[]});
@@ -106,6 +113,16 @@ test('disabled window snapping still quantizes to 24 fps',()=>{
 test('non-frame playhead is resolved to the nearest H3 frame',()=>{
     const w=e.dragWindow(window,-.94,'left',[1.01],100);
     assert.equal(w.start_seconds,1);assert.equal(w.start_seconds*24,Math.round(w.start_seconds*24));
+});
+test('timeline frame coordinates follow the processing-window fps, not the source or project clock',()=>{
+    const project={project_clock:{fps:60},processing_window:{start_seconds:0,end_seconds:15,fps:24}};
+    assert.equal(e.windowFps(project),24);
+    assert.equal(e.windowFrame(project,10.5),252);
+    assert.equal(e.windowTime(project,252),10.5);
+    assert.equal(e.alignWindowTime(project,10.488),252/24);
+    assert.equal(e.windowFrameEnd(project,10.5),253/24);
+    project.processing_window.fps=30;
+    assert.equal(e.windowFrame(project,10.5),315);
 });
 test('whole window chooses closest edge target and never makes negative time',()=>{
     const close=e.dragWindow(window,.95,undefined,[3,4.96],100);assert.equal(close.start_seconds,71/24);assert(Math.abs(close.end_seconds-close.start_seconds-2)<1e-12);

@@ -62,7 +62,7 @@ def test_frame_is_from_original_with_previous_pts_and_no_persistence(source):
     assert files(store) == before
 
 
-def test_rounded_up_pts_selects_nominal_frame_only_for_preview(source, tmp_path):
+def test_preview_and_screenshot_share_strict_previous_pts_selection(source, tmp_path):
     from PIL import Image
 
     store, asset = source
@@ -70,17 +70,16 @@ def test_rounded_up_pts_selects_nominal_frame_only_for_preview(source, tmp_path)
     nominal_seconds = 5 / 30
     png, actual = store.frame_preview(asset["source_handle"], nominal_seconds)
     # The MKV time base is 1 ms: the fifth zero-based frame is at 0.167 s,
-    # 0.000333 s after its nominal 5/30 request. It is still that frame.
-    assert actual == pytest.approx(0.167, abs=1e-6)
+    # just after its nominal 5/30 target. Monitoring deliberately selects the
+    # previous PTS, matching screenshot and CFR outlet sampling.
+    assert actual == pytest.approx(0.133, abs=1e-6)
     with Image.open(BytesIO(png)) as image:
-        assert 90 <= image.getpixel((0, 0))[0] <= 110
+        assert 70 <= image.getpixel((0, 0))[0] <= 90
     assert files(store) == before
 
-    # The persistent screenshot contract deliberately retains its strict
-    # previous-PTS behavior; this compatibility check must not be relaxed.
     strict = store.worker("screenshot", store.resolve(asset["source_handle"]),
                           tmp_path / "strict.png", source_seconds=nominal_seconds)
-    assert strict["frame_seconds"] == pytest.approx(0.133, abs=1e-6)
+    assert strict["frame_seconds"] == pytest.approx(actual, abs=1e-6)
 
 
 @pytest.mark.parametrize("seconds", ["", "nan", "inf", "-1", "0.4", True])

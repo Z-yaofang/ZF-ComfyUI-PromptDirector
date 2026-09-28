@@ -5,8 +5,17 @@ import {createRequire} from 'node:module';
 import {readFile} from 'node:fs/promises';
 const {chromium}=createRequire(import.meta.url)(process.argv[2]||'playwright');
 const files=Object.fromEntries(await Promise.all(['media_evidence_desk.js','media_evidence_core.mjs','media_evidence_presets.mjs','media_evidence_outlets.mjs','media_processing_presets.json','media_evidence_desk.css','dom_widget_layout.mjs'].map(async name=>[name,await readFile(new URL(`../web/${name}`,import.meta.url),'utf8')])));
+// Simulate the real restart failure: ComfyUI has reloaded the new desk while
+// Chromium still owns the previous nested core module. The full monitor,
+// screenshot and split suite must remain operational with that mixed pair.
+files['media_evidence_core.mjs']=files['media_evidence_core.mjs'].replace(
+    /^export const windowFps = project => \{[\s\S]*?^export const windowFrameEnd = .*?;\r?\n/m,
+    '',
+);
+assert(!files['media_evidence_core.mjs'].includes('export const windowFps ='));
 const exactPng=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAIAAAB7QOjdAAAADElEQVR4nGP8zwACAAYIAQFazwZIAAAAAElFTkSuQmCC','base64');
 const exactRequests=[];
+const screenshotRequests=[];
 let busyFrames=0;
 const browser=await chromium.launch({headless:true,executablePath:process.argv[3]});
 const page=await browser.newPage({viewport:{width:1240,height:1060}}),errors=[];
@@ -42,10 +51,11 @@ await page.route('**/*',route=>{
     }
     if(path.endsWith('/preview'))return url.searchParams.get('variant')==='peaks'?route.fulfill({json:{peaks:[.1,.4,.8,.3]}}):route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="160" height="90"><rect width="160" height="90" fill="#295779"/></svg>'});
     if(path.endsWith('/frame')){exactRequests.push({source:url.searchParams.get('source'),seconds:Number(url.searchParams.get('seconds'))});if(busyFrames>0){busyFrames--;return route.fulfill({status:429,json:{ok:false,error:{message:'busy'}}});}return route.fulfill({contentType:'image/png',headers:{'X-ZF-Frame-Seconds':url.searchParams.get('seconds')},body:exactPng});}
+    if(path.endsWith('/screenshot')){const request=route.request().postDataJSON();screenshotRequests.push(request);const sourceSeconds=request.source_in_seconds+request.playhead_seconds-request.timeline_in_seconds;return route.fulfill({json:{ok:true,asset:{asset_id:`shot-${screenshotRequests.length}`,source_handle:`shot-${screenshotRequests.length}`,name:'shot.png',kind:'picture',probe:{width:2,height:1,duration_seconds:null,has_audio:false,size_bytes:100},capture:{method:'video_frame',source_handle:request.source_handle,source_seconds:sourceSeconds,frame_seconds:sourceSeconds,playhead_seconds:request.playhead_seconds}}}});}
     const name=path.split('/').at(-1),body=path==='/'?html:name==='app.js'?'export const app={registerExtension(){}};':name==='api.js'?'export const api={apiURL:p=>p,fetchApi:(p,o)=>fetch(p,o)};':files[name];
     return body?route.fulfill({contentType:path==='/'?'text/html':name.endsWith('.css')?'text/css':name.endsWith('.json')?'application/json':'application/javascript',body}):route.abort();
 });
-const asset=(id,kind,has_audio=true)=>({asset_id:id,source_handle:id,name:`${id}.${kind==='audio'?'mp3':'mp4'}`,kind,probe:{duration_seconds:60,has_audio,width:kind==='video'?320:null,height:kind==='video'?180:null,fps:24,frame_count:1440,frame_count_exact:true,vfr:false,size_bytes:1000}});
+const asset=(id,kind,has_audio=true)=>({asset_id:id,source_handle:id,name:`${id}.${kind==='audio'?'mp3':'mp4'}`,kind,probe:{duration_seconds:60,has_audio,width:kind==='video'?320:null,height:kind==='video'?180:null,fps:kind==='video'?60:null,frame_count:kind==='video'?3600:null,frame_count_exact:kind==='video',vfr:kind==='video'?false:null,size_bytes:1000}});
 const v=(id,asset_id,at,start,end,audio=null)=>({clip_id:id,asset_id,timeline_in_seconds:at,source_in_seconds:start,source_out_seconds:end,source_audio_enabled:!!audio,audio_link_id:audio});
 const a=(id,asset_id,at,start,end,video=null)=>({...v(id,asset_id,at,start,end),enabled:true,origin:video?'video_source':'standalone',linked_video_clip_id:video,source_video_clip_id:video});
 const fixture=()=>({schema_version:1,project_clock:{fps:24},assets:[asset('silent','video',false),asset('voiced','video'),asset('music','audio')],picture_track:[],video_track:[v('v1','silent',0,3,7),v('v2','voiced',4,10,14,'original')],audio_track:[a('mp3','music',1,7,13),a('original','voiced',4,10,14,'v2')],processing_window:{start_seconds:0,end_seconds:2,fps:24}});
@@ -87,20 +97,24 @@ try {
     await page.goto('https://monitor.test/');await page.waitForSelector('.zf-med');await reset();
     await page.waitForFunction(()=>document.querySelector('.zf-med-exact-frame')?.naturalWidth===2);
     assert.deepEqual(exactRequests.at(-1),{source:'silent',seconds:5});
-    assert.match(await page.locator('.zf-med-readout').textContent(),/工程帧 48（从 0 起）.*源帧 121 \/ 1440（从 1 起）.*原片实取 PTS 5\.000 s/);
+    assert.match(await page.locator('.zf-med-readout').textContent(),/窗口帧 48（24 fps，从 0 起）.*对应源 5\.000 s（原片 60 fps 仅用于取帧）.*原片实取 PTS 5\.000 s/);
     assert.equal(await page.locator('.zf-med-screen video').evaluate(player=>player.style.visibility),'hidden');
-    check('paused timeline shows decoded original frame and disambiguates zero-based project versus one-based source frame');
+    check('paused timeline uses the 24 fps window frame while the 60 fps source stays decode-only');
+    await reset(fixture(),2.02);assert.equal(await head(),2);
+    await page.getByRole('button',{name:'截图',exact:true}).click();await page.waitForFunction(()=>deskNode.zfMediaDesk.getProject().assets.length===4);
+    assert.equal(screenshotRequests.at(-1).playhead_seconds,2);assert.equal((await page.evaluate(()=>deskNode.zfMediaDesk.getProject())).assets.at(-1).capture.source_seconds,5);
+    check('screenshot freezes the window-aligned frame and maps it to the matching source time');
     await seek(2.1);await seek(2.2);await seek(2.3);
-    await page.waitForFunction(()=>document.querySelector('.zf-med-readout')?.textContent.includes('原片实取 PTS 5.300 s'));
+    await page.waitForFunction(()=>document.querySelector('.zf-med-readout')?.textContent.includes('原片实取 PTS 5.292 s'));
     assert.equal(await page.locator('.zf-med-exact-frame').count(),1);
-    assert.deepEqual(exactRequests.at(-1),{source:'silent',seconds:5.3});
+    assert.deepEqual(exactRequests.at(-1),{source:'silent',seconds:Number((3+55/24).toFixed(9))});
     check('rapid paused seeks leave only the latest original still');
     const beforeRetry=exactRequests.length;busyFrames=1;await seek(2.4);
-    await page.waitForFunction(()=>document.querySelector('.zf-med-readout')?.textContent.includes('原片实取 PTS 5.400 s'));
+    await page.waitForFunction(()=>document.querySelector('.zf-med-readout')?.textContent.includes('原片实取 PTS 5.417 s'));
     assert.equal(busyFrames,0);assert.equal(exactRequests.length,beforeRetry+2);
     check('temporary original-frame decoder contention retries without using the proxy frame');
     await reset();
-    const frameInput=page.getByRole('spinbutton',{name:'播放头工程帧',exact:true}),locate=page.getByRole('button',{name:'定位',exact:true});
+    const frameInput=page.getByRole('spinbutton',{name:'播放头窗口帧',exact:true}),locate=page.getByRole('button',{name:'定位',exact:true});
     const projectBefore=await page.evaluate(()=>deskNode.zfMediaDesk.getProject());
     assert.equal(await frameInput.inputValue(),'48');
     await page.locator('.zf-med-snap').check();await frameInput.fill('95');assert.equal(await head(),2);await frameInput.press('Enter');
@@ -114,19 +128,20 @@ try {
     await play();await frameInput.fill('120');await step(.2);assert.equal(await frameInput.inputValue(),'120');await frameInput.press('Enter');assert.equal(await head(),5);assert.deepEqual(await sounding(),[]);check('playback cannot overwrite a frame being typed; confirming pauses and seeks');
     await frameInput.fill('7200');await locate.click();assert.equal(await head(),300);
     assert(await page.evaluate(()=>{const h=document.querySelector('.zf-med-playhead').getBoundingClientRect(),s=document.querySelector('.zf-med-scroll').getBoundingClientRect();return h.x>=s.x&&h.right<=s.right;}));check('distant frame expands and scrolls the timeline to keep the yellow handle visible');
-    const fpsProject=fixture();fpsProject.project_clock.fps=29.97;await reset(fpsProject,1);
-    await frameInput.fill('185');await frameInput.press('Enter');assert.equal(await head(),185/29.97);assert.equal(await frameInput.inputValue(),'185');check('frame-to-seconds mapping uses the project clock, including fractional fps');
-    await reset(fixture(),6,'v1');const fixedHead=await headSnapshot();
+    const fpsProject=fixture();fpsProject.project_clock.fps=60;fpsProject.processing_window.fps=29.97;await reset(fpsProject,1);
+    await frameInput.fill('185');await frameInput.press('Enter');assert.equal(await head(),185/29.97);assert.equal(await frameInput.inputValue(),'185');check('frame-to-seconds mapping uses the window reference fps instead of the 60 fps project clock');
+    await reset(fixture(),6.01,'v1');assert.equal(await head(),6);const fixedHead=await headSnapshot();
     await page.locator('[data-id="v2"]').click({position:{x:40,y:30}});assert.deepEqual(await headSnapshot(),fixedHead);assert.equal(await page.locator('.zf-med-clip.video.selected').getAttribute('data-id'),'v2');
     await page.locator('[data-id="mp3"]').click({position:{x:40,y:30}});assert.deepEqual(await headSnapshot(),fixedHead);
     await page.locator('.zf-med-lane[data-track="video"]').click({position:{x:700,y:60}});assert.deepEqual(await headSnapshot(),fixedHead);check('video, audio and empty-lane clicks cannot displace an already positioned playhead');
-    await page.locator('[data-id="v1"]').click();await page.getByRole('button',{name:'分割',exact:true}).click();assert.match(await page.locator('.zf-med-status').textContent(),/黄线不在所选片段内部/);
+    await page.locator('[data-id="v1"]').click();await page.getByRole('button',{name:'分割',exact:true}).click();assert.match(await page.locator('.zf-med-status').textContent(),/当前帧之后没有可分割内容/);
     assert.equal((await page.evaluate(()=>deskNode.zfMediaDesk.getProject())).video_track.length,2);check('splitting the wrong selected clip reports why instead of silently doing nothing');
     await page.locator('[data-id="v2"]').click({position:{x:40,y:30}});await page.getByRole('button',{name:'分割',exact:true}).click();
     await page.waitForFunction(()=>document.querySelector('.zf-med').getAttribute('aria-busy')==='false');
     const splitProject=await page.evaluate(()=>deskNode.zfMediaDesk.getProject());assert.deepEqual(errors,[]);assert.equal(splitProject.video_track.length,3);
-    assert.equal(splitProject.video_track[1].source_out_seconds,12);assert.equal(splitProject.video_track[2].source_in_seconds,12);assert.equal(splitProject.video_track[2].timeline_in_seconds,6);
-    assert.equal(splitProject.audio_track.filter(s=>s.origin==='video_source').length,2);assert.equal(await head(),6);check('locate, select, split preserves the chosen cut and splits the linked original audio');
+    const splitBoundary=145/24,splitSource=10+(splitBoundary-4);
+    assert.equal(splitProject.video_track[1].source_out_seconds,splitSource);assert.equal(splitProject.video_track[2].source_in_seconds,splitSource);assert.equal(splitProject.video_track[2].timeline_in_seconds,splitBoundary);
+    assert.equal(splitProject.audio_track.filter(s=>s.origin==='video_source').length,2);assert.equal(await head(),6);check('non-grid playhead is aligned to the window frame before splitting linked video and audio');
     await reset(fixture(),3.5);assert.equal(await frameInput.inputValue(),'84');
     assert.equal(await page.evaluate(()=>{const h=document.querySelector('.zf-med-playhead').getBoundingClientRect();return document.elementFromPoint(h.x+8,h.y+140)?.classList.contains('zf-med-playhead');}),false);
     const handleBox=await page.locator('.zf-med-playhead').boundingBox();

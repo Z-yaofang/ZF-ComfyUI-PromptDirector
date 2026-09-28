@@ -56,9 +56,10 @@ try {
             deskNode.widgets[0].value=JSON.stringify(project);deskNode.zfMediaDesk.restore();
         },probeFlags);
         await synced();
+        await clickAsset('generated-video');await page.waitForFunction(()=>document.querySelector('.zf-med-screen video')?.readyState>=2);
         const expected=exact&&vfr===false?'源帧':'估算帧';
         const readout=await page.locator('.zf-med-readout').textContent(),facts=await page.locator('.zf-med-facts').textContent();
-        assert.match(readout,new RegExp(`^工程帧 \\d+（从 0 起） · ${expected} \\d+ / 48（从 1 起） · 源 24 fps`));
+        assert.match(readout,new RegExp(`^窗口参考帧 \\d+（24 fps，从 0 起） · 对应${expected} \\d+ / 48（仅来源信息） · 源 24 fps`));
         assert(facts.includes(`总帧 48（${expected}）`)&&facts.includes('源帧率 24 fps'));
         if(vfr===true)assert(readout.includes(' · VFR'));
         if(vfr===null)assert(readout.includes('帧率稳定性未确认'));
@@ -223,11 +224,13 @@ try {
     await page.locator('.zf-med-snap').uncheck();
     p=await state();const clip=p.video_track[0];
     let r=await page.locator('.zf-med-ruler').boundingBox();const initialHead=clip.timeline_in_seconds+.1;await page.mouse.click(r.x+initialHead*50,r.y+32);await page.waitForFunction(()=>document.querySelector('.zf-med-screen video')?.readyState>=2);
+    const alignedInitialHead=await page.evaluate(()=>deskNode.properties.zf_media_desk_view.playhead);
     const head=await page.locator('.zf-med-playhead').boundingBox(),windowBefore=structuredClone(p.processing_window);assert.equal(head.width,16);
     assert(await page.evaluate(({x,y})=>document.elementFromPoint(x,y).classList.contains('zf-med-playhead'),{x:head.x+2,y:head.y+8}));
     await page.mouse.move(head.x+2,head.y+8);await page.mouse.down();await page.mouse.move(head.x+12,head.y+8,{steps:4});
-    assert(Math.abs(await page.evaluate(()=>deskNode.properties.zf_media_desk_view.playhead)-(initialHead+.2))<.01);
-    await page.waitForFunction(expected=>Math.abs(document.querySelector('.zf-med-screen video').currentTime-expected)<.03,clip.source_in_seconds+.3);
+    const draggedHead=Math.round((alignedInitialHead+.2)*24)/24;
+    assert(Math.abs(await page.evaluate(()=>deskNode.properties.zf_media_desk_view.playhead)-draggedHead)<1e-9);
+    await page.waitForFunction(expected=>Math.abs(document.querySelector('.zf-med-screen video').currentTime-expected)<.03,clip.source_in_seconds+draggedHead-clip.timeline_in_seconds);
     await page.mouse.up();assert.deepEqual((await state()).processing_window,windowBefore);checks++;
     // Mimic ComfyUI's transformed DOM surface, including its drag coordinate conversion.
     await page.locator('#mount').evaluate(m=>{m.style.transform='scale(.75)';m.style.transformOrigin='top left';});
@@ -284,10 +287,10 @@ try {
         let pps=await snapFixture(scale);assert(Math.abs(pps-100*scale)<.01);
         await dragHeadTo(1-6/pps,pps,true);assert.equal(await headTime(),1);
         await page.waitForFunction(()=>Math.abs(document.querySelector('.zf-med-screen video').currentTime-1)<.03);
-        assert.match(await page.locator('.zf-med-readout').textContent(),/^工程帧 24（从 0 起） · 源帧 25 \/ 48（从 1 起）/);await page.mouse.up();checks++;
+        assert.match(await page.locator('.zf-med-readout').textContent(),/^窗口帧 24（24 fps，从 0 起） · 对应源 1\.000 s（原片 24 fps 仅用于取帧）/);await page.mouse.up();checks++;
         pps=await snapFixture(scale);await dragHeadTo(3+6/pps,pps);assert.equal(await headTime(),3);checks++;
-        pps=await snapFixture(scale);await dragHeadTo(1-8/pps,pps);assert(Math.abs(await headTime()-(1-8/pps))<1e-6);checks++;
-        pps=await snapFixture(scale,{snap:false});await dragHeadTo(1-6/pps,pps);assert(Math.abs(await headTime()-(1-6/pps))<1e-6);checks++;
+        pps=await snapFixture(scale);await dragHeadTo(1-8/pps,pps);assert.equal(await headTime(),Math.round((1-8/pps)*24)/24);checks++;
+        pps=await snapFixture(scale,{snap:false});await dragHeadTo(1-6/pps,pps);assert.equal(await headTime(),Math.round((1-6/pps)*24)/24);checks++;
         pps=await snapFixture(scale,{start:2,end:4,head:1});
         await drag(page.locator('.zf-med-window .zf-med-handle.left'),-pps+6);assert.equal((await state()).processing_window.start_seconds,1);checks++;
         pps=await snapFixture(scale,{start:0,end:2,head:1.5});

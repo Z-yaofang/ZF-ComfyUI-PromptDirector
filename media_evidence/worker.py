@@ -59,11 +59,10 @@ def run(operation, filename, output, source_seconds=None):
             target = float(source_seconds)
             if not math.isfinite(target) or not 0 <= target < duration:
                 raise ValueError("capture_time")
-            # Source PTS values are stored on a discrete time base. A requested
-            # nominal frame time such as 116/30 may differ from the actual PTS
-            # by half a stream tick after rounding. Only ephemeral previews
-            # tolerate that quantization; persistent screenshots stay strict.
-            tolerance = (float(video.time_base) / 2 if operation == "frame_preview" else 1e-9)
+            # Monitoring, persistent screenshots and CFR outlet sampling all
+            # use the same last-frame-at-or-before-target rule. This guarantees
+            # that the frame the user sees is the frame subsequent operations use.
+            tolerance = 1e-9
             video.codec_context.thread_count = 1
             origin = float((video.start_time or 0) * video.time_base)
             container.seek(int((target+origin)/video.time_base), stream=video, backward=True)

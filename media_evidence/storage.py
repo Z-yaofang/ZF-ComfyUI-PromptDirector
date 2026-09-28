@@ -235,10 +235,10 @@ class MediaStore:
     def frame_preview(self, source_handle, source_seconds):
         """Decode one original-video frame without importing it or creating a cache asset.
 
-        The worker selects the last decoded frame at the requested source time,
-        allowing only half a stream timestamp tick for PTS rounding. Its
-        returned frame_seconds is relative to the video's first timestamp,
-        independent of any preview proxy. Persistent screenshots remain strict.
+        The worker selects the last decoded frame at or before the requested
+        source time, using the same rule as persistent screenshots and CFR
+        outlet sampling. Its frame_seconds is relative to the video's first
+        timestamp and independent of any preview proxy.
         """
         if type(source_seconds) not in (str, int, float):
             raise MediaError("frame_time", "预览帧时间必须是有限数值")

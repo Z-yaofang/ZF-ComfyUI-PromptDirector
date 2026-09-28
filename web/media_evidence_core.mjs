@@ -4,6 +4,16 @@ export const clone = (value) => JSON.parse(JSON.stringify(value));
 export const uid = () => crypto.randomUUID().replaceAll("-", "");
 export const frame = (seconds, fps) => Math.floor(seconds * fps + .5);
 export const freshProject = () => ({schema_version: 2, project_clock: {fps: 24}, assets: [], picture_track: [], video_track: [], audio_track: [], processing_window: {start_seconds: 0, end_seconds: 10, fps: 24}, processing_preset:builtin()});
+export const windowFps = project => {
+    const preferred = Number(project?.processing_window?.fps);
+    if (Number.isFinite(preferred) && preferred > 0) return preferred;
+    const fallback = Number(project?.project_clock?.fps);
+    return Number.isFinite(fallback) && fallback > 0 ? fallback : 24;
+};
+export const windowFrame = (project, seconds) => frame(seconds, windowFps(project));
+export const windowTime = (project, frameNumber) => frameNumber / windowFps(project);
+export const alignWindowTime = (project, seconds) => windowTime(project, windowFrame(project, Math.max(0, seconds)));
+export const windowFrameEnd = (project, seconds) => windowTime(project, windowFrame(project, seconds) + 1);
 export const duration = (clip) => clip.source_out_seconds - clip.source_in_seconds;
 export const compareTimelineClips = (a, b) => a.timeline_in_seconds-b.timeline_in_seconds || (a.clip_id < b.clip_id ? -1 : a.clip_id > b.clip_id ? 1 : 0);
 export const sourceTime = (clip, playhead) => clip.source_in_seconds + (playhead-clip.timeline_in_seconds);
