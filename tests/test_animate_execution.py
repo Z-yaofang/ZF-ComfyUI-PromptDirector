@@ -48,6 +48,7 @@ def plan(lengths=(8, 5, 1), mode="continuation_21", fps=30, audio=False):
         windows.append((start, start + length))
         start += length
     source = FIXTURE.upstream_clips(FIXTURE.project(start, pictures=len(lengths), audio=audio, fps=fps), windows)
+    source["processing_window"]["fps"] = fps
     return PLAN.build_plan(source, FIXTURE.settings(mode), fps=fps)
 
 
@@ -59,7 +60,7 @@ def numbered(count, offset=0):
 def test_mask_index_uses_local_source_and_actual_front_padding_not_transition(mode):
     original = plan((8, 5, 1), mode=mode)
     settings = {**original["settings"], "mask_enabled": True, "mask_tasks": {
-        f"clip-{i}": {"asset_id": "video", "source_frame": frame, "prompt": f"target {i}"}
+        f"clip-{i}": {"asset_id": "video", "window_frame": frame, "prompt": f"target {i}"}
         for i, frame in enumerate((7, 8, 13))}}
     value = PLAN.build_plan(original["media_project"], settings, fps=30)
     for i, (count, padding, expected) in enumerate(((8, 1, 8), (5, 4, 4), (1, 4, 4))):

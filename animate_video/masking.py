@@ -27,7 +27,8 @@ class ZVAnimateMaskFrame:
             raise ValueError(f"{label}：遮罩参考帧或原流前补帧数无效")
         index = front_padding + local
         if frames.ndim != 4 or len(frames) < front_padding + row["frame_count"] or index >= len(frames):
-            raise ValueError(f"{label}：原流图像批次无法对齐源帧 {task['source_frame'] + 1}，请检查前补帧接线")
+            reference = f"窗口帧 {task['window_frame']}、" if "window_frame" in task else ""
+            raise ValueError(f"{label}：原流图像批次无法对齐{reference}原片源帧 {task['source_frame']}，请检查前补帧接线")
         # Plus adds its transition canvas later, after SAM/SeC. Only use original pre-padding here.
         return index, task["prompt"]
 
@@ -46,7 +47,8 @@ class ZVAnimateMaskSeed:
     def validate(self, segment_context, mask, reference_image=None):
         row = segment_context["segment"]
         task = row["mask_task"]
-        label = f"第 {row['ordinal']} 段（源帧 {task['source_frame'] + 1}，目标：{task['prompt']}）"
+        reference = f"窗口帧 {task['window_frame']}，" if "window_frame" in task else ""
+        label = f"第 {row['ordinal']} 段（{reference}原片源帧 {task['source_frame']}，目标：{task['prompt']}）"
         if mask.ndim not in (2, 3) or (mask.ndim == 3 and len(mask) != 1):
             raise ValueError(f"{label}：SeC 需要单帧种子遮罩，请关闭 SAM 独立遮罩输出或先合并")
         if not torch.isfinite(mask).all().item() or not (mask > .5).any().item():

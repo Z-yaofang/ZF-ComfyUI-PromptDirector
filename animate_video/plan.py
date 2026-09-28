@@ -11,6 +11,7 @@ from ..media_evidence.contract import ProjectError, normalize_project
 
 
 MAX_SEGMENTS = 4096
+SETTINGS_VERSION = 2
 
 
 class AnimatePlanError(ValueError):
@@ -24,7 +25,7 @@ def _issue(path, code, message):
 
 
 def default_settings():
-    return {"schema_version": 1, "seam_mode": "hard_cut", "mask_enabled": False, "mask_tasks": {}}
+    return {"schema_version": SETTINGS_VERSION, "seam_mode": "hard_cut", "mask_enabled": False, "mask_tasks": {}}
 
 
 def _hash(value):
@@ -33,6 +34,28 @@ def _hash(value):
 
 def _frame(seconds, fps):
     return math.floor(seconds * fps + .5 + 1e-9)
+
+
+def _first_grid_frame(seconds, fps):
+    return math.ceil(seconds * fps - 1e-9)
+
+
+def _window_frame_bounds(clip, fps, runtime_fps=None):
+    start = _first_grid_frame(clip["timeline_in_seconds"], fps)
+    timeline_out = clip["timeline_in_seconds"] + clip["source_out_seconds"] - clip["source_in_seconds"]
+    end = _first_grid_frame(timeline_out, fps) - 1
+    if runtime_fps is None:
+        return start, end
+    load_start = _frame(clip["source_in_seconds"], runtime_fps)
+    load_end = _frame(clip["source_out_seconds"], runtime_fps)
+    local_index = lambda frame: _frame(
+        clip["source_in_seconds"] + frame / fps - clip["timeline_in_seconds"], runtime_fps,
+    ) - load_start
+    while start <= end and local_index(start) < 0:
+        start += 1
+    while end >= start and local_index(end) >= load_end - load_start:
+        end -= 1
+    return start, end
 
 
 def _rate(value):
@@ -53,16 +76,46 @@ def _settings(value):
     result = {**default_settings(), **copy.deepcopy(value)}
     if set(value) - set(default_settings()):
         raise AnimatePlanError([_issue("/settings", "unknown_field", "存在未知分段设置字段")])
-    if type(result["schema_version"]) is not int or result["schema_version"] != 1:
+    if type(result["schema_version"]) is not int or result["schema_version"] not in (1, SETTINGS_VERSION):
         raise AnimatePlanError([_issue("/settings/schema_version", "schema_version", "不支持的 Animate 设置版本")])
     if result["seam_mode"] not in ("hard_cut", "continuation_21"):
         raise AnimatePlanError([_issue("/settings/seam_mode", "seam_mode", "请选择硬切或原生 21 帧承接")])
     if type(result["mask_enabled"]) is not bool or not isinstance(result["mask_tasks"], dict):
         raise AnimatePlanError([_issue("/settings", "mask_settings", "遮罩设置需包含全局开关与各段填写内容")])
+    frame_key = "source_frame" if result["schema_version"] == 1 else "window_frame"
     for task in result["mask_tasks"].values():
-        if not isinstance(task, dict) or set(task) - {"asset_id", "source_frame", "prompt"}:
-            raise AnimatePlanError([_issue("/settings/mask_tasks", "mask_task", "每段只保存视频来源、参考帧和遮罩目标词")])
+        if not isinstance(task, dict) or set(task) - {"asset_id", frame_key, "prompt"}:
+            raise AnimatePlanError([_issue("/settings/mask_tasks", "mask_task", "每段只保存视频来源、窗口参考帧和遮罩目标词")])
     return result
+
+
+def _migrate_settings(project, config, fallback_fps):
+    """Move legacy native-source frame selections onto the desk's frame grid."""
+    if config["schema_version"] == SETTINGS_VERSION:
+        return config
+    assets = {row["asset_id"]: row for row in project["assets"]}
+    clips = {row["clip_id"]: row for row in project["video_track"]}
+    window_fps = _rate(project["processing_window"]["fps"])
+    migrated = {**copy.deepcopy(config), "schema_version": SETTINGS_VERSION, "mask_tasks": {}}
+    for clip_id, task in config["mask_tasks"].items():
+        clip = clips.get(clip_id)
+        native_frame = task.get("source_frame")
+        window_frame = None
+        if clip is not None and type(native_frame) is int:
+            probe = assets.get(clip["asset_id"], {}).get("probe", {})
+            source_fps = _rate(probe.get("fps") or fallback_fps)
+            source_seconds = native_frame / source_fps
+            timeline_seconds = clip["timeline_in_seconds"] + source_seconds - clip["source_in_seconds"]
+            window_frame = _frame(timeline_seconds, window_fps)
+            if clip["source_in_seconds"] <= source_seconds < clip["source_out_seconds"]:
+                minimum, maximum = _window_frame_bounds(clip, window_fps, fallback_fps)
+                if minimum <= maximum:
+                    window_frame = min(maximum, max(minimum, window_frame))
+        migrated["mask_tasks"][clip_id] = {
+            "asset_id": task.get("asset_id"), "window_frame": window_frame,
+            "prompt": task.get("prompt", ""),
+        }
+    return migrated
 
 
 def _project(value):
@@ -86,7 +139,9 @@ def _source_facts(project):
     audios = [{key: row[key] for key in ("clip_id", "asset_id", "origin", "enabled", "linked_video_clip_id", "source_in_seconds", "source_out_seconds")} for row in project["audio_track"] if row["clip_id"] in linked]
     referenced = {row["asset_id"] for row in videos + pictures + audios}
     assets = sorted(({key: row[key] for key in ("asset_id", "kind", "source_handle", "probe")} for row in project["assets"] if row["asset_id"] in referenced), key=lambda row: row["asset_id"])
-    return {"assets": assets, "video_track": videos, "picture_track": pictures, "audio_track": audios, "project_clock": project["project_clock"], "output_canvas": project.get("output_canvas")}
+    return {"assets": assets, "video_track": videos, "picture_track": pictures, "audio_track": audios,
+            "project_clock": project["project_clock"], "processing_window_fps": project["processing_window"]["fps"],
+            "output_canvas": project.get("output_canvas")}
 
 
 def _source_clips(project, fps):
@@ -153,6 +208,8 @@ def build_plan(media_project, settings=None, fps=None):
     if isinstance(fps, bool) or not isinstance(fps, (int, float)) or not math.isfinite(fps) or not 0 < fps <= 240:
         raise AnimatePlanError([_issue("/fps", "fps", "工作流帧率必须大于 0 且不超过素材出口支持的 240 fps")])
     fps = _rate(fps)
+    config = _migrate_settings(project, config, fps)
+    window_fps = _rate(project["processing_window"]["fps"])
     if first_video and fps_origin == "project":
         warnings.append(_issue("/fps", "source_fps_unknown", f"首段源帧率未知，暂用素材台工程帧率 {fps:g} fps"))
     clips, pictures = _source_clips(project, fps)
@@ -182,21 +239,26 @@ def build_plan(media_project, settings=None, fps=None):
         reference_fps = _rate(clip["source_fps"]) if clip["source_fps"] else fps
         frame_min = _frame(clip["source_in_seconds"], reference_fps)
         frame_max = _frame(clip["source_out_seconds"], reference_fps) - 1
+        window_frame_min, window_frame_max = _window_frame_bounds(clip, window_fps, fps)
         mask_task = None
         if config["mask_enabled"]:
             task = config["mask_tasks"].get(clip["clip_id"], {})
-            frame, prompt = task.get("source_frame"), task.get("prompt", "")
+            window_frame, prompt = task.get("window_frame"), task.get("prompt", "")
             if task.get("asset_id") != clip["asset_id"]:
                 errors.append(_issue(path + "/mask_task", "mask_source_changed", f"第 {index + 1} 段：请填写当前视频的遮罩目标词和参考帧"))
             if not isinstance(prompt, str) or not prompt.strip():
                 errors.append(_issue(path + "/mask_task/prompt", "mask_prompt_missing", f"第 {index + 1} 段：请填写遮罩目标词"))
-            if type(frame) is not int or not frame_min <= frame <= frame_max:
-                errors.append(_issue(path + "/mask_task/source_frame", "mask_frame_range", f"第 {index + 1} 段：原视频源帧需在 {frame_min + 1}–{frame_max + 1}（同素材台，从 1 起），不会自动移动参考帧或切点"))
+            if type(window_frame) is not int or not window_frame_min <= window_frame <= window_frame_max:
+                errors.append(_issue(path + "/mask_task/window_frame", "mask_frame_range", f"第 {index + 1} 段：窗口参考帧需在 {window_frame_min}–{window_frame_max}（同素材台，从 0 起，{window_fps:g} fps），不会自动移动参考帧或切点"))
             else:
-                local_index = _frame(frame / reference_fps, fps) - clip["load_start_frame"]
+                timeline_seconds = window_frame / window_fps
+                source_seconds = clip["source_in_seconds"] + timeline_seconds - clip["timeline_in_seconds"]
+                source_frame = _frame(source_seconds, reference_fps)
+                local_index = _frame(source_seconds, fps) - clip["load_start_frame"]
                 if not 0 <= local_index < frames:
-                    errors.append(_issue(path + "/mask_task/source_frame", "mask_frame_resample", f"第 {index + 1} 段：参考帧经原流帧率换算后不在本段，请重新选帧"))
-                mask_task = {"asset_id": clip["asset_id"], "source_frame": frame,
+                    errors.append(_issue(path + "/mask_task/window_frame", "mask_frame_resample", f"第 {index + 1} 段：窗口参考帧换算后不在本段，请重新选帧"))
+                mask_task = {"asset_id": clip["asset_id"], "window_frame": window_frame,
+                             "window_fps": window_fps, "source_frame": source_frame,
                              "source_fps": reference_fps, "local_index": local_index,
                              "prompt": prompt.strip() if isinstance(prompt, str) else ""}
         segments.append({
@@ -212,11 +274,13 @@ def build_plan(media_project, settings=None, fps=None):
             "contribution_end_frame": frames, "output_start_frame": clip["output_start_frame"],
             "output_end_frame": clip["output_end_frame"],
             "mask_task": mask_task, "mask_frame_min": frame_min, "mask_frame_max": frame_max,
-            "mask_reference_fps": reference_fps,
+            "mask_reference_fps": reference_fps, "mask_window_frame_min": window_frame_min,
+            "mask_window_frame_max": window_frame_max, "mask_window_fps": window_fps,
         })
     plan = {
         "schema_version": 1, "settings": config, "media_project": project,
         "source_fingerprint": _hash(_source_facts(project)), "fps": fps, "fps_origin": fps_origin,
+        "window_fps": window_fps,
         "source_clips": clips, "pictures": pictures, "segments": segments,
         "target_frame_count": sum(row["frame_count"] for row in clips),
         "validation": {"ready": not errors, "errors": errors, "warnings": warnings},

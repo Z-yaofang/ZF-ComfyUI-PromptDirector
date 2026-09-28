@@ -22,9 +22,12 @@ try{
     const original=await page.evaluate(()=>sourceNode.widgets[0].value);
     assert.equal(await pane.locator("select").count(),1);assert.equal(await pane.locator("button,input,textarea,.playhead,.edge").count(),1);checks+=2;
     assert.equal(await pane.locator(".pair").count(),3);assert.equal(await pane.locator(".clip").count(),3);checks+=2;
-    assert.equal((await plan()).fps,30);assert.equal((await plan()).fps_origin,"workflow");assert.match(await pane.locator(".summary").textContent(),/沿用原流 30 fps/);checks+=3;
+    assert.equal((await plan()).fps,30);assert.equal((await plan()).fps_origin,"workflow");assert.match(await pane.locator(".summary").textContent(),/沿用原流 30 fps · 窗口参考 24 fps/);checks+=3;
     assert.deepEqual((await plan()).segments.map(row=>row.frame_count),[200,200,210]);assert.equal((await plan()).target_frame_count,610);checks+=2;
     assert((await plan()).validation.ready);assert((await plan()).segments.every(row=>row.guide_frame_count===0));checks+=2;
+    await page.evaluate(()=>{desk.widgets[0].value=JSON.stringify({schema_version:1,seam_mode:'hard_cut',mask_enabled:false,mask_tasks:{clip1:{asset_id:'v1',source_frame:100,prompt:'旧参考'}}});desk.zvAnimate.restore();});
+    await page.waitForFunction(()=>desk.zvAnimate.getPlan()?.settings.schema_version===2);
+    assert.equal((await plan()).settings.mask_tasks.clip1.window_frame,80);assert.equal(JSON.parse(await page.evaluate(()=>desk.widgets[0].value)).schema_version,2);checks+=2;
     const mode=pane.getByLabel("段间衔接",{exact:true});await mode.selectOption("continuation_21");await page.waitForFunction(()=>desk.zvAnimate.getPlan()?.settings.seam_mode==='continuation_21');
     assert.deepEqual((await plan()).segments.map(row=>row.guide_frame_count),[0,21,21]);assert((await plan()).segments.every(row=>row.contribution_start_frame===0));checks+=2;
     assert.equal(await page.evaluate(()=>sourceNode.widgets[0].value),original);checks++;
@@ -32,21 +35,22 @@ try{
     assert.equal(await pane.locator('input[type=checkbox]').count(),1);checks++;
     await maskToggle.check();await page.waitForFunction(()=>desk.zvAnimate.getPlan()?.settings.mask_enabled);
     assert.equal(await pane.locator('.mask-fields').count(),3);assert(!(await plan()).validation.ready);checks+=2;
+    const windowFrames=[0,160,320];
     for(let i=1;i<=3;i++){
         const prompt=pane.getByLabel(`第 ${i} 段遮罩目标词`,{exact:true}),frame=pane.getByLabel(`第 ${i} 段参考帧`,{exact:true});
         await prompt.fill(`目标 ${i}`);await prompt.press('Enter');
         await page.waitForFunction(i=>desk.zvAnimate.getPlan()?.settings.mask_tasks[`clip${i}`]?.prompt===`目标 ${i}`,i);
-        await frame.fill(String((i-1)*200+1));await frame.press('Enter');
-        await page.waitForFunction(i=>desk.zvAnimate.getPlan()?.settings.mask_tasks[`clip${i}`]?.source_frame===(i-1)*200,i);
+        await frame.fill(String(windowFrames[i-1]));await frame.press('Enter');
+        await page.waitForFunction(([i,value])=>desk.zvAnimate.getPlan()?.settings.mask_tasks[`clip${i}`]?.window_frame===value,[i,windowFrames[i-1]]);
     }
     assert((await plan()).validation.ready);assert.deepEqual((await plan()).segments.map(row=>row.mask_task.local_index),[0,0,0]);checks+=2;
     const savedMask=await page.evaluate(()=>desk.widgets[0].value);
     await page.evaluate(()=>desk.zvAnimate.restore());await page.waitForFunction(()=>desk.zvAnimate.getPlan()?.validation.ready);
-    assert.equal(await pane.getByLabel('第 2 段参考帧',{exact:true}).inputValue(),'201');assert.equal(await page.evaluate(()=>desk.widgets[0].value),savedMask);checks+=2;
+    assert.equal(await pane.getByLabel('第 2 段参考帧',{exact:true}).inputValue(),'160');assert.equal(await page.evaluate(()=>desk.widgets[0].value),savedMask);checks+=2;
     if(process.argv[5]){await mkdir(process.argv[5],{recursive:true});await page.screenshot({path:`${process.argv[5]}/animate-global-mask.png`,fullPage:true});}
     await pane.getByLabel('第 2 段参考帧',{exact:true}).fill('415');await pane.getByLabel('第 2 段参考帧',{exact:true}).press('Enter');
     await page.waitForFunction(()=>desk.zvAnimate.getPlan()?.validation.errors.some(row=>row.code==='mask_frame_range'));
-    assert.match(await pane.locator('.status').textContent(),/第 2 段.*201–400/);checks++;
+    assert.match(await pane.locator('.status').textContent(),/第 2 段.*160–319/);checks++;
     await maskToggle.uncheck();await page.waitForFunction(()=>desk.zvAnimate.getPlan()?.settings.mask_enabled===false);
     assert((await plan()).validation.ready);assert.equal(await pane.locator('.mask-fields').count(),0);checks+=2;
     const stored=(await plan()).settings.mask_tasks;

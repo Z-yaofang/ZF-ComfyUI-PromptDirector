@@ -228,7 +228,7 @@ def test_empty_new_desk_fixed_choices_loop_cache_and_previous_result_wiring(sour
     expected = BUILDER.empty_project()
     expected["project_clock"]["fps"] = expected["processing_window"]["fps"] = nodes[430]["widgets_values"][0]
     assert project == expected
-    assert json.loads(nodes[ids["plan"]]["widgets_values"][0]) == {"schema_version": 1, "seam_mode": "hard_cut", "mask_enabled": False, "mask_tasks": {}}
+    assert json.loads(nodes[ids["plan"]]["widgets_values"][0]) == {"schema_version": 2, "seam_mode": "hard_cut", "mask_enabled": False, "mask_tasks": {}}
     assert nodes[ids["start"]]["widgets_values_named"]["cache_iterations"] is False
     assert nodes[ids["end"]]["widgets_values_named"]["accumulate"] is False
     for target in ("entry", "recorder"):

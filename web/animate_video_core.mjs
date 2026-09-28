@@ -1,12 +1,14 @@
 export const clone = value => structuredClone(value);
-export const defaultSettings = () => ({schema_version:1,seam_mode:"hard_cut",mask_enabled:false,mask_tasks:{}});
+export const defaultSettings = () => ({schema_version:2,seam_mode:"hard_cut",mask_enabled:false,mask_tasks:{}});
 export function parseSettings(text) {
     try {
         const value=JSON.parse(text);
         if(!value||typeof value!=="object"||Array.isArray(value))return defaultSettings();
-        if(value.schema_version!==1||!['hard_cut','continuation_21'].includes(value.seam_mode)||Object.keys(value).some(key=>!Object.keys(defaultSettings()).includes(key)))return defaultSettings();
+        if(![1,2].includes(value.schema_version)||!['hard_cut','continuation_21'].includes(value.seam_mode)||Object.keys(value).some(key=>!Object.keys(defaultSettings()).includes(key)))return defaultSettings();
         const result={...defaultSettings(),...value};
         if(typeof result.mask_enabled!=='boolean'||!result.mask_tasks||typeof result.mask_tasks!=='object'||Array.isArray(result.mask_tasks))return defaultSettings();
+        const frameKey=result.schema_version===1?'source_frame':'window_frame';
+        if(Object.values(result.mask_tasks).some(task=>!task||typeof task!=='object'||Array.isArray(task)||Object.keys(task).some(key=>!['asset_id',frameKey,'prompt'].includes(key))))return defaultSettings();
         return result;
     } catch {return defaultSettings();}
 }

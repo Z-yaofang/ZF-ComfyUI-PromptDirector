@@ -102,11 +102,11 @@ def test_mask_source_change_out_of_range_empty_words_and_global_off():
     value = PLAN.build_plan(source, config)
     assert {"mask_source_changed", "mask_frame_range", "mask_prompt_missing"} <= codes(value)
     assert [(row["source_in_seconds"], row["source_out_seconds"]) for row in value["media_project"]["video_track"]] == [(0, 40 / 30), (40 / 30, 100 / 30)]
-    config["mask_enabled"] = False
-    off = PLAN.build_plan(source, config)
+    migrated_tasks = value["settings"]["mask_tasks"]
+    off = PLAN.build_plan(source, {**value["settings"], "mask_enabled": False})
     assert off["validation"]["ready"]
     assert all(row["mask_task"] is None for row in off["segments"])
-    assert off["settings"]["mask_tasks"] == config["mask_tasks"]
+    assert off["settings"]["mask_tasks"] == migrated_tasks
 
 
 def test_native_source_frame_maps_to_resampled_batch_without_changing_cut():
@@ -118,6 +118,37 @@ def test_native_source_frame_maps_to_resampled_batch_without_changing_cut():
     row = value["segments"][0]
     assert row["source_start_seconds"] == 1 and row["source_end_seconds"] == 3
     assert row["mask_task"]["source_frame"] == 90 and row["mask_task"]["local_index"] == 15
+
+
+def test_window_reference_frame_matches_media_desk_when_source_and_runtime_are_60_fps():
+    source = project(900, fps=60)
+    source["processing_window"] = {"start_seconds": 0, "end_seconds": 15, "fps": 24}
+    config = {"schema_version": 2, "seam_mode": "hard_cut", "mask_enabled": True, "mask_tasks": {
+        "clip": {"asset_id": "video", "window_frame": 200, "prompt": "shirt"}}}
+    value = PLAN.build_plan(source, config, fps=60)
+    row = value["segments"][0]
+    assert value["validation"]["ready"]
+    assert value["window_fps"] == 24 and value["target_frame_count"] == 900
+    assert (row["mask_window_frame_min"], row["mask_window_frame_max"]) == (0, 359)
+    assert row["mask_task"]["window_frame"] == 200
+    assert row["mask_task"]["source_frame"] == 500 and row["mask_task"]["local_index"] == 500
+
+    invalid = copy.deepcopy(config)
+    invalid["mask_tasks"]["clip"]["window_frame"] = 600
+    rejected = PLAN.build_plan(source, invalid, fps=60)
+    assert "mask_frame_range" in codes(rejected)
+    assert "0–359" in next(row["message"] for row in rejected["validation"]["errors"] if row["code"] == "mask_frame_range")
+
+
+def test_legacy_source_frame_is_migrated_to_the_equivalent_window_frame():
+    source = project(900, fps=60)
+    source["processing_window"] = {"start_seconds": 0, "end_seconds": 15, "fps": 24}
+    legacy = {"schema_version": 1, "seam_mode": "hard_cut", "mask_enabled": True, "mask_tasks": {
+        "clip": {"asset_id": "video", "source_frame": 500, "prompt": "shirt"}}}
+    value = PLAN.build_plan(source, legacy, fps=60)
+    assert value["settings"]["schema_version"] == 2
+    assert value["settings"]["mask_tasks"]["clip"]["window_frame"] == 200
+    assert value["segments"][0]["mask_task"]["local_index"] == 500
 
 
 @pytest.mark.parametrize("cut", [304, 305, 306, 307])
@@ -239,7 +270,7 @@ def test_live_source_changes_rebuild_without_saved_snapshot():
     assert set(second["settings"]) == {"schema_version", "seam_mode", "mask_enabled", "mask_tasks"}
 
 
-@pytest.mark.parametrize("value", [{"overlap_frames": 8}, {"schema_version": 2}, {"seam_mode": "continue"}, {"fps": 24}, {"segments": []}])
+@pytest.mark.parametrize("value", [{"overlap_frames": 8}, {"schema_version": 3}, {"seam_mode": "continue"}, {"fps": 24}, {"segments": []}])
 def test_old_or_unknown_controls_are_not_retained(value):
     with pytest.raises(PLAN.AnimatePlanError):
         PLAN.build_plan(project(), value)

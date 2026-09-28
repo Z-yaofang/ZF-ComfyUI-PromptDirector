@@ -160,7 +160,10 @@ class ZVAnimateExecutionEntry:
         report += f"承接上一段成品尾部 {len(guide)} 帧，由 Plus 原生处理。" if guide is not None else "首段或硬切，不接过渡视频。"
         if context["mask_enabled"]:
             task = context["segment"]["mask_task"]
-            report += f" 遮罩目标：{task['prompt']}；源帧 {task['source_frame'] + 1} → 本段第 {task['local_index'] + 1} 帧（同素材台，从 1 起；原流前补偏移另计）。"
+            reference = (f"窗口帧 {task['window_frame']}（{task['window_fps']:g} fps，从 0 起） → "
+                         if "window_frame" in task else "旧版参考 → ")
+            report += (f" 遮罩目标：{task['prompt']}；{reference}原片源帧 {task['source_frame']}"
+                       f" → 本段第 {task['local_index'] + 1} 帧（原流前补偏移另计）。")
         return context, frames, len(frames), audio, info, picture, guide, float(context["fps"]), guide is not None, context["segment"]["segment_id"], report
 
 

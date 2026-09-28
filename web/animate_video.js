@@ -21,7 +21,7 @@ export function attachAnimateDesk(node) {
     maskToggle.type="checkbox";maskToggle.checked=settings.mask_enabled;maskToggle.setAttribute("aria-label","遮罩管道");maskLabel.append(maskToggle,el("span","","遮罩管道"),modeText);
     for(const [value,text] of [["hard_cut","硬切"],["continuation_21","原生 21 帧承接"]]){const option=el("option","",text);option.value=value;input.append(option);}
     input.value=settings.seam_mode;input.setAttribute("aria-label","段间衔接");label.append(input);controls.append(label,maskLabel,summary);scroll.append(rail);
-    root.append(el("h3","","ZV Animate 素材配对台"),el("p","","自动读取素材台：每个视频片段一段，视频原声随段保留。关闭遮罩管道跑整条动作迁移；开启后为各段填写遮罩目标词和参考帧。"),controls,scroll,el("p","hint","修改分段、图片顺序和裁剪请回素材台。硬切不传历史；原生承接传上一段成品尾部 21 帧，短段由 Plus 原生处理。源切点不变，补帧和裁回沿用原工作流；当前 Plus 承接段可能少 1 帧，最终报告实际差异，分段台不额外补帧。"),status);
+    root.append(el("h3","","ZV Animate 素材配对台"),el("p","","自动读取素材台：每个视频片段一段，视频原声随段保留。关闭遮罩管道跑整条动作迁移；开启后为各段填写遮罩目标词和素材台窗口参考帧。"),controls,scroll,el("p","hint","修改分段、图片顺序和裁剪请回素材台。硬切不传历史；原生承接传上一段成品尾部 21 帧，短段由 Plus 原生处理。源切点不变，补帧和裁回沿用原工作流；当前 Plus 承接段可能少 1 帧，最终报告实际差异，分段台不额外补帧。"),status);
     function note(message,error=false){status.textContent=message;status.classList.toggle("error",error);}
     function save(){widget.value=JSON.stringify(settings);node.graph?.setDirtyCanvas?.(true,true);}
     function invalidate(message){token++;plan=null;node.zvAnimate.plan=null;note(message,true);render();}
@@ -31,27 +31,28 @@ export function attachAnimateDesk(node) {
         maskToggle.checked=settings.mask_enabled;modeText.textContent=settings.mask_enabled?"开启 · 整条遮罩替换":"关闭 · 整条动作迁移";
         if(!plan){rail.append(el("p","empty","等待素材台连接和素材…"));return;}
         const clock=readWorkflowFps(node),fpsLabel=plan.fps_origin==='workflow'?'沿用原流':clock.linked?'运行时帧率待解析，预览估算':plan.fps_origin==='source'?'跟随首段源':'源帧率未知，采用工程';
-        summary.textContent=`${plan.segments.length} 段 · ${fpsLabel} ${Number(plan.fps.toFixed(6))} fps · ${plan.target_frame_count} 帧`;
+        summary.textContent=`${plan.segments.length} 段 · ${fpsLabel} ${Number(plan.fps.toFixed(6))} fps · 窗口参考 ${Number(plan.window_fps.toFixed(6))} fps · ${plan.target_frame_count} 运行帧`;
         const assets=new Map(plan.media_project.assets.map(row=>[row.asset_id,row]));
         for(const row of plan.segments){
             const pair=assets.get(row.picture_asset_id),video=assets.get(row.video_asset_id),column=el("div","segment-column");column.dataset.segmentId=row.segment_id;
             column.style.width=`${Math.max(220,Math.min(420,row.frame_count/plan.fps*24))}px`;
-            const heading=el("div","segment-heading",`第 ${row.ordinal} 段 · ${row.frame_count} 帧`),picture=el("div",`pair${pair?"":" missing"}`),clip=el("div","clip");
+            const heading=el("div","segment-heading",`第 ${row.ordinal} 段 · ${row.frame_count} 运行帧`),picture=el("div",`pair${pair?"":" missing"}`),clip=el("div","clip");
             if(pair){const image=el("img");image.alt=pair.name;image.src=api.apiURL(`/zf-media-evidence/preview?source=${encodeURIComponent(pair.source_handle)}&variant=thumbnail`);picture.append(image);}
             picture.append(el("strong","",pair?.name??"缺少配对图片"));
             clip.append(el("strong","",video?.name??row.video_asset_id),el("span","",`源 ${row.source_start_seconds.toFixed(3)}–${row.source_end_seconds.toFixed(3)} 秒`),el("span","",row.source_audio_enabled?"视频 + 原声":"视频 · 无原声"));
             const transition=el("div",`transition${row.guide_frame_count?" active":""}`,row.ordinal===1?"起点":row.guide_frame_count?"← 原生承接 · 上段成品尾部最多 21 帧" :"硬切");
             column.append(heading,picture,clip,transition);
             if(settings.mask_enabled){
-                const stored=settings.mask_tasks[row.clip_id],task=stored?.asset_id===row.video_asset_id?stored:{asset_id:row.video_asset_id,prompt:"",source_frame:null};
-                const fields=el("div","mask-fields"),prompt=el("input"),frame=el("input"),promptLabel=el("label","","遮罩目标词"),frameLabel=el("label","","原视频源帧（同素材台，从 1 起）");
+                const stored=settings.mask_tasks[row.clip_id],task=stored?.asset_id===row.video_asset_id?stored:{asset_id:row.video_asset_id,prompt:"",window_frame:null};
+                const fields=el("div","mask-fields"),prompt=el("input"),frame=el("input"),promptLabel=el("label","","遮罩目标词"),frameLabel=el("label","","窗口参考帧（同素材台，从 0 起）");
                 prompt.type="text";prompt.value=task.prompt??"";prompt.placeholder="如：上衣、裤子";prompt.setAttribute("aria-label",`第 ${row.ordinal} 段遮罩目标词`);
-                frame.type="number";frame.step="1";frame.min=row.mask_frame_min+1;frame.max=row.mask_frame_max+1;frame.value=task.source_frame==null?"":task.source_frame+1;frame.placeholder=`${row.mask_frame_min+1}–${row.mask_frame_max+1}`;frame.setAttribute("aria-label",`第 ${row.ordinal} 段参考帧`);
-                const changed=()=>{settings.mask_tasks[row.clip_id]={asset_id:row.video_asset_id,prompt:prompt.value,source_frame:frame.value===""?null:Number(frame.value)-1};save();token++;node.zvAnimate.plan=null;note("遮罩填写已保存，按 Enter 或移出输入框后检查。");};
+                frame.type="number";frame.step="1";frame.min=row.mask_window_frame_min;frame.max=row.mask_window_frame_max;frame.value=task.window_frame==null?"":task.window_frame;frame.placeholder=`${row.mask_window_frame_min}–${row.mask_window_frame_max}`;frame.setAttribute("aria-label",`第 ${row.ordinal} 段参考帧`);
+                const changed=()=>{settings.mask_tasks[row.clip_id]={asset_id:row.video_asset_id,prompt:prompt.value,window_frame:frame.value===""?null:Number(frame.value)};save();token++;node.zvAnimate.plan=null;note("遮罩填写已保存，按 Enter 或移出输入框后检查。");};
                 prompt.oninput=frame.oninput=changed;
                 prompt.onchange=frame.onchange=()=>refresh();
                 prompt.onkeydown=frame.onkeydown=event=>{if(event.key==='Enter'){event.preventDefault();event.currentTarget.blur();}};
-                promptLabel.append(prompt);frameLabel.append(frame);fields.append(promptLabel,frameLabel,el("span","hint",`有效源帧 ${row.mask_frame_min+1}–${row.mask_frame_max+1} · ${Number(row.mask_reference_fps.toFixed(6))} fps；读取素材台预览下方“源帧”，勿填黄线的工程帧号。`));column.append(fields);
+                const mapped=row.mask_task?.window_frame===task.window_frame?` · 内部对应原片源帧 ${row.mask_task.source_frame}`:"";
+                promptLabel.append(prompt);frameLabel.append(frame);fields.append(promptLabel,frameLabel,el("span","hint",`有效窗口帧 ${row.mask_window_frame_min}–${row.mask_window_frame_max} · ${Number(row.mask_window_fps.toFixed(6))} fps；直接填写素材台黄色播放头显示的窗口帧${mapped}。`));column.append(fields);
             }
             rail.append(column);
         }
