@@ -396,9 +396,21 @@ def test_h3_single_window_is_authoritative_and_never_truncated():
     source = C.normalize_project(source)
     state = I.empty_interview(); state.update(intent="城市清晨的固定镜头。")
     result = compile_aligned(state, source)
+    assert not result["validation"]["errors"] and result["validation"]["ready"]
+    assert "h3_extended_seconds" in {row["code"] for row in result["validation"]["warnings"]}
+    assert result["duration_seconds"] == 17
+
+
+def test_h3_regular_interview_rejects_only_after_thirty_seconds():
+    source = project(False)
+    source["processing_window"] = {"start_seconds": 0, "end_seconds": 31, "fps": 24}
+    source["processing_preset"] = P.builtin("builtin.generic")
+    source = C.normalize_project(source)
+    result = compile_aligned(I.empty_interview(), source)
     codes = {row["code"] for row in result["validation"]["errors"]}
     assert "h3_frames" in codes and "h3_seconds" in codes
-    assert result["duration_seconds"] == 17
+    assert "h3_extended_seconds" not in {row["code"] for row in result["validation"]["warnings"]}
+    assert result["duration_seconds"] == 31
 
 
 def test_bound_video_audio_cannot_claim_an_independent_audio_label():

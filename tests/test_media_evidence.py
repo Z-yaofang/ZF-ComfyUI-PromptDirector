@@ -76,7 +76,7 @@ def test_schema_round_trip_and_input_immutable():
     assert out["video_track"][0]["project_frame_count"] == 240
 
 
-@pytest.mark.parametrize("frames,valid", [(0, False), (47, False), (48, True), (240, True), (360, True), (361, False), (480, False)])
+@pytest.mark.parametrize("frames,valid", [(0, False), (47, False), (48, True), (240, True), (360, True), (361, True), (480, True), (720, True), (721, False)])
 def test_window_bounds_do_not_truncate(frames, valid):
     p = project()
     p["processing_preset"] = P.builtin("builtin.minimax-h3.single")
@@ -87,7 +87,7 @@ def test_window_bounds_do_not_truncate(frames, valid):
     assert out["processing_window"]["frame_count"] == frames
 
 
-@pytest.mark.parametrize("fps,end,code", [(30, 10, "preset_fps"), (24, 15.000001, "preset_seconds"), (24, 2.01, "preset_grid"), (24, 0, "preset_min_frames")])
+@pytest.mark.parametrize("fps,end,code", [(30, 10, "preset_fps"), (24, 30.000001, "preset_seconds"), (24, 2.01, "preset_grid"), (24, 0, "preset_min_frames")])
 def test_window_seconds_and_clock_constraints(fps, end, code):
     p = project()
     p["processing_preset"] = P.builtin("builtin.minimax-h3.single")

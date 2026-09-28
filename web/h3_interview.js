@@ -905,6 +905,7 @@ function attachInterview(node) {
     hard.classList.toggle("error", !!errors.length || !!projectMessage);
     const visible = validationResult?.model_visible_references || [];
     semantic.textContent = [...warnings.slice(0, 3).map(row => row.message), ...visible.map(row => `${row.call_label} 出口 ${row.export_frames} 帧 → ${row.model_length_verified ? "按已核实 length 的模型输入" : `假设下游 length=${row.assumed_model_length} 的预测（实际length未核实）`} ${row.model_frames} 帧`), ...(warnings.length > 3 ? [`另有 ${warnings.length - 3} 项提醒`] : [])].join("；");
+    semantic.classList.toggle("warning", warnings.some(row => row.code === "h3_extended_seconds"));
   }
 
   function syncForm() {
@@ -1004,8 +1005,9 @@ function attachInterview(node) {
     if (detectionResult?.snapshot) {
       const counts = detectionResult.snapshot;
       const summary = `${counts.pictures.length} 图 / ${counts.videos.length} 视频 / ${counts.audios.length} 音频，${counts.conditioning_count} 个 H3 Conditioning 一致`;
-      output.dataset.state = "success"; output.classList.add("success");
-      output.textContent = `${summary}；路由已对齐，编号与 Stage① 已对齐${detectionResult.syncNotes?.length ? `；${detectionResult.syncNotes.join("；")}` : ""}`;
+      const durationWarning = validationResult?.warnings?.find(row => row.code === "h3_extended_seconds");
+      output.dataset.state = durationWarning ? "warning" : "success"; output.classList.add(durationWarning ? "warning" : "success");
+      output.textContent = `${summary}；路由已对齐，编号与 Stage① 已对齐${detectionResult.syncNotes?.length ? `；${detectionResult.syncNotes.join("；")}` : ""}${durationWarning ? `；${durationWarning.message}` : ""}`;
       return;
     }
     if (draft.reference_detection) {

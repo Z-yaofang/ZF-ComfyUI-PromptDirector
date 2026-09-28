@@ -21,6 +21,7 @@ SCHEMA_VERSION = "zv-h3-interview-v2"
 MAX_JSON_BYTES = 256 * 1024
 MODES = ("auto", "T2VA", "I2VA", "FL2VA", "L2VA", "Ref2VA", "Hybrid")
 FOCUSES = ("balanced", "dialogue", "action")
+REGULAR_OUTPUT_MAX_SECONDS = 30
 
 TEXT_FIELDS = (
     "intent",
@@ -452,19 +453,22 @@ def validate_interview(state, project, inventory, call_references=None):
     else:
         output = RULES["output"]
         duration = end - start
+        regular_max_frames = REGULAR_OUTPUT_MAX_SECONDS * output["fps"]
         if fps != output["fps"]:
             errors.append(issue("/media_project/processing_window/fps", "h3_fps", "官方输出要求 24 fps"))
-        if not output["min_seconds"] * fps <= frames <= output["max_seconds"] * fps:
-            errors.append(issue("/media_project/processing_window/frame_count", "h3_frames", f"官方目标输出 96–360 帧（4–15 秒）；当前 {frames} 帧，参考片段最短 2 秒不代表输出最短 2 秒"))
-        if not output["min_seconds"] <= duration <= output["max_seconds"]:
-            errors.append(issue("/media_project/processing_window", "h3_seconds", f"官方目标输出要求 4–15 秒；当前 {duration:.3f} 秒"))
+        if not output["min_seconds"] * fps <= frames <= regular_max_frames:
+            errors.append(issue("/media_project/processing_window/frame_count", "h3_frames", f"常规采访表目标输出 96–720 帧（4–30 秒）；当前 {frames} 帧，参考片段最短 2 秒不代表输出最短 2 秒"))
+        if not output["min_seconds"] <= duration <= REGULAR_OUTPUT_MAX_SECONDS:
+            errors.append(issue("/media_project/processing_window", "h3_seconds", f"常规采访表目标输出要求 4–30 秒；当前 {duration:.3f} 秒"))
+        elif duration > output["max_seconds"] + 1e-9:
+            warnings.append(issue("/media_project/processing_window", "h3_extended_seconds", f"当前 {duration:.3f} 秒，已超过常规 15 秒；采访表仍允许继续，最长 30 秒"))
         if any(abs(value * output["fps"] - round(value * output["fps"])) > 1e-6 for value in (start, end)) or abs(duration * fps - frames) > 1e-6:
             errors.append(issue("/media_project/processing_window", "h3_grid", "窗口起止点及帧数必须一致且对齐 24 fps 网格"))
         local = RULES["local_length"]
         output_frames = max(local["min"], frames)
         output_frames += (local["remainder"] - output_frames) % local["step"]
         if output_frames != frames:
-            warnings.append(issue("/media_project/processing_window", "local_length_grid", f"目标 {duration:.3f} 秒 / {frames} 帧；节点处理网格向上对齐为 {output_frames} 帧 / {output_frames / output['fps']:.3f} 秒。这是本地网格容差，官方范围仍为 4–15 秒"))
+            warnings.append(issue("/media_project/processing_window", "local_length_grid", f"目标 {duration:.3f} 秒 / {frames} 帧；节点处理网格向上对齐为 {output_frames} 帧 / {output_frames / output['fps']:.3f} 秒。采访表输入窗口允许 4–30 秒，超过 15 秒会另作黄色提示"))
     if project.get("processing_preset", {}).get("snapshot", {}).get("strategy") != "single_window":
         errors.append(issue("/media_project/processing_preset", "h3_single", "本采访表只接受单窗口；请在素材台切换单窗口预设"))
     if project.get("preset_compatibility", {}).get("compatible") is False:

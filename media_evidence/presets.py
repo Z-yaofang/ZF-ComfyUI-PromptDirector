@@ -11,6 +11,16 @@ def builtin(preset_id="builtin.generic"):
     return copy.deepcopy(next(p for p in BUILTIN_PRESETS if p["preset_id"] == preset_id))
 
 
+def upgrade_builtin_preset(preset):
+    """Upgrade only builtins whose saved semantics were intentionally replaced."""
+    result = copy.deepcopy(preset)
+    if not isinstance(result, dict):
+        return result
+    if result.get("preset_id") != "builtin.minimax-h3.single" or result.get("preset_version") != 1:
+        return result
+    return builtin("builtin.minimax-h3.single")
+
+
 def normalize_snapshot(snapshot):
     result = copy.deepcopy(snapshot)
     if isinstance(result, dict) and isinstance(result.get("rules"), dict):

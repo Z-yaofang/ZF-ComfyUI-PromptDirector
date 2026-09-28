@@ -22,7 +22,7 @@ async function completeVisuals(){await page.waitForFunction(()=>[...document.que
 async function assertWindowPanel(){const p=await state(),w=p.processing_window;assert.equal(Number(await page.getByLabel('开始 / 秒',{exact:true}).inputValue()),w.start_seconds);assert.equal(Number(await page.getByLabel('结束 / 秒',{exact:true}).inputValue()),w.end_seconds);assert.equal(await page.locator('.zf-med-window-total').textContent(),`总时长 ${(w.end_seconds-w.start_seconds).toFixed(3)} 秒`);}
 try {
     await page.goto(process.argv[2]);await page.waitForSelector('.zf-med');
-    await page.getByLabel('当前处理预设',{exact:true}).selectOption('builtin.minimax-h3.single@1');await synced();
+    await page.getByLabel('当前处理预设',{exact:true}).selectOption('builtin.minimax-h3.single@2');await synced();
     assert.equal(await page.evaluate(()=>deskNode.comfyClass),'ZVUniversalMediaEvidenceDesk');
     assert.equal(await page.locator('.zf-med-head strong').textContent(),'ZV 通用素材取证台');checks++;
     assert.equal(await page.locator('.zf-med-lane:visible').count(),3);checks++;
@@ -161,10 +161,10 @@ try {
     const imageBytes=[...await readFile(fixtures[0])];
     await page.evaluate(bytes=>{const dt=new DataTransfer();dt.items.add(new File([new Uint8Array(bytes)],'generated-drop.png',{type:'image/png'}));document.querySelector('.zf-med-pool').dispatchEvent(new DragEvent('drop',{bubbles:true,cancelable:true,dataTransfer:dt}));},imageBytes);
     await page.waitForFunction(()=>deskNode.zfMediaDesk.getProject().assets.length===4);await synced();checks++;
-    // Resize beyond the H3 limit: state must remain 361 frames with a visible error.
-    await page.getByLabel('结束 / 秒',{exact:true}).fill(String(361/24));await page.getByLabel('结束 / 秒',{exact:true}).dispatchEvent('change');await synced();
-    p=await state();assert.equal(p.processing_window.frame_count,361);assert(await page.locator('.zf-med-window.incompatible').count());assert(!p.validation.errors.length);assert(!p.preset_compatibility.compatible);checks++;
-    await drag(page.locator('.zf-med-window'),35);p=await state();assert.equal(p.processing_window.start_seconds,1);assert.equal(p.processing_window.frame_count,361);checks++;
+    // Resize beyond the new 30-second H3 limit: state remains 721 frames with a visible warning.
+    await page.getByLabel('结束 / 秒',{exact:true}).fill(String(721/24));await page.getByLabel('结束 / 秒',{exact:true}).dispatchEvent('change');await synced();
+    p=await state();assert.equal(p.processing_window.frame_count,721);assert(await page.locator('.zf-med-window.incompatible').count());assert(!p.validation.errors.length);assert(!p.preset_compatibility.compatible);checks++;
+    await drag(page.locator('.zf-med-window'),35);p=await state();assert.equal(p.processing_window.start_seconds,1);assert.equal(p.processing_window.frame_count,721);checks++;
     await page.getByLabel('结束 / 秒',{exact:true}).fill('11');await page.getByLabel('结束 / 秒',{exact:true}).dispatchEvent('change');await synced();
     await page.locator('.zf-med-zoom').fill('50');await page.locator('.zf-med-zoom').dispatchEvent('input');
     await page.evaluate(()=>saveWorkflow());const saved=await state();await page.reload();await page.waitForSelector('.zf-med');await synced();
@@ -217,7 +217,7 @@ try {
     // Bring the right window edge into the viewport before resizing it.
     await page.locator('.zf-med-zoom').fill('50');await page.locator('.zf-med-zoom').dispatchEvent('input');
     await drag(page.locator('.zf-med-window .zf-med-handle.right'),25);await assertWindowPanel();assert.equal((await state()).processing_window.end_seconds,14.75);checks++;
-    await page.getByLabel('结束 / 秒',{exact:true}).fill(String(2.75+361/24));assert((await page.locator('.zf-med-window-state').textContent()).includes('预设不兼容'));assert.equal((await state()).processing_window.end_seconds,2.75+361/24);
+    await page.getByLabel('结束 / 秒',{exact:true}).fill(String(2.75+721/24));assert((await page.locator('.zf-med-window-state').textContent()).includes('预设不兼容'));assert.equal((await state()).processing_window.end_seconds,2.75+721/24);
     await page.getByLabel('结束 / 秒',{exact:true}).fill('14.75');await page.locator('.zf-med').evaluate(root=>root.focus());await synced();checks++;
     // Grab six pixels away from the visible yellow line, in front of the cyan window.
     await page.locator('.zf-med-snap').uncheck();

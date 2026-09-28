@@ -5,7 +5,7 @@ import json
 import math
 from pathlib import Path
 import re
-from .presets import builtin, compatibility, normalize_snapshot, rule_errors
+from .presets import builtin, compatibility, normalize_snapshot, rule_errors, upgrade_builtin_preset
 
 SOURCE_MESSAGES = {
     "registry_missing": "素材登记文件不可见；云端存储可能未同步，请重新导入",
@@ -125,6 +125,9 @@ def normalize_project(project):
         result["schema_version"] = 2
         result.setdefault("processing_preset", builtin("builtin.minimax-h3.single"))
     preset = result.get("processing_preset")
+    if isinstance(preset, dict):
+        result["processing_preset"] = upgrade_builtin_preset(preset)
+        preset = result["processing_preset"]
     if isinstance(preset, dict) and "snapshot" in preset:
         preset["snapshot"] = normalize_snapshot(preset["snapshot"])
     result.pop("validation", None)

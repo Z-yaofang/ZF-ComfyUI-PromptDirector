@@ -3,6 +3,10 @@ import definitions from './media_processing_presets.json' with {type:'json'};
 export const builtins = definitions;
 export const copy = value => JSON.parse(JSON.stringify(value));
 export const builtin = (id='builtin.generic') => copy(builtins.find(p=>p.preset_id===id));
+export function upgradeBuiltinPreset(preset) {
+    const result=copy(preset);
+    return result?.preset_id==='builtin.minimax-h3.single'&&result?.preset_version===1?builtin('builtin.minimax-h3.single'):result;
+}
 export function normalizeSnapshot(snapshot) {
     const result=copy(snapshot);
     if(result&&typeof result==='object'&&result.rules&&typeof result.rules==='object'&&!Array.isArray(result.rules)&&!Object.hasOwn(result.rules,'overlap_alignment'))result.rules.overlap_alignment='exact';
@@ -15,6 +19,7 @@ export function samePreset(a,b) {
 export function migrateProject(project) {
     const p=copy(project);
     if(p.schema_version===1){p.schema_version=2;p.processing_preset??=builtin('builtin.minimax-h3.single');}
+    if(p.processing_preset)p.processing_preset=upgradeBuiltinPreset(p.processing_preset);
     if(p.processing_preset&&Object.hasOwn(p.processing_preset,'snapshot'))p.processing_preset.snapshot=normalizeSnapshot(p.processing_preset.snapshot);
     delete p.validation;delete p.preset_compatibility;
     return p;

@@ -152,6 +152,16 @@ try {
   check(lastPlan.validation.conditioning.length_verified && lastPlan.validation.conditioning.model_length === 124);
   deep(await page.evaluate(() => lowNode.widgets.map(row => row.value)), ["auto", "native", true, 0]);
   check((await page.locator(".zv-h3-detection-status").textContent()).includes("路由已对齐")); scenarios++;
+  const extendedProject = structuredClone(fixture);
+  extendedProject.processing_window.end_seconds = extendedProject.processing_window.start_seconds + 17;
+  await projectChange(extendedProject);
+  await page.waitForFunction(() => document.querySelector('.zv-h3-semantic-status')?.classList.contains('warning'));
+  check((await page.locator('.zv-h3-semantic-status').textContent()).includes('已超过常规 15 秒'));
+  await detect();
+  check((await saved()).reference_detection != null);
+  check(await page.locator('.zv-h3-detection-status.warning').count() === 1);
+  check((await page.locator('.zv-h3-detection-status').textContent()).includes('最长 30 秒'));
+  await projectChange(fixture); await detect(); scenarios++;
   if (process.argv[4]) await page.screenshot({ path: process.argv[4].replace(/\.png$/, "_FRESH.png"), fullPage: true });
 
   const before = state.reference_detection;

@@ -43,8 +43,7 @@ def test_v1_migration_preserves_range_and_maps_to_h3_snapshot():
     assert p == original and out["schema_version"] == 2
     assert out["processing_preset"] == P.builtin("builtin.minimax-h3.single")
     assert out["processing_window"]["end_seconds"] == 17
-    assert not out["validation"]["errors"] and not out["preset_compatibility"]["compatible"]
-    assert "408" in str(out["preset_compatibility"]["issues"])
+    assert not out["validation"]["errors"] and out["preset_compatibility"]["compatible"]
 
 
 def test_explicit_v2_requires_snapshot_and_recomputes_all_derived_validation():
@@ -53,11 +52,30 @@ def test_explicit_v2_requires_snapshot_and_recomputes_all_derived_validation():
     p["processing_window"]["frame_count"] = 1
     out = C.normalize_project(p)
     assert out["processing_window"]["frame_count"] == 408
-    assert not out["preset_compatibility"]["compatible"]
+    assert out["preset_compatibility"]["compatible"]
     assert C.normalize_project(out) == out
     del p["processing_preset"]
     with pytest.raises(C.ProjectError):
         C.normalize_project(p)
+
+
+def test_saved_h3_single_v1_snapshot_upgrades_to_thirty_second_v2():
+    p = window_project("builtin.minimax-h3.single", 17)
+    p["processing_preset"] = {
+        "preset_id": "builtin.minimax-h3.single",
+        "preset_version": 1,
+        "snapshot": {
+            "name": "MiniMax H3 · 单段生成",
+            "description": "H3 单次调用的处理范围",
+            "strategy": "single_window",
+            "rules": {"target_fps": 24, "min_frames": 48, "max_frames": 360, "max_seconds": 15, "align_to_grid": True, "segment_min_seconds": None, "segment_max_seconds": None, "overlap_frames": 0, "overlap_alignment": "exact"},
+        },
+    }
+    out = C.normalize_project(p)
+    assert out["processing_preset"] == P.builtin("builtin.minimax-h3.single")
+    assert out["processing_preset"]["preset_version"] == 2
+    assert out["processing_preset"]["snapshot"]["rules"]["max_seconds"] == 30
+    assert out["preset_compatibility"]["compatible"]
 
 
 def test_long_task_keeps_real_segment_constraints_and_reports_rules_only():

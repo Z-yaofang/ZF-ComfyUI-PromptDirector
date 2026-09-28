@@ -28,6 +28,7 @@
 .zv-h3i-foot { flex-direction: column; align-items: stretch; gap: 3px; max-height: 154px; overflow-y: auto; }
 .zv-h3-model-status.error { color: #ffc0b4; }
 .zv-h3-semantic-status { color: #b8c4d0; font-size: 11px; }
+.zv-h3-semantic-status.warning { color: #f0cd88; }
 .zv-h3-rules { margin-bottom: 14px; color: #a8bacd; }
 .zv-h3-rules a { color: #a8edf2; }
 .zv-h3-presets { display: grid; grid-template-columns: 240px minmax(0,1fr); gap: 6px 12px; padding: 12px 16px; border-bottom: 1px solid #40546b; background: #182535; }

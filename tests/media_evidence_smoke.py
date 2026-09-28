@@ -157,7 +157,7 @@ async def smoke(directory, paths):
         second = (await response.json())["preset"]; assert response.status == 200 and second["preset_version"] == 2; count += 1
         frozen = C.empty_project(); frozen["processing_preset"] = first; frozen["processing_window"]["end_seconds"] = 17
         response = await client.post("/zf-media-evidence/normalize", json=frozen)
-        normalized = (await response.json())["project"]; assert normalized["processing_preset"] == first and not normalized["validation"]["errors"] and not normalized["preset_compatibility"]["compatible"]; count += 1
+        normalized = (await response.json())["project"]; assert normalized["processing_preset"] == first and not normalized["validation"]["errors"] and normalized["preset_compatibility"]["compatible"]; count += 1
         response = await client.put("/zf-media-evidence/presets/" + first["preset_id"], json={"snapshot": edited, "preset_version": 1})
         assert response.status == 409 and (await response.json())["error"]["code"] == "preset_conflict"; count += 1
         response = await client.delete("/zf-media-evidence/presets/" + first["preset_id"], json={"preset_version": 1})
