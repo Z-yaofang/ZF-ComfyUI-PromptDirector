@@ -33,7 +33,8 @@ try{
     await page.mouse.move(box.x+box.width/2+hit.dx,box.y+16,{steps:8});await page.mouse.up();
     await page.waitForFunction(()=>document.querySelector('#desk .playhead')?.getAttribute('aria-valuenow')==='160');
     assert.equal(await pane.locator(".card.segment.selected").count(),1);
-    await pane.getByRole("button",{name:"黄线处分割",exact:true}).click();await page.waitForFunction(()=>desk.zvLong.getPlan()?.segments.length===3);
+    await pane.getByRole("button",{name:"黄线当前帧后分割",exact:true}).click();await page.waitForFunction(()=>desk.zvLong.getPlan()?.segments.length===3);
+    assert.deepEqual(await page.evaluate(()=>desk.zvLong.getPlan().segments.slice(0,2).map(row=>[row.start_frame,row.end_frame])),[[0,161],[161,360]]);
     await pane.getByRole("button",{name:"撤销",exact:true}).click();await page.waitForFunction(()=>desk.zvLong.getPlan()?.segments.length===2);
     await pane.locator(".zv-long").evaluate(element=>{element.style.transform='';element.style.transformOrigin='';});await pane.locator(".time-scroll").evaluate(element=>element.scrollLeft=0);
     line=pane.getByRole("slider",{name:"黄色播放头"});box=await line.boundingBox();assert(box);
@@ -56,12 +57,12 @@ try{
         const canvas=readDesk(target).project.output_canvas;return [canvas.width,canvas.height];
     }),[768,1376]);
     const ids=await page.evaluate(()=>desk.zvLong.getPlan().segments.map(s=>s.segment_id));
-    await pane.getByLabel("每段帧数",{exact:true}).fill("320");await pane.getByLabel("每段帧数",{exact:true}).press("Tab");
+    await pane.getByLabel("每段运行帧数",{exact:true}).fill("320");await pane.getByLabel("每段运行帧数",{exact:true}).press("Tab");
     await page.waitForFunction(()=>desk.zvLong.getPlan()?.segments.length===3);
     await pane.getByRole("button",{name:"撤销",exact:true}).click();await page.waitForFunction(()=>desk.zvLong.getPlan()?.segments.length===2);
     assert.deepEqual(await page.evaluate(()=>desk.zvLong.getPlan().segments.map(s=>s.segment_id)),ids);
     await pane.locator(".card.segment").first().click();
-    await pane.getByLabel("结束帧（不含）",{exact:true}).fill("300");await pane.getByLabel("结束帧（不含）",{exact:true}).press("Tab");
+    await pane.getByLabel("分段结束帧（不含）",{exact:true}).fill("300");await pane.getByLabel("分段结束帧（不含）",{exact:true}).press("Tab");
     await page.waitForFunction(()=>desk.zvLong.getPlan()?.validation.errors.some(x=>x.code==="segment_gap"));
     await pane.getByRole("button",{name:"撤销",exact:true}).click();await page.waitForFunction(()=>desk.zvLong.getPlan()?.validation.ready);
     const form=page.locator("#interview");
@@ -101,7 +102,7 @@ try{
     const mode=()=>pane.locator("select").nth(0);
     await mode().selectOption("generation_count");
     await page.waitForFunction(()=>desk.zvLong.getPlan()?.mode==="generation_count");
-    await pane.getByLabel("每段帧数",{exact:true}).fill("124");await pane.getByLabel("每段帧数",{exact:true}).press("Tab");
+    await pane.getByLabel("每段运行帧数",{exact:true}).fill("124");await pane.getByLabel("每段运行帧数",{exact:true}).press("Tab");
     await page.waitForFunction(()=>desk.zvLong.getSettings().segment_frames===124&&desk.zvLong.getPlan()?.segments[0]?.frame_count===124);
     await pane.getByLabel("重叠帧数",{exact:true}).fill("39");await pane.getByLabel("重叠帧数",{exact:true}).press("Tab");
     await page.waitForFunction(()=>desk.zvLong.getSettings().overlap_frames===39&&desk.zvLong.getPlan()?.effective_overlap_frames===39);

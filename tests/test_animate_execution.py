@@ -336,9 +336,12 @@ def test_near_integer_source_rate_preserves_every_native_frame_across_cuts(tmp_p
         source_audio_enabled=False, audio_link_id=None)
         for index, (start, end) in enumerate(zip(cuts, cuts[1:]))]
     source["audio_track"] = []
-    settings = {**FIXTURE.settings("hard_cut"), "mask_enabled": True, "mask_tasks": {
-        f"near-{index}": {"asset_id": asset["asset_id"], "source_frame": frame, "prompt": "target"}
-        for index, frame in enumerate((113, 155))}}
+    # Mask references use the media desk's 10 fps window clock.  The native
+    # near-30 fps frames remain fully preserved by decoding, but are not valid
+    # user-facing frame coordinates on this project.
+    settings = {"schema_version": 2, "seam_mode": "hard_cut", "mask_enabled": True, "mask_tasks": {
+        f"near-{index}": {"asset_id": asset["asset_id"], "window_frame": frame, "prompt": "target"}
+        for index, frame in enumerate((37, 52))}}
     value = PLAN.build_plan(source, settings, fps=30)
     assert value["validation"]["ready"]
     assert [row["frame_count"] for row in value["segments"]] == [114, 241]
@@ -363,7 +366,7 @@ def test_near_integer_source_rate_preserves_every_native_frame_across_cuts(tmp_p
         _picture, frames, audio, _info = EXECUTION.decode_segment(value, context, store, loader=loader.load_video)
         assert audio is None
         local_index, text = MASKING.ZVAnimateMaskFrame().align(context, frames, 0)
-        assert local_index == (113, 41)[index] and text == "target"
+        assert local_index == (111, 42)[index] and text == "target"
         decoded.append(frames)
     assert [len(frames) for frames in decoded] == [114, 241]
     assert torch.equal(decoded[0][0], native[0])

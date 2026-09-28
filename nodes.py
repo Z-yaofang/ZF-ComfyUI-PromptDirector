@@ -16,6 +16,7 @@ from .h3_focus.node import ZVH3InterviewFormV2
 from .h3_focus.reverse_pipeline import ZVH3ReverseStage
 from .h3_focus.outlet_node import ZVH3ReferenceOutlet
 from .long_video.plan_node import ZVLongVideoSegmentDesk
+from .universal_segment import ZVUniversalSegmentDesk
 from .long_video.interview import ZVSegmentInterview
 from .long_video.masks import (
     ZVH3MaskedFrameCompose,
@@ -1585,6 +1586,7 @@ NODE_CLASS_MAPPINGS = {
     "ZVH3ReverseStage": ZVH3ReverseStage,
     "ZVH3ReferenceOutlet": ZVH3ReferenceOutlet,
     "ZVLongVideoSegmentDesk": ZVLongVideoSegmentDesk,
+    "ZVUniversalSegmentDesk": ZVUniversalSegmentDesk,
     "ZVSegmentInterview": ZVSegmentInterview,
     "ZVSegmentVideoMaskSource": ZVSegmentVideoMaskSource,
     "ZVMaskedSegmentBundle": ZVMaskedSegmentBundle,
@@ -1635,6 +1637,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ZVH3ReverseStage": "ZV H3 独立反推阶段",
     "ZVH3ReferenceOutlet": "ZV H3 素材对齐出口（官方容量）",
     "ZVLongVideoSegmentDesk": "ZV H3 长视频分段台",
+    "ZVUniversalSegmentDesk": "ZV 通用分段台",
     "ZVSegmentInterview": "ZV H3 分段采访表",
     "ZVSegmentVideoMaskSource": "ZV H3 遮罩源视频",
     "ZVMaskedSegmentBundle": "ZV H3 外接 MASK 分段绑定",

@@ -211,7 +211,7 @@ def build_plan(media_project, settings=None, fps=None):
     config = _migrate_settings(project, config, fps)
     window_fps = _rate(project["processing_window"]["fps"])
     if first_video and fps_origin == "project":
-        warnings.append(_issue("/fps", "source_fps_unknown", f"首段源帧率未知，暂用素材台工程帧率 {fps:g} fps"))
+        warnings.append(_issue("/fps", "source_fps_unknown", f"首段源帧率未知，暂用素材台工程默认帧率 {fps:g} fps"))
     clips, pictures = _source_clips(project, fps)
     if any(abs(clip["timeline_in_seconds"] - clip["output_start_frame"] / fps) > 1 / fps for clip in clips):
         warnings.append(_issue("/video_track", "sequential_sources", "视频按素材台左右顺序连续拼接；素材台的空档或不同视频间的重叠不保留"))

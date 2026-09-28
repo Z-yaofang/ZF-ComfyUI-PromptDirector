@@ -53,10 +53,13 @@ test("cloud frontend modules do not import the legacy /scripts/api.js path", asy
 });
 
 test("frontend entry modules provide a cloud-safe Comfy API bridge", async () => {
-  for (const name of ["h3_interview.js", "media_evidence_desk.js"]) {
+  for (const name of [
+    "h3_interview.js", "media_evidence_desk.js", "long_video.js",
+    "animate_video.js", "universal_segment.js",
+  ]) {
     const source = await readFile(new URL(name, webRoot), "utf8");
     assert.match(source, /globalThis\.comfyAPI\?\.api\?\.api/);
     assert.match(source, /apiURL:\s*path\s*=>\s*path/);
-    assert.match(source, /fetchApi:\s*\(path, options\)\s*=>\s*fetch\(path, options\)/);
+    assert.match(source, /fetchApi:\s*\(path,\s*options\)\s*=>\s*fetch\(path,\s*options\)/);
   }
 });

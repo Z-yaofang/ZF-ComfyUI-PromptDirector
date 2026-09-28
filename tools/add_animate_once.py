@@ -395,7 +395,7 @@ def build(workflow, *, output_types=OUTPUT_TYPES):
     project = empty_project()
     project["project_clock"]["fps"] = project["processing_window"]["fps"] = _source_fps(editor)
     project_json = json.dumps(project, ensure_ascii=False, separators=(",", ":"))
-    settings_json = json.dumps({"schema_version": 1, "seam_mode": "hard_cut", "mask_enabled": False, "mask_tasks": {}}, separators=(",", ":"))
+    settings_json = json.dumps({"schema_version": 2, "seam_mode": "hard_cut", "mask_enabled": False, "mask_tasks": {}}, separators=(",", ":"))
     nodes = [
         make_node(ids["desk"], "ZVUniversalMediaEvidenceDesk", "① 素材台：准备已剪好的视频与逐段图片", [x, y],
                   [("project_data", "STRING"), ("width", "INT"), ("height", "INT")],

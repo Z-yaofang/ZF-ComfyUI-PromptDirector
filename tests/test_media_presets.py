@@ -198,9 +198,9 @@ def test_unaligned_range_cannot_hide_excess_duration_in_rounded_frame_count():
 
 
 @pytest.mark.parametrize("change", [
-    {"min_frames": 400}, {"max_seconds": -1}, {"target_fps": float("nan")}, {"target_fps": float("inf")},
+    {"min_frames": 800}, {"max_seconds": -1}, {"target_fps": float("nan")}, {"target_fps": float("inf")},
     {"min_frames": 1.5}, {"target_fps": None}, {"target_fps": .5}, {"overlap_frames": -1}, {"max_frames": 0},
-    {"max_seconds": 1}, {"target_fps": True}, {"align_to_grid": "yes"}, {"unexpected": 1},
+    {"max_seconds": .01}, {"target_fps": True}, {"align_to_grid": "yes"}, {"unexpected": 1},
 ])
 def test_invalid_user_rules_cannot_be_saved(tmp_path, change):
     snapshot = P.builtin("builtin.minimax-h3.single")["snapshot"]

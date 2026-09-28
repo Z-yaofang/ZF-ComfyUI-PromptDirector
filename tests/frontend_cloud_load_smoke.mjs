@@ -7,7 +7,8 @@ import {createServer} from "node:http";
 import {createRequire} from "node:module";
 
 const {chromium}=createRequire(import.meta.url)(process.argv[2]||"playwright");
-const names=["media_evidence_desk.js","media_evidence_core.mjs","media_evidence_presets.mjs","media_evidence_outlets.mjs","dom_widget_layout.mjs","media_processing_presets.json","media_evidence_desk.css"];
+const entryNames=["media_evidence_desk.js","h3_interview.js","long_video.js","animate_video.js","universal_segment.js"];
+const names=[...entryNames,"media_evidence_core.mjs","media_evidence_presets.mjs","media_evidence_outlets.mjs","h3_interview_presets.mjs","long_video_core.mjs","animate_video_core.mjs","dom_widget_layout.mjs","media_processing_presets.json","media_evidence_desk.css","h3_interview.css","long_video.css","animate_video.css","universal_segment.css"];
 const files=Object.fromEntries(await Promise.all(names.map(async name=>[name,await readFile(new URL(`../web/${name}`,import.meta.url),"utf8")])));
 const publishedName=name=>/\.m?js$/.test(name)?name.replace(/\.m?js$/,`__${createHash("sha256").update(files[name]).digest("hex").slice(0,8)}.js`):name;
 
@@ -79,6 +80,11 @@ try {
         } else {
             assert.deepEqual(result,{loaded:true,count:1});
             assert(requests.some(r=>r.path===`/current/extensions/${publishedName("media_evidence_outlets.mjs")}`));
+            for(const entry of entryNames.slice(1))await page.evaluate(moduleURL=>import(moduleURL),`${origin}/current/extensions/${publishedName(entry)}`);
+            assert.deepEqual(await page.evaluate(()=>app.extensions.map(row=>row.name)),[
+                "ZV.UniversalMediaEvidenceDesk","ZV.H3InterviewForm","ZV.LongVideo",
+                "ZV.AnimateVideo","ZV.AnimateRunPreviews","ZV.UniversalSegmentDesk",
+            ]);
             await page.evaluate(async coreURL=>{
                 const core=await import(coreURL);
                 window.fixture=core.addAsset(core.addAsset(core.freshProject(),{

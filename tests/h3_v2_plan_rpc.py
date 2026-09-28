@@ -7,8 +7,16 @@ import runpy
 import sys
 from pathlib import Path
 import tempfile
+import types
 
 ROOT = Path(__file__).resolve().parents[1]
+try:
+    import pytest  # noqa: F401
+except ModuleNotFoundError:
+    pytest = types.ModuleType("pytest")
+    pytest.mark = types.SimpleNamespace(parametrize=lambda *_args, **_kwargs: lambda function: function)
+    pytest.fixture = lambda *args, **kwargs: args[0] if len(args) == 1 and callable(args[0]) and not kwargs else lambda function: function
+    sys.modules["pytest"] = pytest
 H = runpy.run_path(str(ROOT / "tests/test_h3_v2.py"))
 I, C, S, R = (H[key] for key in ("I", "C", "S", "R"))
 import importlib

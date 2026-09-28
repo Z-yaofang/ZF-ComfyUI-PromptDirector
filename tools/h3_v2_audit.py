@@ -22,7 +22,7 @@ import uuid
 PLUGIN = Path(__file__).resolve().parents[1]
 COMFY = PLUGIN.parents[1]
 EXPRESSION = "max(5, round(a)) + (5 - (max(5, round(a)) % 17)) % 17"
-ROOT_FILES = ("__init__.py","nodes.py","server.py","flow_nodes.py","local_multimodal.py","music_nodes.py","portrait_nodes.py")
+ROOT_FILES = ("__init__.py","nodes.py","server.py","flow_nodes.py","local_multimodal.py","music_nodes.py","portrait_nodes.py","universal_segment.py")
 DATA_FILES = ("purposes.json","visual_methods.json","default_combinations.json","writing_grammar.json","purpose_visual_recommendations.json","portrait_generator_v12.json")
 SCHEMA_FILES = ("zv-media-project-v2.schema.json","zv-processing-preset-v1.schema.json","zv-segment-plan-v1.schema.json")
 OUTPUT_NAMES = ("H3_V2_03_RUNTIME_MANIFEST.json", "H3_V2_03_WORKFLOW_AUDIT.json", "H3_V2_03_PREPARATION_WORKFLOW.json", "H3_V2_03_SHARE_CHECK.json", "H3_V2_03_COPY_REGISTRATION.json")

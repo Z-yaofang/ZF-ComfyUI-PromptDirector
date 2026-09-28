@@ -4,23 +4,35 @@ import asyncio
 import importlib.util
 import json
 from pathlib import Path
+import sys
+import types
 
 from aiohttp import web
 
 
 ROOT = Path(__file__).resolve().parents[1]
+try:
+    import pytest  # noqa: F401
+except ModuleNotFoundError:
+    pytest = types.ModuleType("pytest")
+    pytest.mark = types.SimpleNamespace(parametrize=lambda *_args, **_kwargs: lambda function: function)
+    pytest.raises = lambda *_args, **_kwargs: None
+    sys.modules["pytest"] = pytest
 spec = importlib.util.spec_from_file_location("zv_long_fixture", ROOT / "tests" / "test_long_video_interview.py")
 fixture = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(fixture)
 S = __import__(fixture.PACKAGE + ".long_video.server", fromlist=["server"])
+A = __import__(fixture.PACKAGE + ".animate_video.server", fromlist=["server"])
 
 
 async def main():
     class Registry:
         canonical = staticmethod(fixture.C.normalize_project)
     S.get_store = lambda: Registry()
+    A.get_store = lambda: Registry()
     routes = web.RouteTableDef()
     S.register_long_video_routes(routes)
+    A.register_animate_routes(routes)
 
     @routes.get("/scripts/app.js")
     async def app_stub(_request):
@@ -47,6 +59,19 @@ window.sourceNode={id:1,widgets:[{name:'project_data',value:JSON.stringify(SOURC
 function node(id,key,value,host,inputs){return {id,widgets:[{name:key,value:JSON.stringify(value)}],properties:{},inputs:inputs.map(name=>({name})),size:[1100,750],setSize(){},graph:{setDirtyCanvas(){}},addDOMWidget(name,type,element){document.getElementById(host).append(element);return {};}};}
 window.desk=node(2,'segment_data',{...defaultSettings(),mode:'source_auto'},'desk',['media_project']);desk.getInputNode=()=>sourceNode;attachDesk(desk);
 window.interview=node(3,'interview_data',emptyInterview(),'interview',['segment_plan']);interview.getInputNode=()=>desk;attachInterview(interview);
+</script></body></html>""".replace("SOURCE", source))
+
+    @routes.get("/universal")
+    async def universal(_request):
+        source = json.dumps(fixture.source(), ensure_ascii=False)
+        return web.Response(content_type="text/html", text="""<!doctype html><html><meta charset="UTF-8"><body style="margin:0;background:#081017;padding:16px"><main id="desk" style="height:760px"></main><main id="interview" style="height:850px;margin-top:18px"></main><script type="module">
+import {attachUniversalDesk} from '/web/universal_segment.js';
+import {attachInterview} from '/web/long_video.js';
+import {defaultSettings,emptyInterview} from '/web/long_video_core.mjs';
+window.sourceNode={id:1,widgets:[{name:'project_data',value:JSON.stringify(SOURCE)}],inputs:[]};
+function node(id,widgets,host,inputs){return {id,widgets,properties:{},inputs:inputs.map(name=>({name})),size:[1100,750],setSize(){},graph:{setDirtyCanvas(){}},addDOMWidget(name,type,element){document.getElementById(host).append(element);return {};}};}
+window.desk=node(2,[{name:'target_mode',value:'H3'},{name:'segment_data',value:JSON.stringify({schema_version:1,h3:defaultSettings(),animate:{schema_version:1,seam_mode:'hard_cut',mask_enabled:false,mask_tasks:{}}})}],'desk',['media_project','fps']);desk.getInputNode=()=>sourceNode;attachUniversalDesk(desk);
+window.interview=node(3,[{name:'interview_data',value:JSON.stringify(emptyInterview())}],'interview',['segment_plan']);interview.getInputNode=()=>desk;attachInterview(interview);
 </script></body></html>""".replace("SOURCE", source))
 
     app = web.Application(client_max_size=8 * 1024 * 1024)

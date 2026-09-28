@@ -34,7 +34,7 @@ function attachDesk(node){
     function remember(){undo.push(clone(settings));if(undo.length>80)undo.shift();redo.length=0;}
     function commit(next){remember();settings=next;persist();refresh();}
     function persist(){save(settings);node.zvLong.plan=null;node.zvLong.settings=clone(settings);root.dispatchEvent(new CustomEvent("zv-segment-change"));}
-    const playheadText=()=>`播放头 ${(playhead/settings.fps).toFixed(3)} 秒 · 第 ${playhead} 帧`;
+    const playheadText=()=>`分段播放头 ${(playhead/settings.fps).toFixed(3)} 秒 · 第 ${playhead} 运行帧（${settings.fps} fps）`;
     function rulerFrame(ruler,clientX){const rect=ruler.getBoundingClientRect(),ratio=ruler.offsetWidth?rect.width/ruler.offsetWidth:1;return (clientX-rect.left)/(scale*(ratio||1));}
     function paintPlayhead(line,maximum){
         line.style.left=`${84+playhead*scale}px`;line.setAttribute("aria-valuenow",String(playhead));line.setAttribute("aria-valuetext",playheadText());line.setAttribute("aria-valuemax",String(maximum));
@@ -71,7 +71,7 @@ function attachDesk(node){
             plan=result.plan;settings={...settings,source_snapshot:clone(plan.media_project),source_fingerprint:plan.source_fingerprint,refresh_sources:false};
             if(!settings.segments.length&&plan.segments.length)settings.segments=plan.segments.map(({segment_id,start_frame,end_frame})=>({segment_id,start_frame,end_frame}));
             save(settings);node.zvLong.plan=plan;node.zvLong.settings=clone(settings);
-            note([`${plan.segments.length} 段 · 目标 ${plan.target_frame_count} 帧 / ${(plan.target_frame_count/plan.fps).toFixed(3)} 秒`,...plan.validation.errors.map(x=>x.message),...plan.validation.warnings.map(x=>x.message)].join("\n"),!plan.validation.ready);
+            note([`${plan.segments.length} 段 · 目标 ${plan.target_frame_count} 运行帧 / ${(plan.target_frame_count/plan.fps).toFixed(3)} 秒`,...plan.validation.errors.map(x=>x.message),...plan.validation.warnings.map(x=>x.message)].join("\n"),!plan.validation.ready);
             renderControls();renderTimeline();root.dispatchEvent(new CustomEvent("zv-segment-change"));
         }catch(e){if(!disposed&&run===token)note(e.message,true);}
     }
@@ -90,21 +90,22 @@ function attachDesk(node){
         };
         controls.replaceChildren(button("获取素材台三轨",()=>{remember();refresh(true);},true),
             select([["generation_count","按段数生成（视频可选）"],["generation_manual","手动排生成时间轴"],["source_auto","按长源视频裁切"],["source_manual","手动排源视频片段"]],settings.mode,changeMode),
-            field("帧率",number(settings.fps,v=>commit({...settings,fps:v}),1)),
-            field("每段帧数",number(settings.segment_frames,v=>commit({...settings,segment_frames:v}),1)),
+            field("分段时钟 fps",number(settings.fps,v=>commit({...settings,fps:v}),1)),
+            field("每段运行帧数",number(settings.segment_frames,v=>commit({...settings,segment_frames:v}),1)),
             field("重叠帧数",number(settings.overlap_frames,v=>commit({...settings,overlap_frames:v}))),
             select([["h3_guide","H3 衔接帧对齐"],["exact","精确重叠 / 硬切"]],settings.overlap_alignment,v=>commit({...settings,overlap_alignment:v})),
             field("段数（仅按段数生成）",segmentCount),
             button("一键排列",()=>commit({...settings,mode:settings.mode.startsWith("generation")?"generation_count":"source_auto",segments:[]}),true),
             ...(!generation&&plan?[button("改为生成时间轴",()=>changeMode(settings.mode==="source_manual"?"generation_manual":"generation_count"))]:[]),
-            el("span","hint","H3 常用单段 8–15 秒；任务保留帧数可直接填，模型长度自动向上补到 5+17k，输出再裁回；重叠 Guide 独立按 1 或 5+17k 对齐。"));
+            el("span","hint","这里的帧号属于分段/生成时钟，不是素材台窗口帧；素材按秒映射。H3 常用单段 8–15 秒；任务保留帧数可直接填，模型长度自动向上补到 5+17k，输出再裁回；重叠 Guide 独立按 1 或 5+17k 对齐。"));
         const snapInput=el("input");snapInput.type="checkbox";snapInput.checked=snap;snapInput.onchange=()=>snap=snapInput.checked;
         const undoButton=button("撤销",()=>{if(!undo.length)return;redo.push(clone(settings));settings=undo.pop();persist();refresh();});undoButton.disabled=!undo.length;
         const redoButton=button("重做",()=>{if(!redo.length)return;undo.push(clone(settings));settings=redo.pop();persist();refresh();});redoButton.disabled=!redo.length;
-        toolbar.replaceChildren(field("吸附",snapInput),redoButton,undoButton,button("黄线处分割",()=>{
+        toolbar.replaceChildren(field("吸附",snapInput),redoButton,undoButton,button("黄线当前帧后分割",()=>{
             if(!plan||!selected)return;
-            if(selected.kind==="segment")commit(splitSegment(settings,plan,selected.id,playhead));
-            else if(selected.kind!=="picture")commit({...settings,source_snapshot:split(settings.source_snapshot,selected.id,playhead/settings.fps)});
+            const boundary=playhead+1;
+            if(selected.kind==="segment")commit(splitSegment(settings,plan,selected.id,boundary));
+            else if(selected.kind!=="picture")commit({...settings,source_snapshot:split(settings.source_snapshot,selected.id,boundary/settings.fps)});
         }),button("＋ 增加分段",()=>plan&&commit(addSegment(settings,plan))),el("span","warning playhead-readout",playheadText()),el("span","grow"),field("缩放",number(scale,v=>{scale=v;renderTimeline();},1)));
     }
     function renderPresets(){
@@ -153,7 +154,7 @@ function attachDesk(node){
                 const length=kind==="segment"?row.end_frame-row.start_frame:kind==="picture"?68/scale:generation?168/scale:frame(row.source_out_seconds-row.source_in_seconds,settings.fps);
                 const card=el("div",`card ${kind}${selected?.id===id?" selected":""}`);
                 card.style.left=`${84+start*scale}px`;card.style.width=`${Math.max(24,length*scale)}px`;
-                card.append(el("strong","",kind==="segment"?`第 ${row.order} 段`:asset?.name??id),el("br"),document.createTextNode(kind==="segment"?`${row.frame_count} 帧 · ${row.overlap_frames?`重叠 ${row.overlap_frames}`:row.seam==="first"?"起点":"硬切"}`:kind==="picture"?"固定卡片":`${row.source_in_seconds.toFixed(3)}–${row.source_out_seconds.toFixed(3)}s`));
+                card.append(el("strong","",kind==="segment"?`第 ${row.order} 段`:asset?.name??id),el("br"),document.createTextNode(kind==="segment"?`${row.frame_count} 运行帧 · ${row.overlap_frames?`重叠 ${row.overlap_frames}`:row.seam==="first"?"起点":"硬切"}`:kind==="picture"?"固定卡片":`${row.source_in_seconds.toFixed(3)}–${row.source_out_seconds.toFixed(3)}s`));
                 if(kind==="segment")for(const side of ["left","right"]){const edge=el("span",`edge ${side}`);edge.dataset.edge=side;card.append(edge);}
                 card.onpointerdown=e=>{
                     selected={kind,id};
@@ -175,7 +176,7 @@ function attachDesk(node){
         line.onkeydown=e=>{if(!["ArrowLeft","ArrowRight","Home","End"].includes(e.key))return;e.preventDefault();e.stopPropagation();playhead=e.key==="Home"?0:e.key==="End"?max:Math.max(0,Math.min(max,playhead+(e.key==="ArrowRight"?1:-1)));paintPlayhead(line,max);renderControls();};
         time.append(line);
         if(selected?.kind==="segment"){
-            const row=plan.segments.find(x=>x.segment_id===selected.id);if(row){const model=row.model_padding.model_length==null?"布局未预填模型长度（采访执行时按 H3 调用网格补齐）":`布局模型长度 ${row.model_padding.model_length} 帧`;inspector.append(el("span","",`第 ${row.order} 段`),field("起始帧",number(row.start_frame,v=>commit(changeSegment(settings,plan,row.segment_id,v,row.end_frame)))),field("结束帧（不含）",number(row.end_frame,v=>commit(changeSegment(settings,plan,row.segment_id,row.start_frame,v)),1)),el("span","",`${model} · 任务保留 ${row.frame_count} 帧 · 布局 ${row.model_padding.adapter}`));}
+            const row=plan.segments.find(x=>x.segment_id===selected.id);if(row){const model=row.model_padding.model_length==null?"布局未预填模型长度（采访执行时按 H3 调用网格补齐）":`布局模型长度 ${row.model_padding.model_length} 帧`;inspector.append(el("span","",`第 ${row.order} 段`),field("分段起帧",number(row.start_frame,v=>commit(changeSegment(settings,plan,row.segment_id,v,row.end_frame)))),field("分段结束帧（不含）",number(row.end_frame,v=>commit(changeSegment(settings,plan,row.segment_id,row.start_frame,v)),1)),el("span","",`${model} · 任务保留 ${row.frame_count} 运行帧 · 布局 ${row.model_padding.adapter}`));}
         }
     }
     node.zvLong.refresh=refresh;node.zvLong.getSettings=()=>clone(settings);node.zvLong.getPlan=()=>plan;

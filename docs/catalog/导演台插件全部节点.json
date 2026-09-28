@@ -1,7 +1,7 @@
 {
   "id": "ca1c9bf4-d5b2-4fd0-a39f-a8cf1f5b5438",
   "revision": 1,
-  "last_node_id": 48,
+  "last_node_id": 49,
   "last_link_id": 59,
   "nodes": [
     {
@@ -3197,6 +3197,70 @@
       ]
     },
     {
+      "id": 49,
+      "type": "ZVUniversalSegmentDesk",
+      "title": "ZV 通用分段台",
+      "pos": [
+        4000,
+        3300
+      ],
+      "size": [
+        1100,
+        680
+      ],
+      "flags": {},
+      "order": 48,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "media_project",
+          "type": "ZV_MEDIA_PROJECT",
+          "link": null
+        },
+        {
+          "name": "fps",
+          "type": "INT,FLOAT",
+          "link": null,
+          "shape": 7
+        }
+      ],
+      "outputs": [
+        {
+          "name": "segment_plan",
+          "type": "ZV_SEGMENT_PLAN",
+          "links": null
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "animate_plan",
+          "type": "ZV_ANIMATE_PLAN",
+          "links": null
+        },
+        {
+          "name": "segment_count",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "fps",
+          "type": "FLOAT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "aux_id": "Z-yaofang/ZF-ComfyUI-PromptDirector",
+        "Node name for S&R": "ZVUniversalSegmentDesk"
+      },
+      "widgets_values": [
+        "H3",
+        "{\"schema_version\":1,\"h3\":{\"schema_version\":1,\"mode\":\"generation_count\",\"fps\":24,\"segment_frames\":360,\"overlap_frames\":48,\"overlap_alignment\":\"h3_guide\",\"segment_count\":1,\"segments\":[],\"range_start_frame\":null,\"range_end_frame\":null,\"source_snapshot\":null,\"source_fingerprint\":null,\"refresh_sources\":false},\"animate\":{\"schema_version\":2,\"seam_mode\":\"hard_cut\",\"mask_enabled\":false,\"mask_tasks\":{}}}"
+      ]
+    },
+    {
       "id": 48,
       "type": "ZFI",
       "title": "ZFI · 3 路转接",
@@ -3766,7 +3830,7 @@
     },
     {
       "id": 3,
-      "title": "03｜H3 长视频 · 12 种｜分段执行与可选 MASK",
+      "title": "03｜H3 长视频与通用分段 · 13 种｜分段执行与可选 MASK",
       "bounding": [
         0,
         3200,

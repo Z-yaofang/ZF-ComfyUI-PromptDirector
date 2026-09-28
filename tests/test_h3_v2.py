@@ -145,7 +145,7 @@ def test_reference_class_total_15_boundary_is_separate(kind, seconds, valid):
     assert ("reference_total_seconds" in codes(result)) == (not valid)
 
 
-@pytest.mark.parametrize("target,valid", [(2, False), (4, True), (15, True), (16, False)])
+@pytest.mark.parametrize("target,valid", [(2, False), (4, True), (15, True), (16, True), (30, True), (31, False)])
 def test_official_output_range_is_separate_from_reference_minimum(target, valid):
     result = I.compile_interview(I.empty_interview(), source(0, 0, 0, target=target))
     assert result["validation"]["ready"] == valid

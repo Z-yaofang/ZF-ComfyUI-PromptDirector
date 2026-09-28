@@ -143,7 +143,7 @@ def _check_size(plan):
     if estimated > MAX_OUTPUT_BYTES:
         raise OutletError(
             f"单次素材出口预计张量超过 {MAX_OUTPUT_GIB} GiB，"
-            "请缩小处理窗口或使用较小的原始素材"
+            "请把实际生成分辨率接到素材台 width/height，或缩小处理窗口、使用较小的原始素材"
         )
 
 
