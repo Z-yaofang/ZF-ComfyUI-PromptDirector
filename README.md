@@ -72,9 +72,7 @@ The diagram above shows the current local-model connection for the director work
 
 ### Workflow utility nodes
 
-![Local media desk and Animate segment-pairing desk](docs/images/media-animate-desk-example.png)
-
-This is a local UI example, not a recommended parameter set or evidence of cloud generation. Separate screenshots of the [H3 long-video segment desk](docs/LONG_VIDEO_GUIDE.md) and [H3 interview form](docs/H3_INTERVIEW.md) are in their guides.
+See the usage guides for [Animate segment pairing](docs/ANIMATE_ONCE.md), the [H3 long-video segment desk](docs/LONG_VIDEO_GUIDE.md), and the [H3 interview form](docs/H3_INTERVIEW.md).
 
 The H3/media implementation is included in this repository. The media desk now has a separate **Original sources** output in addition to its two existing project outputs. **发送原素材** creates a connected image, video or audio outlet for the complete pool asset, without timeline trimming, H3 alignment or interview validation. Video uses native `VIDEO`; its source-path output can also feed a compatible path-based loader. See [source binding](docs/H3_V2_07_SOURCE_BINDING.md) and [cloud test preparation](docs/CLOUD_TESTING.md). Restart ComfyUI and refresh the frontend after updating. Cloud GPU validation is still pending.
 
