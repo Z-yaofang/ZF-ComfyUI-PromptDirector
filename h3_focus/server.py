@@ -9,7 +9,7 @@ from ..media_evidence.runtime import get_store
 from ..media_evidence.outlet import OutletError, _video_target_size
 from .interview import InterviewError, annotate_conditioning, annotate_project_errors, compile_interview
 from .reference_plan import planned_detection
-from .reference_detection import validate_reference_hub_wiring, validate_conditioning_settings, detect_reference_wiring, detection_snapshot
+from .reference_detection import PROMPT_INPUT_CLASS, validate_reference_hub_wiring, validate_conditioning_settings, validate_prompt_without_hub, detect_reference_wiring, detection_snapshot
 from .routing import align_bindings
 from .preset_server import register_preset_routes
 
@@ -62,12 +62,15 @@ def plan_interview(value, *, prepared_project=None):
     state = copy.deepcopy(value["state"])
     prompt = value.get("prompt")
     interview_id = str(value.get("interview_id", ""))
+    plain_prompt = isinstance(prompt, dict) and prompt.get(interview_id, {}).get("class_type") == PROMPT_INPUT_CLASS
+    if plain_prompt and isinstance(state.get("reference_texts"), dict):
+        state["reference_texts"].pop("intent", None)
     has_hub = prompt is not None and any(node.get("class_type") == "ZVH3ReferenceOutlet" and node.get("inputs", {}).get("reference_plan") in ([interview_id, 6], [value.get("interview_id"), 6]) for node in prompt.values())
     wiring = None
     if value.get("align"):
         state["reference_detection"] = None
         state["alignment"] = None
-        if prompt is not None and not has_hub:
+        if prompt is not None and not has_hub and not plain_prompt:
             wiring = detect_reference_wiring(prompt, interview_id)
             if wiring["conditioning_count"]:
                 state["reference_detection"] = detection_snapshot(wiring)
@@ -79,11 +82,20 @@ def plan_interview(value, *, prepared_project=None):
         result = compile_interview(result["state"], project, confirm_references=True)
     annotate_project_errors(result, project["validation"]["errors"])
     if prompt is not None:
-        wiring = validate_reference_hub_wiring(prompt, interview_id) if has_hub else detect_reference_wiring(prompt, interview_id)
+        if plain_prompt and not has_hub:
+            wiring = validate_prompt_without_hub(prompt, interview_id)
+            if result["call_references"]:
+                wiring["errors"].append({"code": "fixed_hub_missing", "message": "已选择 H3 参考素材，请把本节点 reference_plan 接到固定 H3 素材对齐出口，并连接模型参考接口。"})
+        else:
+            wiring = validate_reference_hub_wiring(prompt, interview_id) if has_hub else detect_reference_wiring(prompt, interview_id)
         evidence = validate_conditioning_settings(prompt, interview_id, effective_mode=result["validation"]["effective_mode"], has_drive_audio=bool(result["validation"]["counts"]["drive_audio"]), project_frame_count=project["processing_window"]["frame_count"])
         annotate_conditioning(result, project, evidence)
         result["validation"]["errors"].extend(wiring["errors"])
         result["validation"]["ready"] = not result["validation"]["errors"]
+    if plain_prompt:
+        result["user_prompt"] = state.get("intent", "")
+        result["state"]["intent"] = result["user_prompt"]
+        result["state"]["reference_texts"].pop("intent", None)
     return {key: result[key] for key in ("state", "validation", "alignment_context", "rules", "call_references", "user_prompt", "material_context_json")} | {
         "wiring": wiring,
         "routing_errors": [row for row in result["validation"]["errors"] if row["code"] in {"media_limit", "bank_kind", "audio_duplicate", "soundtrack_pair", "stale_media", "detection_source_missing"}],

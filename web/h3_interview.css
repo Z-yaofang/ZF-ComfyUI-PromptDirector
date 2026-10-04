@@ -31,6 +31,11 @@
 .zv-h3-semantic-status.warning { color: #f0cd88; }
 .zv-h3-rules { margin-bottom: 14px; color: #a8bacd; }
 .zv-h3-rules a { color: #a8edf2; }
+.zv-h3-clear-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.zv-h3-clear-notice { flex: 1 1 280px; color: #b8c4d0; }
+.zv-h3i .zv-h3-clear-actions { flex: 1 0 100%; }
+.zv-h3i :is(button, textarea, select, summary):focus-visible { outline: 2px solid #8ce1eb; outline-offset: 2px; }
+.zv-h3-prompt-output textarea { display: block; width: 100%; margin-top: 8px; padding: 10px; resize: vertical; }
 .zv-h3-presets { display: grid; grid-template-columns: 240px minmax(0,1fr); gap: 6px 12px; padding: 12px 16px; border-bottom: 1px solid #40546b; background: #182535; }
 .zv-h3-presets > strong { grid-column: 1 / -1; color: #a8edf2; }
 .zv-h3-presets > select { grid-column: 1; grid-row: 3 / 5; width: 100%; min-height: 66px; }

@@ -71,6 +71,7 @@ def validate_conditioning_settings(prompt, interview_unique_id, *, effective_mod
 T8_CLASS = "MiniMaxH3AudioConditioningT8"
 STAGE_LLM_CLASS = "ZFPromptDirectorLocalLLM"
 INTERVIEW_CLASS = "ZVH3InterviewFormV2"
+PROMPT_INPUT_CLASS = "ZVH3PromptInput"
 HUB_CLASS = "ZVH3ReferenceOutlet"
 
 _REF_IMAGE_RE = re.compile(r"^ref_images\.ref_image_(\d+)$")
@@ -425,6 +426,28 @@ def _fixed_audio_settings(nodes, node_id, errors):
         )
 
 
+def validate_prompt_without_hub(prompt, prompt_unique_id):
+    nodes = {str(key): node for key, node in prompt.items() if isinstance(node, Mapping)} if isinstance(prompt, Mapping) else {}
+    prompt_id = str(prompt_unique_id)
+    result = {"conditioning_count": 0, "errors": []}
+    for node_id, node in nodes.items():
+        if node.get("class_type") != T8_CLASS or not _has_ancestor(nodes, node_id, prompt_id):
+            continue
+        result["conditioning_count"] += 1
+        for name, value in _inputs(nodes, node_id).items():
+            if value is None or not (
+                name in {"first_frame", "last_frame", "drive_audio", "final_audio"}
+                or any(pattern.match(name) for pattern in (_REF_IMAGE_RE, _REF_VIDEO_RE, _REF_VIDEO_AUDIO_RE, _REF_AUDIO_RE))
+            ):
+                continue
+            _add_error(
+                result["errors"], "unaligned_reference_inputs",
+                f"H3 的 {name} 已连接外部参考，无法核实素材编号；请使用本提示词节点的固定 H3 素材对齐出口。",
+                node_id=node_id, input_name=name,
+            )
+    return result
+
+
 def validate_reference_hub_wiring(prompt, interview_unique_id, *, effective_mode=None, has_drive_audio=False, project_frame_count=None):
     """Validate the physical fixed-hub template without needing tensor IDs.
 
@@ -495,9 +518,9 @@ def validate_reference_hub_wiring(prompt, interview_unique_id, *, effective_mode
         for input_name, output_slot in _HUB_STAGE1_INPUTS:
             _require_hub_link(nodes, node_id, input_name, hub_id, output_slot, errors)
 
-    # In the full H3 branch Stage① is part of the promised three-stage loop. A
-    # Stage①-only partial execution has no conditioning nodes and stays valid.
-    if conditioning_ids and not stage_ids:
+    # The interview keeps its three-stage contract; direct prompt input does
+    # not require a reverse stage. Present stages must still match the hub.
+    if conditioning_ids and not stage_ids and nodes.get(interview_id, {}).get("class_type") != PROMPT_INPUT_CLASS:
         _add_error(
             errors,
             "fixed_hub_stage1_missing",
@@ -570,7 +593,7 @@ def detect_reference_wiring(prompt, interview_unique_id):
             node_id=interview_id,
         )
         return result
-    if interview.get("class_type") != INTERVIEW_CLASS:
+    if interview.get("class_type") not in {INTERVIEW_CLASS, PROMPT_INPUT_CLASS}:
         _add_error(
             errors,
             "interview_node_type",
@@ -654,14 +677,14 @@ def detect_reference_wiring(prompt, interview_unique_id):
         h3_video_sources = _source_sequence(result["videos"])
         stage_picture_sources = _source_sequence(result["stage1"]["pictures"])
         stage_video_sources = _source_sequence(result["stage1"]["videos"])
-        if (h3_picture_sources or h3_video_sources) and not stage_maps:
+        if (h3_picture_sources or h3_video_sources) and not stage_maps and interview.get("class_type") != PROMPT_INPUT_CLASS:
             _add_error(
                 errors,
                 "stage1_missing",
                 "H3 已连接视觉参考，但没有找到对应的 Stage1 本地多模态节点。",
                 node_id=interview_id,
             )
-        else:
+        elif stage_maps or interview.get("class_type") != PROMPT_INPUT_CLASS:
             if stage_picture_sources != h3_picture_sources:
                 _add_error(
                     errors,

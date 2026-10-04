@@ -13,6 +13,7 @@
 | 从预设或手填选项组装人像提示词 | `ZIPortraitPromptGenerator` · 人像提示词生成器 | 反推模型、H3 采访表 |
 | 写 Music3 音乐提示词 | `ZFMusic3PromptDirector` · 音乐反推导演 | 视频分段台 |
 | 生成一段 H3 视频 | `ZVH3InterviewFormV2` · H3 采访表 · 收集对齐整理 | 旧基础采访表、旧阶段文字出口 |
+| 已有 H3 提示词，直接生成或继续反推 | `ZVH3PromptInput` · H3 提示词 · 素材对齐 | 逐项填写采访表 |
 | 分段生成 H3 长视频 | `ZVLongVideoSegmentDesk` · H3 长视频分段台 + `ZVSegmentInterview` · H3 分段采访表 | Animate 配对台 |
 | 用原 WanAnimatePlus 流逐段迁移或替换，一次成片 | `ZVAnimateSegmentDesk` · Animate 素材配对台 | H3 采访表、提示词反推 |
 
@@ -45,6 +46,10 @@
 | H3 提示词生成 | 结合中文要求、观察及视觉素材，按独立预设输出最终 H3 提示词 |
 
 `ZVH3ReverseStage` 负责组织模型输入，不自己装载模型。工作流中的本地或 API 模型完成反推；真实素材通过 `ZVH3ReferenceOutlet` 进入 H3，文字链不改变接线。参见[采访表与模板](H3_INTERVIEW.md)。
+
+已有提示词可改用 **ZV H3 提示词 · 素材对齐**（`ZVH3PromptInput`）：`trigger_words` 与 `prompt_text` 按顺序拼成普通 `prompt` 文本，保留素材选择、编号与对齐。`prompt` 可直接接 H3 提示词输入，也可接反推节点；`reference_plan` 接固定素材出口。它不自动改写正文，不要求经过反推。
+
+常规生成窗口为 4–30 秒，超过 15 秒黄色提醒并允许继续；能否生成取决于下游节点、模型与可用资源。取消所有素材参与并重新对齐可做纯文生视频，所接生成节点需支持无参考输入。详细素材数量、时长和接线见[使用说明与限制](H3_INTERVIEW.md#使用说明与限制)。
 
 ### H3 长视频
 

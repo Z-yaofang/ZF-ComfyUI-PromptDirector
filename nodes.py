@@ -13,6 +13,7 @@ from .local_multimodal import ZFPromptDirectorLocalLLM
 from .music_nodes import ZFMusic3PromptDirector, ZFMusic3ResponseParser
 from .portrait_nodes import ZIPortraitPromptGenerator, PROMPT_FORMATS, DEFAULT_PROMPT_FORMAT
 from .h3_focus.node import ZVH3InterviewFormV2
+from .h3_focus.prompt_node import ZVH3PromptInput
 from .h3_focus.reverse_pipeline import ZVH3ReverseStage
 from .h3_focus.outlet_node import ZVH3ReferenceOutlet
 from .long_video.plan_node import ZVLongVideoSegmentDesk
@@ -1583,6 +1584,7 @@ NODE_CLASS_MAPPINGS = {
     "ZVTimelineAudioOutlet": ZVTimelineAudioOutlet,
     "ZVProcessingWindowOutlet": ZVProcessingWindowOutlet,
     "ZVH3InterviewFormV2": ZVH3InterviewFormV2,
+    "ZVH3PromptInput": ZVH3PromptInput,
     "ZVH3ReverseStage": ZVH3ReverseStage,
     "ZVH3ReferenceOutlet": ZVH3ReferenceOutlet,
     "ZVLongVideoSegmentDesk": ZVLongVideoSegmentDesk,
@@ -1634,6 +1636,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ZVTimelineAudioOutlet": "ZV 时间线混音出口",
     "ZVProcessingWindowOutlet": "ZV 处理窗口参数出口",
     "ZVH3InterviewFormV2": "ZV H3 采访表 · 收集对齐整理",
+    "ZVH3PromptInput": "ZV H3 提示词 · 素材对齐",
     "ZVH3ReverseStage": "ZV H3 独立反推阶段",
     "ZVH3ReferenceOutlet": "ZV H3 素材对齐出口（官方容量）",
     "ZVLongVideoSegmentDesk": "ZV H3 长视频分段台",
