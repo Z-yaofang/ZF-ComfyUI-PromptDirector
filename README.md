@@ -181,7 +181,9 @@ git clone https://github.com/Z-yaofang/ZF-ComfyUI-PromptDirector.git
 
 Restart ComfyUI and refresh the browser.
 
-The core prompt-director nodes use only ComfyUI-provided Python packages. The built-in reference-image analyzer is optional and requires an installed llama.cpp multimodal custom node that provides `LLAMACPPMODEL` and `LLAMACPPARAMS`. Alternatively, connect an existing VLM text result to `analysis_result`.
+Windows and Linux/RunningHub are maintained deployment targets. Use Python 3.10+ and a ComfyUI environment with native VIDEO and UserManager support; see [cloud requirements and release checks](docs/CLOUD_TESTING.md). Audio resampling uses ComfyUI's native implementation when available, with a lazily loaded, matching TorchAudio fallback for older cores. Installing this plugin does not upgrade the host, codecs or platform-published frontend automatically.
+
+The built-in reference-image analyzer is optional and requires an installed llama.cpp multimodal custom node that provides `LLAMACPPMODEL` and `LLAMACPPARAMS`. Alternatively, connect an existing VLM text result to `analysis_result`.
 
 `ZF-ComfyUI-Helper` is recommended for its dynamic multi-route text switch and explicit empty-text route:
 

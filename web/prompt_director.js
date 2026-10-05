@@ -1,6 +1,10 @@
 import { app } from "/scripts/app.js";
 import { pinDOMWidgetFullWidth } from "./dom_widget_layout.mjs";
 
+const api = globalThis.comfyAPI?.api?.api ?? {
+  apiURL: path => path,
+  fetchApi: (path, options) => fetch(path, options),
+};
 const EXTENSION_NAME = "ZF.PromptDirector";
 const RECOMMENDATION_STORAGE_KEY = "zf-prompt-director:recommended-pairing";
 let catalogPromise = null;
@@ -24,7 +28,7 @@ function saveRecommendationPreference(enabled) {
 function loadCatalog(forceRefresh = false) {
   if (forceRefresh) catalogPromise = null;
   if (!catalogPromise) {
-    catalogPromise = fetch(`/zf-prompt-director/catalog?_=${Date.now()}`, { cache: "no-store" }).then((response) => {
+    catalogPromise = api.fetchApi(`/zf-prompt-director/catalog?_=${Date.now()}`, { cache: "no-store" }).then((response) => {
       if (!response.ok) throw new Error(`Catalog request failed: ${response.status}`);
       return response.json();
     });
@@ -36,7 +40,7 @@ function injectStylesheet() {
   if (document.querySelector("link[data-zf-prompt-director]")) return;
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = "/extensions/ZF-ComfyUI-PromptDirector/prompt_director.css";
+  link.href = new URL("./prompt_director.css", import.meta.url).href;
   link.dataset.zfPromptDirector = "true";
   document.head.appendChild(link);
 }
@@ -289,7 +293,7 @@ function createChooser(catalog, initialPurposeId, onChoose) {
       image.loading = "lazy";
       image.alt = method.name;
       image.src = method.thumbnail
-        ? `/zf-prompt-director/thumbnail/${encodeURIComponent(method.thumbnail)}`
+        ? api.apiURL(`/zf-prompt-director/thumbnail/${encodeURIComponent(method.thumbnail)}`)
         : visualPlaceholder(method);
       image.addEventListener("error", () => { image.src = visualPlaceholder(method); }, { once: true });
       const content = document.createElement("div");

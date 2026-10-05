@@ -13,8 +13,8 @@ import re
 
 import torch
 import torch.nn.functional as functional
-import torchaudio
 
+from .audio import resample_audio
 from ..media_evidence.contract import ProjectError, normalize_project, seconds_to_frame
 from ..media_evidence.outlet import OutletError, build_outlet_plan, require_valid_project
 from ..h3_focus.routing import model_frame_count
@@ -891,7 +891,7 @@ def _validate_h3_video_vae_geometry(video_vae):
 def _fit_model_audio(final_audio, model_length, frame_count, fps):
     waveform = final_audio["waveform"]
     if final_audio["sample_rate"] != H3_AUDIO_SAMPLE_RATE:
-        waveform = torchaudio.functional.resample(
+        waveform = resample_audio(
             waveform, final_audio["sample_rate"], H3_AUDIO_SAMPLE_RATE,
         )
     logical_samples = round(frame_count * H3_AUDIO_SAMPLE_RATE / fps)

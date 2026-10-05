@@ -19,6 +19,7 @@ import uuid
 
 import numpy as np
 
+from .audio import resample_audio
 from .execution import (
     ExecutionPlanError,
     RUN_AUDIO_CONTRACT,
@@ -81,7 +82,7 @@ def _audio_parts(audio, name="audio"):
 
 
 def _resample_kernel_elements(source_rate, target_rate):
-    """Bound torchaudio's polyphase sinc kernel before it allocates the grid."""
+    """Bound the polyphase sinc kernel before it allocates the grid."""
     divisor = math.gcd(source_rate, target_rate)
     source = source_rate // divisor
     target = target_rate // divisor
@@ -118,8 +119,6 @@ def normalize_output_audio(audio, context):
             "_zv_resample_adjustment_samples": 0,
         }
 
-    import torchaudio
-
     waveform, source_rate, source_channels, _samples = _audio_parts(audio)
     if not waveform.is_floating_point() or waveform.is_complex():
         _error("audio.waveform 必须是浮点实数张量")
@@ -144,7 +143,7 @@ def normalize_output_audio(audio, context):
                 "音频采样率与 44100 Hz 的比值会产生过大的 sinc 重采样核；"
                 "请先转换为常用采样率（如 32000、44100、48000 或 96000 Hz）"
             )
-        waveform = torchaudio.functional.resample(
+        waveform = resample_audio(
             waveform, source_rate, OUTPUT_AUDIO_SAMPLE_RATE,
         )
     required_output_end = _required_audio_end(context, OUTPUT_AUDIO_SAMPLE_RATE)

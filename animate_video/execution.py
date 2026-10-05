@@ -52,8 +52,11 @@ def segment_context(value, index):
 
 
 def _hash(path):
+    digest = hashlib.sha256()
     with path.open("rb") as stream:
-        return hashlib.file_digest(stream, "sha256").hexdigest()
+        while chunk := stream.read(1024 * 1024):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _run_dir(root, run_id):

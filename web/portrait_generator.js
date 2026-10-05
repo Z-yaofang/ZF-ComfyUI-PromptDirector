@@ -1,6 +1,10 @@
 import { app } from "/scripts/app.js";
 import { pinDOMWidgetFullWidth } from "./dom_widget_layout.mjs";
 
+const api = globalThis.comfyAPI?.api?.api ?? {
+  apiURL: path => path,
+  fetchApi: (path, options) => fetch(path, options),
+};
 const EXTENSION_NAME = "ZI.PromptDirector.PortraitGenerator";
 const NODE_NAME = "ZIPortraitPromptGenerator";
 const CATALOG_URL = "/zf-prompt-director/portrait-catalog";
@@ -61,7 +65,7 @@ let catalogPromise;
 
 function getCatalog() {
   if (!catalogPromise) {
-    catalogPromise = fetch(CATALOG_URL).then((response) => {
+    catalogPromise = api.fetchApi(CATALOG_URL).then((response) => {
       if (!response.ok) throw new Error("人像素材目录加载失败：" + response.status);
       return response.json();
     });
