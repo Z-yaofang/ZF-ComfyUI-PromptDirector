@@ -2,13 +2,41 @@
 
 [简体中文](README.zh-CN.md)
 
-An early public-testing release for image prompts, portrait prompts, Music3, H3 video and Animate video workflows. Media editing, requirement collection, model writing and video execution are separate parts; use only the parts your workflow needs.
+**Prompt Director · Visual prompt creation and a general-purpose media desk for ComfyUI**
 
-Start with the [Node Guide](docs/NODE_GUIDE.md) to choose the current entry point and distinguish required nodes from optional utilities. The sole H3 form is **ZV H3 采访表 · 收集对齐整理** (`ZVH3InterviewFormV2`); forms exposing `system_prompt` / `stage1_task` are retired.
+Organize your ideas, original worlds and reference media before sending them into a generation workflow. The project has two equally important uses: **batch image-prompt creation** and **image, video and audio preparation with dedicated video-workflow tools**.
 
-Keep only one plugin installation in `custom_nodes`. Place Git worktrees and backup copies outside that directory: duplicate copies can register conflicting Python nodes and frontend extensions. After removing a duplicate installation, save your workflow, restart ComfyUI and refresh the browser. Old workflow nodes are not automatically converted to the new port contract.
+The name “Prompt Director” still describes the shared purpose: making creative requirements easier to express and keeping prompts aligned with the media actually used. The tools cover prompt writing, media loading, basic editing and segmented execution. Use the parts you need; they do not all belong in one mandatory pipeline.
 
-New users can start with the Chinese [Purpose and Visual-Method Recommendation Guide](docs/用途与创意推荐说明书.md), which provides direct recipes, a complete purpose lookup, special-mode rules, and common pitfalls.
+## 1. Turn your own worlds and ideas into batches of image prompts
+
+Bring an original worldview, a source theme or a specific image request. Visually select a **purpose + visual method** to define what the work should achieve and how it should be presented. A local or API language model then writes each planned task into a prompt for your existing image-generation workflow.
+
+- **Browse and combine purposes and creative approaches:** character planning, products, packaging, environments, storyboards and other use cases reduce the need to start every prompt from scratch.
+- **Plan multiple tasks:** ordinary image modes create the requested number of writing tasks with varied directions around a shared theme. Multi-view character planning and single-sheet storyboards have their own prompt rules; these do not guarantee a model's final consistency.
+- **Use worlds and reference images as needed:** work from your own setting or just a concrete request. Reference analysis can inform composition, materials, lighting and creative ideas without requiring pixel-level copying.
+
+The image director's visual-purpose, creative-direction and related image-prompt catalogs originate from **远古大呲花**'s collections and sharing; this repository provides their structured organization, workflow integration and node implementation. Users manage their own worldviews; full worldview libraries are not bundled. See the Chinese [Purpose and Visual-Method Recommendation Guide](docs/用途与创意推荐说明书.md).
+
+## 2. Prepare media inside ComfyUI and connect it to video workflows
+
+**The general-purpose media desk is useful on its own**, without H3, Animate or a particular generation model. Batch-import images, videos and audio into one pool, preview and arrange them, trim and split clips, then send original media or selected portions into ComfyUI workflows with compatible input types.
+
+- **Reduce one-by-one loading:** manage multiple images, clips and audio sources in one place, create outlets as needed and reuse each source across downstream branches.
+- **Handle basic editing and frame capture:** arrange video/audio timelines, select source ranges, seek frames and capture original-video frames back into the image pool. These preparation steps can stay in ComfyUI instead of requiring a separate editor and re-import.
+- **Prepare picture and sound together:** keep source audio linked to a video clip or unlink it, export individual audio clips or mix the enabled timeline audio. This is lightweight preparation for generation, not a replacement for a full editor's grading, effects and finishing tools.
+
+Build on the same media desk with task-specific nodes:
+
+| Task | What the companion nodes do |
+| --- | --- |
+| Single-segment H3 generation | Collect requirements in an interview form or accept a prompt directly; select and align first/last frames, reference images, videos and audio. An existing prompt does not need reverse analysis. |
+| Segmented H3 generation | Plan segment durations and references, collect per-segment requirements and connect prompt preparation, generation, continuation and final assembly. |
+| Segmented Animate processing | Pair prepared video clips with reference images, run an existing WanAnimatePlus workflow segment by segment for motion transfer or masked replacement, then collect and assemble its results. |
+
+The media desk defines which sources and portions to use; companion nodes adapt them to the selected workflow. Model understanding, motion fidelity and final output quality still depend on the actual model, prompt and execution environment—not on the form or wiring alone.
+
+Independent **portrait-prompt, Music3 prompt, text-selection, cache, filter and multi-route connection tools** are also available. Start with the [Node Guide](docs/NODE_GUIDE.md), [media desk](docs/ZF_MEDIA_EVIDENCE_DESK_V1.md), [H3 interview/direct prompt](docs/H3_INTERVIEW.md), [H3 segmentation](docs/LONG_VIDEO_GUIDE.md) or [Animate pairing](docs/ANIMATE_ONCE.md).
 
 ## Plugin Author / 插件作者
 
@@ -25,24 +53,13 @@ The visual material catalogs used, organized, and expanded by the image-director
 - Update note / 更新说明: Future additions or revisions to the material catalogs will continue to record this source. If the source arrangement changes, this section will be updated accordingly.
 - Clarification / 贡献边界: This attribution identifies the material source. Unless separately agreed in writing, it does not mean that 远古大呲花 authored the plugin code or guarantees the plugin's functions, model behavior, or downstream generated content.
 
-> Scope: this attribution applies only to the image director's visual material catalogs. The Music3 prompt rules, duration handling, audio-reference modes, and node implementation are independently designed in this repository and are unrelated to 远古大呲花.
+> Scope: this attribution applies only to the image director's visual material catalogs, not to users' original worldviews or the node and workflow design of the general media desk, H3, Animate or Music3. It does not imply that the source author developed those modules.
 
-Feedback from different local language models, vision-language models, image models, and workflow layouts is welcome. Please open a GitHub Issue with reproducible settings and expected behavior. Do not include private images, model files, tokens, or API keys.
+## Before you start
 
-## Highlights
+This is a public-testing release. Feedback on image, video, audio and other workflow uses is welcome; open a GitHub Issue with reproducible settings and expected behavior. Do not include private media, model files, tokens or API keys. Actual cloud generation and model quality require workflow-specific acceptance checks; passing local interface tests is not proof of a successful cloud render.
 
-- Purpose-driven prompt planning with 32 use cases and 38 visual methods.
-- Production-ready character reference sheets with consistent front, side, back, and three-quarter views.
-- Multi-image task counts are created by plugin code instead of relying on a language model to count correctly.
-- User-core, theme-creation, and storyboard modes.
-- Three output-detail levels for lightweight, mainstream, and strong image models.
-- Dynamic reference-image creativity: extract reusable concepts, element pools, composition, materials, and lighting without feeding the source latent into the sampler.
-- A temporary reference-image purpose/creative channel that can work with a worldview or the explicit empty-text route from `ZF-ComfyUI-Helper`.
-- Defensive handling for incomplete VLM JSON and accidental source-image text leakage.
-- Editable JSON catalogs for purposes, visual methods, defaults, and writing grammar.
-- An optional recommended-pairing switch that preselects and brings forward suitable visual methods for the chosen purpose without changing the saved prompt contract.
-- Two self-contained workflow utilities: `ZF文本动态多路点选` for lazy single-route text selection and `ZF任意过滤器` for explicit None, empty-text, pass-through, and literal-removal behavior.
-- A MiniMax Music 3 reverse-writing pair with common presets from 15 to the model's 360-second limit, custom duration, pure-text mode, and optional audio-reference modes for style, lyric-writing characteristics, or both. `ZF Music3 结果拆分` returns the official encoder's independent `caption` and `lyrics` plus the adopted reference analysis. Use an audio-capable closed model through `ZF-ComfyUI-MultimodalAPI` when reference audio is connected.
+Keep only one plugin installation in `custom_nodes`. Place Git worktrees and backup copies outside that directory: duplicate copies can register conflicting Python nodes and frontend extensions. After removing a duplicate installation, save your workflow, restart ComfyUI and refresh the browser. Old workflow nodes are not automatically converted to the new port contract. See [installation](#installation) and the [cloud requirements](docs/CLOUD_TESTING.md).
 
 ## Quick Start / 快速接法
 
@@ -52,7 +69,7 @@ The diagram above shows the current local-model connection for the director work
 
 ![ZF Prompt Director catalog selector](docs/images/prompt-director-catalog.png)
 
-### Basic usage
+### Image prompt basics
 
 1. Connect the user prompt to `ZF Prompt Director.user_prompt`.
 2. Connect the worldview switch to `theme`. When no worldview is needed, use `ZF-ComfyUI-Helper`'s explicit empty-text route; do not rely on an old numeric route with an accidentally blank field.
@@ -70,7 +87,7 @@ The diagram above shows the current local-model connection for the director work
 - Up to eleven image inputs and three sampled video-frame batches are supported, covering H3's first frame, last frame, and nine reference-image sockets. Images keep their aspect ratio; each video is sampled independently and video audio is not analyzed.
 - Keep `force_offload` disabled for efficient consecutive tasks, or enable it before a large image/video model needs the VRAM.
 
-### Workflow utility nodes
+### Media desk and video workflows
 
 ![Media desk, H3 prompt input, interview forms and segment planners](docs/images/media-desks-overview.png)
 
@@ -191,7 +208,7 @@ The built-in reference-image analyzer is optional and requires an installed llam
 git clone https://github.com/Z-yaofang/ZF-ComfyUI-Helper.git
 ```
 
-## Main Nodes
+## Image Prompt Nodes
 
 - `ZF Prompt Director V2`
 - `ZF Image Reference Analyzer`
