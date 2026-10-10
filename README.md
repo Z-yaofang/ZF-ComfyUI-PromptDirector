@@ -61,6 +61,15 @@ This is a public-testing release. Feedback on image, video, audio and other work
 
 Keep only one plugin installation in `custom_nodes`. Place Git worktrees and backup copies outside that directory: duplicate copies can register conflicting Python nodes and frontend extensions. After removing a duplicate installation, save your workflow, restart ComfyUI and refresh the browser. Old workflow nodes are not automatically converted to the new port contract. See [installation](#installation) and the [cloud requirements](docs/CLOUD_TESTING.md).
 
+## Downloadable example workflows
+
+| Example | Purpose |
+| --- | --- |
+| [H3 media desk · direct prompt, no reverse analysis](docs/examples/H3-素材台-无反推.json) | Prepare and align references in the media desk, enter a prompt directly and connect to the H3 T8 two-pass generation workflow. |
+| [Infinite Prompt Director Console · Krea2](docs/examples/Infinite%20Prompt%20Director%20Console%20-%20Krea2.json) | Connect worldview/theme selection, visual-purpose planning and prompt writing to an image-generation workflow. |
+
+Download the JSON and open it in ComfyUI. These are workflow examples, not self-contained installers: media, models and third-party nodes must be available in the target environment. Re-import references and select the installed models before running. See [example setup and dependencies](docs/examples/README.md); RunningHub-specific nodes may need an equivalent local setup.
+
 ## Quick Start / 快速接法
 
 ![ZF Prompt Director local workflow connection](docs/images/local-workflow-connection-v2.png)
@@ -95,7 +104,7 @@ Interface overview: the media desk connects to H3 prompt input, interview forms 
 
 See the usage guides for [Animate segment pairing](docs/ANIMATE_ONCE.md), the [H3 long-video segment desk](docs/LONG_VIDEO_GUIDE.md), and the [H3 interview form](docs/H3_INTERVIEW.md).
 
-The H3/media implementation is included in this repository. The media desk now has a separate **Original sources** output in addition to its two existing project outputs. **发送原素材** creates a connected image, video or audio outlet for the complete pool asset, without timeline trimming, H3 alignment or interview validation. Video uses native `VIDEO`; its source-path output can also feed a compatible path-based loader. See [source binding](docs/H3_V2_07_SOURCE_BINDING.md) and [cloud test preparation](docs/CLOUD_TESTING.md). Restart ComfyUI and refresh the frontend after updating. Cloud GPU validation is still pending.
+The H3/media implementation is included in this repository. The media desk now has a separate **Original sources** output in addition to its two existing project outputs. **发送原素材** creates a connected image, video or audio outlet for the complete pool asset, without timeline trimming, H3 alignment or interview validation. Video uses native `VIDEO`; its source-path output can also feed a compatible path-based loader. See [source binding](docs/H3_V2_07_SOURCE_BINDING.md) and the [cloud requirements and verification status](docs/CLOUD_TESTING.md). Restart ComfyUI and refresh the frontend after updating. Working plugin use on RunningHub was reported on 2026-10-11; the exact cloud revision and acceptance of every workflow branch have not been verified.
 
 The repository also includes test/beta [H3 long-video workflows](docs/LONG_VIDEO_GUIDE.md) with ordinary and C1 MASK examples. They depend on the current MiniMax H3 Audio T8 LOW/HIGH dual-clock graph and have not yet been validated on RunningHub.
 
