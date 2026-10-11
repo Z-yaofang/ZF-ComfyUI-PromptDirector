@@ -32,7 +32,7 @@
   },
   "ZFPromptDirectorMultiTextSelector": {
     "display_name": "ZF文本动态多路点选",
-    "description": "输入数字决定显示的文本路线数量，按钮明确选择一路；执行时只请求所选路线，不自动回退，也不判断其他路线的内容。",
+    "description": "按钮选择一路；selected 接整数后由外部整数覆盖。0 输出空字符串，只请求选中路线，不自动回退到其他路。",
     "inputs": {
       "input_count": {
         "name": "路线数量",
@@ -40,7 +40,7 @@
       },
       "selected": {
         "name": "当前路线",
-        "tooltip": "由节点内的单选按钮自动保存；0 明确输出空文本。"
+        "tooltip": "未接线时由按钮选择；接整数后以外部值为准。0 输出空字符串，1～当前路线数量为有效路线，越界报错。"
       }
     },
     "outputs": {
@@ -51,6 +51,33 @@
         "name": "实际路线"
       }
     }
+  },
+  "ZHMultiImageSelector": {
+    "display_name": "ZH动态多路图片",
+    "description": "只执行选中的图片路线，IMAGE 原样通过。selected 接整数后覆盖按钮；0 返回真正的 None，不生成黑图。",
+    "inputs": {
+      "input_count": {"name": "路线数量", "tooltip": "显示 1–32 路图片输入。"},
+      "selected": {"name": "当前路线", "tooltip": "0 表示无图片；1～当前路线数量为有效路线，越界报错。外部整数优先。"}
+    },
+    "outputs": {"0": {"name": "图片"}, "1": {"name": "实际路线"}}
+  },
+  "ZHMultiVideoSelector": {
+    "display_name": "ZH动态多路视频",
+    "description": "只执行选中的 IMAGE 视频帧批次路线，不含音轨，不改变帧率。0 返回 None；原生 VIDEO 请先拆分为帧和音频。",
+    "inputs": {
+      "input_count": {"name": "路线数量", "tooltip": "显示 1–32 路视频帧批次输入。"},
+      "selected": {"name": "当前路线", "tooltip": "0 表示无视频；1～当前路线数量为有效路线，越界报错。外部整数优先。"}
+    },
+    "outputs": {"0": {"name": "视频帧"}, "1": {"name": "实际路线"}}
+  },
+  "ZHMultiAudioSelector": {
+    "display_name": "ZH动态多路音频",
+    "description": "只执行选中的音频路线，AUDIO 原样通过。selected 接整数后覆盖按钮；0 返回真正的 None，不生成静音音轨。",
+    "inputs": {
+      "input_count": {"name": "路线数量", "tooltip": "显示 1–32 路音频输入。"},
+      "selected": {"name": "当前路线", "tooltip": "0 表示无音频；1～当前路线数量为有效路线，越界报错。外部整数优先。"}
+    },
+    "outputs": {"0": {"name": "音频"}, "1": {"name": "实际路线"}}
   },
   "ZFPortraitPromptGenerator": {
     "display_name": "ZF 人像提示词生成器",

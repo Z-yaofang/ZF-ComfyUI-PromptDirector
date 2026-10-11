@@ -78,6 +78,7 @@
 | `ZFMusic3ResponseParser` | 将 Music3 结果分为 caption、lyrics 和分析 |
 | `ZFTextMemory`、`ZFTextListMemory` | 分别复用单条文本、整组文本；只在需要跨队列缓存时使用 |
 | `ZFLazyPromptSwitch`、`ZFPromptDirectorMultiTextSelector` | 按选择执行文字分支 |
+| `ZHMultiImageSelector`、`ZHMultiVideoSelector`、`ZHMultiAudioSelector` | 图片、视频帧、音频单路选择；支持外部整数，0 为真正空值，见[接法与空输入边界](MULTI_ROUTE_SELECTORS.md) |
 | `ZFPromptDirectorAnyFilter` | 显式过滤、透传或移除指定文字 |
 | `ZFI` | 纯前端多路转接排，只整理接线，不调用模型或缓存数据 |
 

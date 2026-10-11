@@ -8,7 +8,10 @@ from pathlib import Path
 
 from comfy_execution.graph import ExecutionBlocker
 
-from .flow_nodes import ZFPromptDirectorAnyFilter, ZFPromptDirectorMultiTextSelector
+from .flow_nodes import (
+    ZFPromptDirectorAnyFilter, ZFPromptDirectorMultiTextSelector,
+    ZHMultiImageSelector, ZHMultiVideoSelector, ZHMultiAudioSelector,
+)
 from .local_multimodal import ZFPromptDirectorLocalLLM
 from .music_nodes import ZFMusic3PromptDirector, ZFMusic3ResponseParser
 from .portrait_nodes import ZIPortraitPromptGenerator, PROMPT_FORMATS, DEFAULT_PROMPT_FORMAT
@@ -1610,6 +1613,9 @@ NODE_CLASS_MAPPINGS = {
     "ZVAnimateMaskGate": ZVAnimateMaskGate,
     "ZFPromptDirectorAnyFilter": ZFPromptDirectorAnyFilter,
     "ZFPromptDirectorMultiTextSelector": ZFPromptDirectorMultiTextSelector,
+    "ZHMultiImageSelector": ZHMultiImageSelector,
+    "ZHMultiVideoSelector": ZHMultiVideoSelector,
+    "ZHMultiAudioSelector": ZHMultiAudioSelector,
     "ZFPromptDirectorLocalLLM": ZFPromptDirectorLocalLLM,
     "ZFMusic3PromptDirector": ZFMusic3PromptDirector,
     "ZFMusic3ResponseParser": ZFMusic3ResponseParser,
@@ -1662,6 +1668,9 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ZVAnimateMaskGate": "ZV Animate 遮罩管道开关",
     "ZFPromptDirectorAnyFilter": "ZF任意过滤器",
     "ZFPromptDirectorMultiTextSelector": "ZF文本动态多路点选",
+    "ZHMultiImageSelector": "ZH动态多路图片",
+    "ZHMultiVideoSelector": "ZH动态多路视频",
+    "ZHMultiAudioSelector": "ZH动态多路音频",
     "ZFPromptDirectorLocalLLM": "ZF本地多模态指令",
     "ZFMusic3PromptDirector": "ZF Music3 音乐反推导演",
     "ZFMusic3ResponseParser": "ZF Music3 结果拆分",
