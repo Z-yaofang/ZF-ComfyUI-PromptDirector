@@ -1,0 +1,309 @@
+{
+  "schema_version": 1,
+  "checked_on": "2026-10-20",
+  "scope": "image_director_catalogs",
+  "coverage": "incremental_curated_update_not_full_feishu_sync",
+  "catalog_counts": {
+    "purposes": 32,
+    "visual_methods": 41
+  },
+  "sources": [
+    {
+      "id": "dacihua_luori_snapshot_20260918",
+      "url": "https://github.com/luori668/ComfyUI-Luori-Sunset/blob/354d65bdbe5f485097c551806deb829415123451/data/krea2/part-hz1.json",
+      "reference_repository": "https://github.com/luori668/ComfyUI-Luori-Sunset",
+      "repository_commit": "354d65bdbe5f485097c551806deb829415123451",
+      "repository_updated_at": "2026-10-15T01:15:32+08:00",
+      "material_updated_at": "2026-09-18T15:26:55+08:00",
+      "file_sha256": "5b7fce807b9e1e17d02b361ac7eaaa94ed8d1e4ed685d33a37f339a79457ab64",
+      "raw_entries": 14174,
+      "upstream_cleaned_entries": 13430,
+      "status": "file_inspected_and_selected_examples_adapted",
+      "attribution": "远古大呲花素材库收录整理；落日仓库作为可核对的整理快照。具体原作署名以源文为准，未复制其插件代码或其它作者混合池。"
+    },
+    {
+      "id": "dacihua_feishu_20261020",
+      "url": "https://my.feishu.cn/wiki/JGBow5GfviRbfQkrWUBcs0cin8c",
+      "status": "index_verified_selected_templates_and_three_daily_texts_reviewed",
+      "observed_daily_label": "1020已更新",
+      "observed_total_label": "累计更新15105P",
+      "count_note": "页面作者标注，不是本插件已导入条数，也未经文档逐条去重验证。"
+    },
+    {
+      "id": "feishu_template_37",
+      "title": "1-37-Krea2 巨构&砼核提示词生成器.txt",
+      "url": "https://pan.quark.cn/s/3059ba2271d4",
+      "author": "永不复还（原文署名 V1.0）；大呲花收录分享",
+      "status": "two_page_public_preview_read_and_principles_adapted",
+      "checked_on": "2026-10-20",
+      "preview_text_sha256": "2be2f846a5b9a53a50b4c98345f07fbf7263444ba289fa36d1ce58d39e9203c1",
+      "source_modified_date": null,
+      "coverage_note": "读取公开预览的两页文字；未下载原文件，核验日期不代表作者发布日期。",
+      "hash_basis": "SHA-256 of extracted document text encoded as UTF-8 without BOM, LF line endings, no added trailing newline"
+    },
+    {
+      "id": "feishu_template_33_1",
+      "title": "33-1多功能美学模板v3.0 JSON 格式提示词模版.txt",
+      "url": "https://pan.quark.cn/s/42346f16ef88",
+      "author": "原文未见作者署名；大呲花收录分享",
+      "status": "two_page_public_preview_read_and_principles_adapted",
+      "checked_on": "2026-10-20",
+      "preview_text_sha256": "4c068a5b357ddd5e9e725baeff4ae4fdc24a3d18ded8dceab2daac80b3e7489e",
+      "source_modified_date": null,
+      "coverage_note": "读取公开预览的两页文字；未下载原文件，核验日期不代表作者发布日期。",
+      "hash_basis": "SHA-256 of extracted document text encoded as UTF-8 without BOM, LF line endings, no added trailing newline"
+    },
+    {
+      "id": "dacihua_daily_20261018",
+      "title": "26-10-18整理提示词+预览图.docx",
+      "url": "https://pan.quark.cn/s/85b6b828300e",
+      "document_label_date": "2026-10-18",
+      "observed_share_modified_at": "2026-10-20T06:00:00+08:00",
+      "checked_on": "2026-10-20",
+      "file_sha256": "bcfb38c7529a9187bec7c38335029af9cd8234219b5289e489091338c9886ecb",
+      "file_bytes": 214750514,
+      "status": "downloaded_crc_verified_text_screened_selected_rules_adapted",
+      "author": "大呲花素材库收录整理；具体原作署名以文档为准",
+      "retained_xml_paragraphs": 272,
+      "nonempty_text_paragraphs": 178,
+      "text_characters_unicode_codepoints": 63520,
+      "media_file_count": 98,
+      "zip_crc_verified": true,
+      "coverage_note": "已提取主文档全部文字（含表格），筛选并细读与现有目录有关的候选；图片未逐张视觉审核。段落和媒体数不是导入提示词条数。"
+    },
+    {
+      "id": "dacihua_daily_20261019",
+      "title": "26-10-19整理提示词+预览图.docx",
+      "url": "https://pan.quark.cn/s/14fd36f63b83",
+      "document_label_date": "2026-10-19",
+      "observed_share_modified_at": "2026-10-19T07:51:00+08:00",
+      "checked_on": "2026-10-20",
+      "file_sha256": "444b23dca2c861cba7239c3846e60615e01f7c6c803993e7e5005e1b5eea5bb5",
+      "file_bytes": 203004000,
+      "status": "downloaded_crc_verified_text_screened_selected_rules_adapted",
+      "author": "大呲花素材库收录整理；具体原作署名以文档为准",
+      "retained_xml_paragraphs": 272,
+      "nonempty_text_paragraphs": 178,
+      "text_characters_unicode_codepoints": 63710,
+      "media_file_count": 97,
+      "zip_crc_verified": true,
+      "coverage_note": "已提取主文档全部文字（含表格），筛选并细读与现有目录有关的候选；图片未逐张视觉审核。段落和媒体数不是导入提示词条数。"
+    },
+    {
+      "id": "dacihua_daily_20261020",
+      "title": "26-10-20整理提示词+预览图.docx",
+      "url": "https://pan.quark.cn/s/90c6720362dc",
+      "document_label_date": "2026-10-20",
+      "observed_share_modified_at": "2026-10-20T06:02:00+08:00",
+      "checked_on": "2026-10-20",
+      "file_sha256": "ee877e4bceec779acbc209404fe13399019f021886c21c045114a48a6b0c32a3",
+      "file_bytes": 229245236,
+      "status": "downloaded_crc_verified_text_screened_selected_rules_adapted",
+      "author": "大呲花素材库收录整理；具体原作署名以文档为准",
+      "retained_xml_paragraphs": 263,
+      "nonempty_text_paragraphs": 173,
+      "text_characters_unicode_codepoints": 70399,
+      "media_file_count": 93,
+      "zip_crc_verified": true,
+      "coverage_note": "已提取主文档全部文字（含表格），筛选并细读与现有目录有关的候选；图片未逐张视觉审核。段落和媒体数不是导入提示词条数。"
+    }
+  ],
+  "entries": [
+    {
+      "visual_id": "long_exposure_motion",
+      "change": "added",
+      "source_id": "dacihua_luori_snapshot_20260918",
+      "source_indices_zero_based": [
+        469,
+        498,
+        2329
+      ],
+      "source_text_sha256": [
+        "75eeb4a1856dbd640454c2a61f0de8bd0aadc9e85a8bd8678b602a9eacec8f2e",
+        "bd4b6465f320164eecc2bf1bfd80253821cdd62fe4759e5d8a19c7164f97f22e",
+        "922414bee82f1275298c18ad866805b024c3dd599030a8c731b14ad04c869082"
+      ],
+      "adaptation": "提炼可迁移的成像或版式机制，重新编写通用规则；不保留示例固定主体和口号。"
+    },
+    {
+      "visual_id": "reflection_refraction",
+      "change": "added",
+      "source_id": "dacihua_luori_snapshot_20260918",
+      "source_indices_zero_based": [
+        71,
+        419,
+        572
+      ],
+      "source_text_sha256": [
+        "a6602bf1144aeee87a961b894831fb89d0ba0832c3c85c181bc2fe01d7b96b61",
+        "d92c588cc72588714a094e46da93380be55415402781ca71e01500795d3ec9b3",
+        "ff721b1689151f9bafcf2341ad155f3e1c5f1acc604f3d6e0f49706157deca6a"
+      ],
+      "adaptation": "提炼可迁移的成像或版式机制，重新编写通用规则；不保留示例固定主体和口号。"
+    },
+    {
+      "visual_id": "optical_illusion",
+      "change": "added",
+      "source_id": "dacihua_luori_snapshot_20260918",
+      "source_indices_zero_based": [
+        1388,
+        1393
+      ],
+      "source_text_sha256": [
+        "2bcbb88a187e6518998f5cf4f4c94f69ef15448bf781a153faa68f7504b1aed1",
+        "f93664807956fe01245c1d62e1bbf40ec0b823ebbddabf323832684940821a36"
+      ],
+      "adaptation": "提炼可迁移的成像或版式机制，重新编写通用规则；不保留示例固定主体和口号。强制透视是工程整理的通用分支；源例直接支持空间悖论。"
+    },
+    {
+      "visual_id": "geometric_panel_grid",
+      "change": "enriched",
+      "source_id": "dacihua_luori_snapshot_20260918",
+      "source_indices_zero_based": [
+        1698
+      ],
+      "source_text_sha256": [
+        "96bc8e829bf9312c12bbfc7bb23642d24a542d8326771fa31631f886bbc79b6d"
+      ],
+      "adaptation": "提炼可迁移的成像或版式机制，重新编写通用规则；不保留示例固定主体和口号。"
+    }
+  ],
+  "pending_sources": [],
+  "template_adaptations": [
+    {
+      "target_catalog": "visual_methods",
+      "target_id": "scale_displacement",
+      "source_id": "feishu_template_37",
+      "adaptation": "重新编写通用构图或连续性原则，保留用户主题优先级，不复制整份模板的模型身份及输出指令。"
+    },
+    {
+      "target_catalog": "purposes",
+      "target_id": "concept_art_worldbuilding",
+      "source_id": "feishu_template_37",
+      "adaptation": "重新编写通用构图或连续性原则，保留用户主题优先级，不复制整份模板的模型身份及输出指令。"
+    },
+    {
+      "target_catalog": "purposes",
+      "target_id": "series_calendar_collection",
+      "source_id": "feishu_template_33_1",
+      "adaptation": "重新编写通用构图或连续性原则，保留用户主题优先级，不复制整份模板的模型身份及输出指令。"
+    }
+  ],
+  "template_decisions": [
+    "33-1 的多组 JSON 代码块、固定英文 tags 和负向提示词没有移植：导演台已有中文单图正向输出及下游端口约定。",
+    "37 的巨构规则只在用户选择对应题材时生效，不把禁止室内、默认英文等专用约束扩散到全部用途。"
+  ],
+  "collection_curator": "远古大呲花",
+  "author_note": "来源作者按 sources 逐项记录；收录分享不等同于所有素材的原创署名。",
+  "daily_adaptations": [
+    {
+      "target_catalog": "visual_methods",
+      "target_id": "cutaway_cross_section",
+      "target_field": "application",
+      "change": "conditional_rule_added",
+      "source_id": "dacihua_daily_20261018",
+      "source_paragraph_indices_zero_based": [
+        89
+      ],
+      "source_text_sha256": [
+        "6cf3da2e20c8e3ffc0df2b48bc7d2b0ef9e78a56cb53c9cb21580c7fe73bff72"
+      ],
+      "adaptation": "多层居住或功能舱题材应说明适合用途的出入口与层间通行方式，让功能区实际可达；隔断、设备和家具服从外壳容积与统一尺度，保留通行及观察内部结构所需的空间。"
+    },
+    {
+      "target_catalog": "visual_methods",
+      "target_id": "torn_paper_zine",
+      "target_field": "application",
+      "change": "conditional_rule_added",
+      "source_id": "dacihua_daily_20261018",
+      "source_paragraph_indices_zero_based": [
+        99
+      ],
+      "source_text_sha256": [
+        "a929083b789d9c24851b6837d172c917513a79f47d0b8153d08ceb9b60c2add9"
+      ],
+      "adaptation": "用户需要破纸出框效果时，让主体沿一个明确方向穿过局部纸面开口，以卷起的撕边、遮挡次序和纸面投影交代穿出关系；保持主体结构、关键动作和文字阅读区清楚。"
+    },
+    {
+      "target_catalog": "visual_methods",
+      "target_id": "miniature_model",
+      "target_field": "application",
+      "change": "conditional_rule_added",
+      "source_id": "dacihua_daily_20261019",
+      "source_paragraph_indices_zero_based": [
+        52,
+        62,
+        64
+      ],
+      "source_text_sha256": [
+        "b5d5c7ef4cf7f2f44f566d408561b663e059bd203542f608c9db2b6be538d163",
+        "8776d2a2ea15e042b7974bd61fefbed8a9d2cbdb9d21d69ab21b69bb6fa3eb32",
+        "f2cb971ffe348f48c002d4f27e038677b057aa0518f4f0e8e77468144637247e"
+      ],
+      "adaptation": "需要以日常物承载微缩世界时，保留它可辨认的外轮廓与材料，把开口、切面、折痕或内部成分转成与主题有关的入口、楼层、外墙或地形；让功能分区和活动路径适应物件结构，明确各部分在微缩场景中的用途。"
+    },
+    {
+      "target_catalog": "visual_methods",
+      "target_id": "symbolic_keyvisual",
+      "target_field": "application",
+      "change": "conditional_rule_added",
+      "source_id": "dacihua_daily_20261019",
+      "source_paragraph_indices_zero_based": [
+        81
+      ],
+      "source_text_sha256": [
+        "1d4e576d9f24588e1ce6981af73a948fdf398e283789345508de47f30a6bec6c"
+      ],
+      "adaptation": "采用功能隐喻时，保留器物可识别的结构和原本的作用方向，用与主题相关的材料替换其通常输出的内容，并交代输出起点、连续路径、聚散变化与承接落点，让观众从同一条作用关系读懂象征意义。"
+    },
+    {
+      "target_catalog": "visual_methods",
+      "target_id": "paper_cut_relief",
+      "target_field": "application",
+      "change": "conditional_rule_added",
+      "source_id": "dacihua_daily_20261020",
+      "source_paragraph_indices_zero_based": [
+        37
+      ],
+      "source_text_sha256": [
+        "2f812cb6c098f42ecee03f41df3c031f87e2fde36ba584e12b8317db0c8be32c"
+      ],
+      "adaptation": "题材涉及纸雕灯或背光纸艺时，明确光源位于纸层内部或后方，让镂空、透光纸面与较暗切边形成不同明暗；层距、遮挡和主要投影对应光源位置，外部补光保留纸边与纤维。"
+    },
+    {
+      "target_catalog": "visual_methods",
+      "target_id": "direct_expression",
+      "target_field": "application",
+      "change": "conditional_rule_added",
+      "source_id": "dacihua_daily_20261020",
+      "source_paragraph_indices_zero_based": [
+        19,
+        54,
+        71
+      ],
+      "source_text_sha256": [
+        "c84150592b52929d9e4bbdd601fdb5de9d125f85c66ca8e5812e2c40a175a1c2",
+        "21e7dde8b8b1f589b70ccf8e7f2de48161d4f386ffa6f69c8401859b2c0665a8",
+        "6c0a91dc8fe81e5a920af9bef3e9c7e97c06f20173d7587ffccf510bd23dff84"
+      ],
+      "adaptation": "场景本身存在合适前景时，可用枝叶、门窗或建筑开口形成自然框景，让前景边缘、中景主体与远景背景建立连续空间；框景引导视线，并保留用户要求看清的主体部位、标识或关键动作，不额外添加装饰边框。"
+    },
+    {
+      "target_catalog": "visual_methods",
+      "target_id": "environmental_narrative",
+      "target_field": "application",
+      "change": "conditional_rule_added",
+      "source_id": "dacihua_daily_20261020",
+      "source_paragraph_indices_zero_based": [
+        22
+      ],
+      "source_text_sha256": [
+        "290f3192af28cb77436ebeb60dbe4e56ac79880df7b327852dd29915d5756610"
+      ],
+      "adaptation": "遗迹或废弃场景以材料和环境共同留下的痕迹说明时间：流淌锈痕、剥落边缘、风蚀纹理与底部沉积应对应重力、受风面和接触位置；选择少量能解释经历的痕迹，保持不同材料和暴露位置的损耗差异。"
+    }
+  ],
+  "daily_index_basis": "Main-document XML paragraph index, zero-based; not an array offset, prompt count or page number",
+  "daily_text_hash_basis": "SHA-256 of the exact extracted paragraph text encoded as UTF-8; no normalization or added trailing newline",
+  "coverage_note": "本次指定的10月18、19、20日正文已核验并选择性归纳；未同步飞书完整历史，未逐张审核日更预览图。"
+}

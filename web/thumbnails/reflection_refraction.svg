@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360" role="img" aria-label="镜面反射与折射示意">
+<title>镜面反射与折射示意</title><defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#101c2b"/><stop offset="1" stop-color="#243d4f"/></linearGradient><linearGradient id="glass" x2="1" y2="1"><stop stop-color="#c2f2ef" stop-opacity=".7"/><stop offset="1" stop-color="#64a8ce" stop-opacity=".08"/></linearGradient></defs>
+<rect width="640" height="360" fill="url(#bg)"/>
+<path d="M0 234H640V360H0Z" fill="#102631"/><path d="M0 235H640" stroke="#78b5bd" stroke-opacity=".5"/>
+<rect x="302" y="48" width="216" height="187" rx="5" fill="#243e51" stroke="#b5d5df" stroke-width="3"/>
+<g fill="#b2ddd9" opacity=".6"><rect x="376" y="130" width="57" height="103" rx="9"/><rect x="389" y="110" width="31" height="24" rx="3"/></g>
+<path d="M199 143h66q9 0 9 11v81h-84v-81q0-11 9-11" fill="#e7aa76"/><rect x="208" y="118" width="48" height="26" rx="4" fill="#dbcdb5"/>
+<path d="M190 242h84v64q-44 20-84 0Z" fill="#e7aa76" opacity=".17"/>
+<path d="m468 168 80 132H390Z" fill="url(#glass)" stroke="#d0edf5" stroke-width="2"/>
+<path d="m332 197 91 33" stroke="#f8ecd0" stroke-width="3"/><path d="m423 230 47 3 110 27" fill="none" stroke="#f0b486" stroke-width="3"/><path d="m423 230 47 6 110 34" fill="none" stroke="#80d3d4" stroke-width="3"/>
+</svg>

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360" role="img" aria-label="错视与透视机关示意">
+<title>错视与透视机关示意</title><defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#101c2b"/><stop offset="1" stop-color="#243d4f"/></linearGradient><linearGradient id="glass" x2="1" y2="1"><stop stop-color="#c2f2ef" stop-opacity=".7"/><stop offset="1" stop-color="#64a8ce" stop-opacity=".08"/></linearGradient></defs>
+<rect width="640" height="360" fill="url(#bg)"/>
+<path d="M117 272 320 154 523 272 320 330Z" fill="#122532"/>
+<path d="m174 258 146-84 146 84v-34l-146-84-146 84Z" fill="#8cc5c5"/>
+<path d="m174 258 146 84v-34l-117-67V111l-29-17Z" fill="#558da1"/>
+<path d="M174 94 320 10 466 94v164l-29-17V111L320 44 203 111Z" transform="translate(0 25)" fill="#e6c297"/>
+<path d="m320 69 117 67-117 67-117-67Z" fill="#102232"/>
+<path d="m320 203 117-67v130l-117 68v-34l88-51v-62l-88 50Z" fill="#b7d7d0"/>
+<path d="m203 136 117 67v34l-117-67Z" fill="#c5936c"/>
+<path d="m320 334 29-17v-34l-29 17Z" fill="#e6c297"/>
+</svg>

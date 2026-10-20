@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360" role="img" aria-label="长曝光与运动轨迹示意">
+<title>长曝光与运动轨迹示意</title><defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#101c2b"/><stop offset="1" stop-color="#243d4f"/></linearGradient><linearGradient id="glass" x2="1" y2="1"><stop stop-color="#c2f2ef" stop-opacity=".7"/><stop offset="1" stop-color="#64a8ce" stop-opacity=".08"/></linearGradient></defs>
+<rect width="640" height="360" fill="url(#bg)"/>
+<path d="M0 230 70 190 120 214 180 146 234 193 296 164 368 210 425 170 510 212 574 157 640 201V360H0Z" fill="#172731"/>
+<path d="M80 360Q175 289 320 276T460 228Q469 206 419 191" fill="none" stroke="#060e17" stroke-width="65"/>
+<g fill="none" stroke-linecap="round"><path d="M63 360Q175 277 312 270T450 230Q461 213 420 196" stroke="#ffb45f" stroke-opacity=".16" stroke-width="18"/><path d="M63 360Q175 277 312 270T450 230Q461 213 420 196" stroke="#ffe0a3" stroke-width="4"/><path d="M98 360Q195 300 330 283T472 231Q480 205 430 189" stroke="#f77366" stroke-width="3"/></g>
+<g fill="#abc9db"><circle cx="80" cy="64" r="2"/><circle cx="160" cy="101" r="1.5"/><circle cx="300" cy="58" r="2"/><circle cx="513" cy="80" r="1.5"/><circle cx="559" cy="125" r="2"/></g>
+<path d="M112 240v-53m-9 0h18" stroke="#9fb5c4" stroke-width="3"/>
+</svg>
