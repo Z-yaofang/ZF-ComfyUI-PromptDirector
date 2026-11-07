@@ -38,6 +38,10 @@ The media desk defines which sources and portions to use; companion nodes adapt 
 
 Independent **portrait-prompt, Music3 prompt, text-selection, cache, filter and multi-route connection tools** are also available. Start with the [Node Guide](docs/NODE_GUIDE.md), [media desk](docs/ZF_MEDIA_EVIDENCE_DESK_V1.md), [H3 interview/direct prompt](docs/H3_INTERVIEW.md), [H3 segmentation](docs/LONG_VIDEO_GUIDE.md) or [Animate pairing](docs/ANIMATE_ONCE.md).
 
+### SAM3 numbered tracking video
+
+`ZVSAM3TrackVideo` turns official SAM3 tracking data and the matching source frames into a video with translucent object colors and readable object numbers. Connect its native `VIDEO` output to the standard **SaveVideo** node for a permanent MP4 result. Encoding runs one frame at a time on CPU and preserves SAM3 object indices. See the [setup and RunningHub acceptance notes](docs/SAM3_TRACKING_VIDEO.md) and [example workflow](examples/sam3_tracking_video_save.json). RunningHub deployment and result retrieval still require platform verification; the annotation video currently has no audio.
+
 ## Plugin Author / 插件作者
 
 - Author / 作者: **Z-C 小哩**

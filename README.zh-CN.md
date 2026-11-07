@@ -38,6 +38,10 @@
 
 另有独立的**人像提示词生成器、Music3 音乐提示词工具，以及文本选择、缓存、过滤和多路转接节点**，可按任务选用。[节点用途与当前入口](docs/NODE_GUIDE.md) · [素材台用法](docs/ZF_MEDIA_EVIDENCE_DESK_V1.md) · [H3 单段与提示词输入](docs/H3_INTERVIEW.md) · [H3 分段](docs/LONG_VIDEO_GUIDE.md) · [Animate 配对](docs/ANIMATE_ONCE.md)
 
+### SAM3 彩色编号跟踪视频
+
+新增 `ZVSAM3TrackVideo`（ZV SAM3 彩色编号跟踪视频）：将官方 SAM3 跟踪数据和同一段原片画面合成半透明多色遮罩、清晰编号的视频，接标准 **保存视频（SaveVideo）** 输出正式 MP4。逐帧在 CPU 上编码，编号对应原来的 SAM3 对象索引。参见[接线与 RH 验收说明](docs/SAM3_TRACKING_VIDEO.md)和[示例工作流](examples/sam3_tracking_video_save.json)。RH 更新插件后的运行与结果下载仍需平台实测；本轮标注视频不带音轨。
+
 ## 插件作者 / Plugin Author
 
 - 作者 / Author：**Z-C 小哩**

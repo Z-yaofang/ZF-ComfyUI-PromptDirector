@@ -102,5 +102,41 @@
         "name": "状态"
       }
     }
+  },
+  "ZVSAM3TrackVideo": {
+    "display_name": "ZV SAM3 彩色编号跟踪视频",
+    "description": "将官方 SAM3 跟踪数据叠到同一批原片，保持对象编号；视频输出接标准保存视频节点。",
+    "inputs": {
+      "track_data": {
+        "name": "跟踪数据",
+        "tooltip": "连接官方 SAM3 视频跟踪节点的 track_data。"
+      },
+      "images": {
+        "name": "原片图像",
+        "tooltip": "连接与跟踪数据对应的同一批视频帧。"
+      },
+      "fps": {
+        "name": "帧率",
+        "tooltip": "连接原片帧率，保持播放速度。"
+      },
+      "opacity": {
+        "name": "遮罩不透明度"
+      },
+      "label_scale": {
+        "name": "编号字号",
+        "tooltip": "0 为自动；6 约为 30 像素高。"
+      },
+      "show_scores": {
+        "name": "显示置信度"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "编号跟踪视频"
+      },
+      "1": {
+        "name": "生成说明"
+      }
+    }
   }
 }

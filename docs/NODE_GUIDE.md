@@ -69,6 +69,8 @@
 
 ## 仍有用的独立辅助节点
 
+**ZV SAM3 彩色编号跟踪视频**（`ZVSAM3TrackVideo`）接官方 `SAM3_VideoTrack.track_data` 和同一段原片的 `IMAGE`，输出原生 `VIDEO` 接标准 `SaveVideo`。保存的是叠有半透明多色遮罩与对象编号的原片画面；编号沿用 `SAM3_TrackToMask` 的对象索引。详见[专用接法、示例与 RH 验收](SAM3_TRACKING_VIDEO.md)。
+
 | 节点 | 用途 |
 | --- | --- |
 | `ZFImageReferenceAnalyzer`、`ZFReferenceAnalysisPromptBuilder`、`ZFReferenceCreativeAdapter` | 图像创意参考：观察或构造分析任务，再把分析接入图像导演；不是 H3 的旧表格 |

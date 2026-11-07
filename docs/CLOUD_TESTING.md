@@ -67,3 +67,11 @@ node tests/frontend_cloud_load_smoke.mjs <playwright-package> <chromium-executab
 ```
 
 这些测试是本地发布模拟，不访问云端、不运行模型，不能代替平台更新后的实际验收。发布前还应覆盖带接口前缀、资源目录重映射的场景；检查目录、样式和缩略图的真实响应，不能仅以 JavaScript 成功注册为通过标准。
+
+## SAM3 彩色编号视频导出（平台待验收）
+
+`ZVSAM3TrackVideo` 接官方 `SAM3_TRACK_DATA` 和同一批原片 `IMAGE`，逐帧、逐对象在 CPU 上绘制半透明颜色及稳定槽位编号，编码为原生 `VIDEO`；最终必须接核心 `SaveVideo` 保存到 `output`，应用结果选择该保存节点。只返回临时预览不能证明 RH 应用外能取到视频。
+
+运行时使用目标环境既有的 NumPy、PyTorch、PyAV 的 `libx264` 编码器及 `InputImpl.VideoFromFile`；不新增模型或 VHS 依赖，这些重依赖不在模块注册时导入。视频采用 H.264/yuv420p，奇数画幅只向右/下复制边缘补 1 像素，不裁掉原画面；本轮视频没有音轨。临时编码文件供下游继续读取，不能在返回 VIDEO 时立即删除。
+
+本地已验证合成跟踪数据的真实编码、原生 VIDEO、标准 SaveVideo 正式保存，以及实际前端导出的动态格式字段在核心执行前的组装。相关回归见 `tests/test_sam3_tracking.py`，接法与应用输入草稿见 [SAM3_TRACKING_VIDEO.md](SAM3_TRACKING_VIDEO.md)。这些不等于 RH 新节点已部署或应用/API 下载通过；平台更新后仍需按文档实际下载、解码成片验收。
