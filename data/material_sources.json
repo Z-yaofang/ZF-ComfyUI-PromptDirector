@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "checked_on": "2026-10-20",
+  "checked_on": "2026-11-08",
   "scope": "image_director_catalogs",
   "coverage": "incremental_curated_update_not_full_feishu_sync",
   "catalog_counts": {
@@ -106,6 +106,34 @@
       "media_file_count": 93,
       "zip_crc_verified": true,
       "coverage_note": "已提取主文档全部文字（含表格），筛选并细读与现有目录有关的候选；图片未逐张视觉审核。段落和媒体数不是导入提示词条数。"
+    },
+    {
+      "id": "dacihua_daily_20261108",
+      "title": "（已压缩）26-11-08整理提示词+预览图.docx",
+      "url": "https://pan.quark.cn/s/8984a1c19259",
+      "document_label_date": "2026-11-08",
+      "checked_on": "2026-11-08",
+      "file_sha256": "c9bd2aee5940c16425b3a66e55f8e7deb10209ff79c458fc791ce5f054d8a896",
+      "file_bytes": 38795158,
+      "status": "downloaded_crc_verified_text_reviewed_selected_rules_adapted",
+      "author": "远古大呲花收录整理；所选段落未见独立原作署名，不推定全部为收录者原创",
+      "retained_xml_paragraphs": 283,
+      "nonempty_text_paragraphs": 180,
+      "text_characters_unicode_codepoints": 81237,
+      "media_file_count": 112,
+      "zip_crc_verified": true,
+      "evidence_filename": "（已压缩）26-11-08整理提示词+预览图.paragraphs.json",
+      "coverage_note": "读取主文档全部文字（含表格），与既有目录去重后选择性改写；未逐张审核预览图。段落和媒体数不是导入提示词条数。"
+    },
+    {
+      "id": "dacihua_feishu_20261108",
+      "url": "https://my.feishu.cn/wiki/JGBow5GfviRbfQkrWUBcs0cin8c",
+      "status": "current_main_index_verified_selected_daily_texts_reviewed",
+      "checked_on": "2026-11-08",
+      "observed_daily_label": "1108已更新",
+      "observed_total_label": "累计更新17472P",
+      "count_note": "来源作者的累计标注，不是插件导入条数，也不代表逐条去重核验。",
+      "template_index_note": "最高38号模板与10月20日已存索引相同，未重读全部模板正文，不能断言内部无变化；侧栏提示词区子页停于7月10日。"
     }
   ],
   "entries": [
@@ -301,9 +329,65 @@
         "290f3192af28cb77436ebeb60dbe4e56ac79880df7b327852dd29915d5756610"
       ],
       "adaptation": "遗迹或废弃场景以材料和环境共同留下的痕迹说明时间：流淌锈痕、剥落边缘、风蚀纹理与底部沉积应对应重力、受风面和接触位置；选择少量能解释经历的痕迹，保持不同材料和暴露位置的损耗差异。"
+    },
+    {
+      "target_catalog": "visual_methods",
+      "target_id": "material_led",
+      "target_field": "application",
+      "change": "conditional_rule_added",
+      "source_id": "dacihua_daily_20261108",
+      "source_paragraph_indices_zero_based": [
+        63
+      ],
+      "source_text_sha256": [
+        "085f92dd784a1ab1507b19349fff4f860f11dd49941efa82b76310832f548bcf"
+      ],
+      "adaptation": "题材要求整体积木或模块搭建时，遵守同一套构件尺度与拼接规则，以可见接缝体现构造，让建筑、道具和环境中指定的搭建部分由同一套单元构成；地标通过轮廓与比例保持可辨，不只给真实景物覆盖颗粒纹理。",
+      "adaptation_note": "由来源实例重新归纳为条件规则；构造、主次和人数稳定约束含插件补充，不是原文逐字引用。"
+    },
+    {
+      "target_catalog": "visual_methods",
+      "target_id": "material_led",
+      "target_field": "application",
+      "change": "conditional_rule_added",
+      "source_id": "dacihua_daily_20261108",
+      "source_paragraph_indices_zero_based": [
+        66,
+        75
+      ],
+      "source_text_sha256": [
+        "3c04908ad3ab02484cff908b6a874eeb00cc0cbe7e72ead1144a79d0590503b9",
+        "9b1364ac4a7fbbfbf0772e9cd4945b701c900639c5905ab46c503ba89f4e4636"
+      ],
+      "adaptation": "题材要求厚涂与箔片结合时，用堆叠笔触的厚度、起伏和局部投影表现主形，让箔片或亮片在选定边缘及局部纹理上产生闪光，与哑光底层区分；保留两种材料的边界，避免整面统一金属化。",
+      "adaptation_note": "由来源实例重新归纳为条件规则；构造、主次和人数稳定约束含插件补充，不是原文逐字引用。"
+    },
+    {
+      "target_catalog": "visual_methods",
+      "target_id": "relationship_field",
+      "target_field": "application",
+      "change": "conditional_rule_added",
+      "source_id": "dacihua_daily_20261108",
+      "source_paragraph_indices_zero_based": [
+        197
+      ],
+      "source_text_sha256": [
+        "d929917832e706873a3b56d080cc7597919f01a7ebf71212e8198ca35592a36d"
+      ],
+      "adaptation": "双人情绪特写可从其中一人的肩背后观察另一人，以近处肩背形成有限遮挡，让对方眼神、表情与双方距离承担关系信息；保留交流对象和视线方向，前景不遮住主要表情，也不补成第三个人。",
+      "adaptation_note": "由来源实例重新归纳为条件规则；构造、主次和人数稳定约束含插件补充，不是原文逐字引用。"
     }
   ],
   "daily_index_basis": "Main-document XML paragraph index, zero-based; not an array offset, prompt count or page number",
   "daily_text_hash_basis": "SHA-256 of the exact extracted paragraph text encoded as UTF-8; no normalization or added trailing newline",
-  "coverage_note": "本次指定的10月18、19、20日正文已核验并选择性归纳；未同步飞书完整历史，未逐张审核日更预览图。"
+  "coverage_note": "保留10月18—20日既有整理；本轮核验 2026-11-08 日更正文并选择性归纳。未覆盖10月21日至本轮所读日期之间的完整历史，未全量同步，未逐张审核预览图。",
+  "latest_curated_update": {
+    "checked_on": "2026-11-08",
+    "document_label_dates": [
+      "2026-11-08"
+    ],
+    "rules_added": 3,
+    "independent_methods_added": 0,
+    "existing_ids_order_recommendations_preserved": true
+  }
 }

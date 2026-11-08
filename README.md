@@ -59,7 +59,7 @@ The visual material catalogs used, organized, and expanded by the image-director
 
 > Scope: this attribution applies only to the image director's visual material catalogs, not to users' original worldviews or the node and workflow design of the general media desk, H3, Animate or Music3. It does not imply that the source author developed those modules.
 
-Material update (2026-10-20): 32 purposes and 41 visual methods, adding motion trails, reflection/refraction and optical illusions. Selected principles from the verified October 18–20 daily documents also strengthen seven existing methods. [Source and coverage notes](docs/MATERIAL_UPDATES.md).
+Material update (2026-11-08): 32 purposes and 41 visual methods. Selected principles from one verified recent daily document add 3 conditional rules to existing methods; IDs and recommendations remain unchanged. This is a curated increment, not a complete historical sync. [Source and coverage notes](docs/MATERIAL_UPDATES.md).
 
 ## Before you start
 
